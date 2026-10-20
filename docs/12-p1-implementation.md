@@ -239,6 +239,10 @@ ANDROID_HOME="$PWD/.android-sdk" GRADLE_USER_HOME="$PWD/.gradle-home" \
 
 > 30fps 上限取决于设备相机 HAL/编码器/散热；App 侧不再为了帧率牺牲画质，由用户按需在 720p/1080p 之间选择。
 
+**低帧率提示增强**：`编码帧率过低（<5 fps）` 的提示现在会带上实际编码器信息，
+例如 `（编码器 c2.android.avc.encoder/软编，in=30fps out=2fps 1920x1080）`，便于直接判断是
+“相机进帧不足”还是“落到软件编码器”。播放器追帧阈值从 1.2s 降到 0.6s，降低观看端延迟。
+
 ### 5.6 推流时释放 Preview：1080p 30fps 的关键修复
 
 **对比 UU 远程等成熟产品后定位**：CameraX 同时跑 `Preview + ImageAnalysis` 时，部分机型/ROM 会把分析流压到 **~15fps**（正是用户看到的 14fps）。成熟串流产品不会在推流时保留独立的预览管线。

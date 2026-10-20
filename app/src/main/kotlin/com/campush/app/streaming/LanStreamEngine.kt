@@ -353,7 +353,15 @@ class LanStreamEngine(
                 if (lowFpsStreak >= 5 && !lowFpsWarned && phase == EnginePhase.STREAMING && cameraAvailable) {
                     lowFpsWarned = true
                     Log.w(TAG, "low fps detected: fps=${status.fps} bitrate=${status.bitrateBps}")
-                    StreamingBridge.emitWarning("编码帧率过低（<5 fps）：正在尝试自动调整分辨率；若仍卡顿请切换 720p 或检查相机占用")
+                    val diag = videoEncoder?.diagnostics()
+                    val codecInfo = diag?.let {
+                        "（编码器 ${it.codecName.let { n -> if (it.hardware) "$n/硬编" else "$n/软编" }}，" +
+                            "in=${it.inFps}fps out=${it.outFps}fps ${it.width}x${it.height}）"
+                    }.orEmpty()
+                    StreamingBridge.emitWarning(
+                        "编码帧率过低（<5 fps）：正在尝试自动调整分辨率$codecInfo；" +
+                            "若仍卡顿请切换 720p 或检查相机占用"
+                    )
                 }
                 StreamingBridge.update { snapshot ->
                     snapshot.copy(

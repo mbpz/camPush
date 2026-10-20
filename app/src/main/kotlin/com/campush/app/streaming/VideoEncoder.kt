@@ -32,6 +32,7 @@ class VideoEncoder(
     private var inputColorFormat: Int = MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible
     private var byteBufferInput: Boolean = false
     private var encoderName: String = ""
+    @Volatile private var encoderHardware: Boolean = false
     private var yuvScratch: ByteArray = ByteArray(0)
 
     private var sps: ByteArray? = null
@@ -57,6 +58,8 @@ class VideoEncoder(
     private var lastDiagAtMs: Long = 0L
     private var lastDiagInput: Long = 0L
     private var lastDiagOutput: Long = 0L
+    @Volatile private var diagInFps: Int = 0
+    @Volatile private var diagOutFps: Int = 0
     private var lastLatencyResetMs: Long = 0L
     private var closed: Boolean = false
 
@@ -305,6 +308,8 @@ class VideoEncoder(
         lastDiagAtMs = now
         lastDiagInput = inputFrames
         lastDiagOutput = outputFrames
+        diagInFps = inFps
+        diagOutFps = outFps
         Log.i(
             TAG,
             "diag: inFps=$inFps outFps=$outFps drops=$droppedInWindow restarts=$restartCount " +
@@ -450,6 +455,28 @@ class VideoEncoder(
             .onFailure { Log.w(TAG, "setParameters(bitrate) failed", it) }
     }
 
+    data class Diagnostics(
+        val codecName: String,
+        val hardware: Boolean,
+        val colorFormat: Int,
+        val width: Int,
+        val height: Int,
+        val inFps: Int,
+        val outFps: Int,
+        val avgEncodeMs: Double,
+    )
+
+    fun diagnostics(): Diagnostics = Diagnostics(
+        codecName = encoderName,
+        hardware = encoderHardware,
+        colorFormat = inputColorFormat,
+        width = width,
+        height = height,
+        inFps = diagInFps,
+        outFps = diagOutFps,
+        avgEncodeMs = averageEncodeMs,
+    )
+
     private fun avcLevelFor(w: Int, h: Int): Int = when {
         w * h >= 1920 * 1080 -> MediaCodecInfo.CodecProfileLevel.AVCLevel4
         w * h >= 1280 * 720 -> MediaCodecInfo.CodecProfileLevel.AVCLevel31
@@ -466,6 +493,7 @@ class VideoEncoder(
                 choice?.let { MediaCodec.createByCodecName(it.name) }
             }.getOrNull() ?: MediaCodec.createEncoderByType(MIME_VIDEO)
             encoderName = candidate!!.name
+            encoderHardware = choice?.hardware ?: false
             val cbrSupported = runCatching {
                 candidate!!.codecInfo.getCapabilitiesForType(MIME_VIDEO).encoderCapabilities
                     .isBitrateModeSupported(MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR)
