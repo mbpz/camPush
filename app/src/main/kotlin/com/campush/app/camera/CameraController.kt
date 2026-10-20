@@ -12,6 +12,9 @@ import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.core.UseCase
+import androidx.camera.core.resolutionselector.AspectRatioStrategy
+import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
@@ -206,8 +209,19 @@ class CameraController internal constructor(context: Context) {
 
                 var analysis: ImageAnalysis? = null
                 if (includeAnalysis && onFrame != null) {
+                    // 16:9 优先 + 目标分辨率：避免 target 1920x1080 时回落到 1920x1440(4:3)，
+                    // 导致码率/像素数增加、UI 标称分辨率与实际不符。
+                    val resolutionSelector = ResolutionSelector.Builder()
+                        .setAspectRatioStrategy(AspectRatioStrategy.RATIO_16_9_FALLBACK_AUTO_STRATEGY)
+                        .setResolutionStrategy(
+                            ResolutionStrategy(
+                                Size(even(targetWidth), even(targetHeight)),
+                                ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER,
+                            )
+                        )
+                        .build()
                     analysis = ImageAnalysis.Builder()
-                        .setTargetResolution(Size(even(targetWidth), even(targetHeight)))
+                        .setResolutionSelector(resolutionSelector)
                         .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                         .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_YUV_420_888)
                         .build()

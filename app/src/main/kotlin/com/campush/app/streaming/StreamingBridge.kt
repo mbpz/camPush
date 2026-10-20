@@ -17,6 +17,8 @@ data class EngineSnapshot(
     val playUrl: String? = null,
     val lanIp: String? = null,
     val port: Int = 8089,
+    val actualWidth: Int = 0,
+    val actualHeight: Int = 0,
     val viewers: Int = 0,
     val maxViewers: Int = 3,
     val bitrateKbps: Int = 0,

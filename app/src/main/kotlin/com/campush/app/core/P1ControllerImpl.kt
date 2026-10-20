@@ -302,6 +302,8 @@ class P1ControllerImpl(context: Context) : P1Controller {
                     playUrl = null,
                     lanIp = snapshot.lanIp ?: current.lanIp,
                     port = snapshot.port,
+                    actualWidth = snapshot.actualWidth.takeIf { it > 0 } ?: current.actualWidth,
+                    actualHeight = snapshot.actualHeight.takeIf { it > 0 } ?: current.actualHeight,
                     networkLabel = snapshot.networkLabel,
                 )
                 EnginePhase.STREAMING -> current.copy(
@@ -310,6 +312,8 @@ class P1ControllerImpl(context: Context) : P1Controller {
                     playUrl = snapshot.playUrl ?: current.playUrl,
                     lanIp = snapshot.lanIp ?: current.lanIp,
                     port = snapshot.port,
+                    actualWidth = snapshot.actualWidth.takeIf { it > 0 } ?: current.actualWidth,
+                    actualHeight = snapshot.actualHeight.takeIf { it > 0 } ?: current.actualHeight,
                     viewers = snapshot.viewers,
                     maxViewers = snapshot.maxViewers,
                     bitrateKbps = snapshot.bitrateKbps,

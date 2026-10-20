@@ -88,6 +88,59 @@ internal object YuvUtils {
         }
     }
 
+
+    /**
+     * YUV_420_888 -> 缩放到 dstWidth×dstHeight 的 NV21（最近邻采样）。
+     * MJPEG 只作降级通道，1080p 全尺寸 JPEG 在 CPU 上过重，缩到 ≤960 宽可把压缩耗时降一个数量级。
+     */
+    fun imageToNv21Scaled(src: Image, dstWidth: Int, dstHeight: Int): ByteArray {
+        val w = dstWidth and 1.inv()
+        val h = dstHeight and 1.inv()
+        if (w <= 0 || h <= 0) return ByteArray(0)
+        val sw = src.width
+        val sh = src.height
+        if (sw <= 0 || sh <= 0) return ByteArray(0)
+        val ySize = w * h
+        val cw = w / 2
+        val ch = h / 2
+        val out = ByteArray(ySize + cw * ch * 2)
+        val planes = src.planes
+        val yP = planes[0]
+        val uP = planes[1]
+        val vP = planes[2]
+        val yBuf = yP.buffer
+        val uBuf = uP.buffer
+        val vBuf = vP.buffer
+        val yStride = yP.rowStride
+        val yPixel = yP.pixelStride
+        val uStride = uP.rowStride
+        val uPixel = uP.pixelStride
+        val vStride = vP.rowStride
+        val vPixel = vP.pixelStride
+        var dst = 0
+        for (row in 0 until h) {
+            val srcRow = row * sh / h
+            val base = srcRow * yStride
+            for (col in 0 until w) {
+                val srcCol = col * sw / w
+                out[dst++] = yBuf.get(base + srcCol * yPixel)
+            }
+        }
+        val chromaOffset = ySize
+        var cPos = chromaOffset
+        for (row in 0 until ch) {
+            val srcRow = row * (sh / 2) / ch
+            val uBase = srcRow * uStride
+            val vBase = srcRow * vStride
+            for (col in 0 until cw) {
+                val srcCol = col * (sw / 2) / cw
+                out[cPos++] = vBuf.get(vBase + srcCol * vPixel)
+                out[cPos++] = uBuf.get(uBase + srcCol * uPixel)
+            }
+        }
+        return out
+    }
+
     /** YuvImage 只接受 NV21/NV21 类格式的偶数尺寸。 */
     fun nv21Format(width: Int, height: Int): Pair<Int, Int> =
         if (width > 0 && height > 0) (width and 1.inv()) to (height and 1.inv()) else 0 to 0

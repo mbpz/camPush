@@ -163,7 +163,32 @@ ANDROID_HOME="$PWD/.android-sdk" GRADLE_USER_HOME="$PWD/.gradle-home" \
 | 复制/分享 | 复制后提示「播放地址已复制」；分享面板标题「Sharing text」并携带唯一地址 |
 | 停止失效 | 服务数 0、服务端 LISTEN 0、`/healthz` 连接失败；UI 回到「未推流」 |
 
-### 5.3 真实浏览器播放（宿主 Chrome headless）
+### 5.3 1080p 性能回归（用户反馈：1080p 下码率 93 kbps / 1 fps / 延迟 7 s）
+
+**定位到的根因与修复**
+
+| 问题 | 根因 | 修复 |
+|---|---|---|
+| 1080p 下编码异常/帧率骤降 | 编码器固定声明 AVC Level 3.1（只覆盖到 720p30），1080p 时部分编码器降速/拒绝 | 按分辨率选择 Level：1080p→4.0、720p→3.1，并记录到日志 |
+| “1080p”实际是 1920×1440 | 仅用 `setTargetResolution(1920,1080)`，相机无精确尺寸时回落到 4:3 最大尺寸 | 改用 `ResolutionSelector`：16:9 优先 + 最近目标尺寸；视频编码始终使用相机实际输出尺寸 |
+| 码率被压到很低 | ABR 把“编码耗时高”等同于拥塞，持续降到 800 kbps 地板 | ABR 只依据真实丢帧（>15%）降档，地板提升为 max(800 kbps, 目标/2)；优先 CBR（设备支持时） |
+| MJPEG 拖慢主线程 | 1080p 每 2 帧做全尺寸 NV21 转换 + JPEG 压缩 | MJPEG 缩到 ≤960 宽、每 3 帧一次，仅作降级通道 |
+| 延迟累积 | 慢编码设备上编码队列越积越长；播放器追帧阈值 2.5 s | 编码器输出落后采集 >2.5 s 时 flush 重建流水线（3 s 冷却）；播放端追帧阈值 2.5 s→1.2 s |
+| 码率数值误解 | VBR 下静态画面实际码率远低于目标值 | 日志与 UI 区分「目标码率/实际码率」，并新增「实际编码分辨率」显示 |
+
+**修复后实测（模拟器，1080p 设定）**
+
+| 场景 | 实际编码 | fps | 实际码率 | 说明 |
+|---|---|---|---|---|
+| 前摄（模拟器 1920×1080） | 1920×1080 · Level 4.0 | 27–30 | ≈1.1 Mbps | 静态测试画面，VBR 实际值低属正常；编码时间戳与服务器 uptime 对齐，无累积延迟 |
+| 后摄（模拟器仅支持 1280×720） | 1280×720（UI 显示「设定 1080p」） | 22–27 | ≈3.5 Mbps | 复杂虚拟场景；证明 UI 不再虚标分辨率 |
+
+- 播放端：`FLV→MSE` `readyState=4`，缓冲约 0.2–2.4 s，`currentTime` 与墙钟 1:1 前进，无 7 s 级累积延迟；
+- 日志：`VideoEncoder: encoder started: 1920x1080 ... level=2048 ... mode=VBR`（模拟器软编码不支持 CBR；真机硬编码通常支持 CBR，实际码率更接近目标值）。
+
+> 说明：用户报告的 93 kbps/1 fps 未在同一模拟器上复现（模拟器修复前为 ≈900 kbps/29 fps）；上述 Level、分辨率、ABR、JPEG 四项是 1080p 下最可能的真实设备诱因，需在真机复测确认。
+
+### 5.4 真实浏览器播放（宿主 Chrome headless）
 
 - 打开唯一地址 → **FLV→MSE 成功**：`video.readyState=4`、`currentTime≈0.8s`、`buffered≈2.1s`、`videoWidth=1920`；
 - 无控制台错误；HUD 显示「直播中 / 0/3 人观看 / 871 kbps · 20 fps」；
@@ -176,6 +201,7 @@ ANDROID_HOME="$PWD/.android-sdk" GRADLE_USER_HOME="$PWD/.gradle-home" \
 - [浏览器 FLV→MSE 实播画面](./assets/p1-player-flv.png)
 - [二维码分享弹窗](./assets/p1-qr.png)
 - [省电模式（480p · 24fps · ≤1 Mbps）](./assets/p1-powersave.png)
+- [1080p 设定下的实际编码分辨率提示](./assets/p1-1080p-main.png)
 
 ---
 
@@ -198,6 +224,7 @@ ANDROID_HOME="$PWD/.android-sdk" GRADLE_USER_HOME="$PWD/.gradle-home" \
 3. **AAC 轨仅结构级验证**：MSE 能解析 AAC init，但未用真实麦克风音频做主观听测（模拟器无真实麦克风输入）。
 4. **播放页兼容边界**：iOS Safari 无 MSE → 直接 MJPEG（无音频）；微信 X5 / Firefox 未真机验证。
 5. **WebView 预览黑屏截图**：硬件视频层不参与 screencap，功能正常（DevTools 已证）。
+6. **实际码率随画面复杂度变化**：VBR 编码下静态画面码率显著低于目标值；设备支持 CBR 时更接近设定值。UI 已展示实际编码分辨率，避免“设定 1080p、实际 720p”的误解。
 6. **LAN 无 HTTPS**：明文 HTTP 为 P1 风险接受项（[07](./07-security-privacy.md)），UI 已明示。
 7. **无 instrumentation/UI 自动化测试**：当前以 JVM E2E + 模拟器手工脚本覆盖；P2 建议补 Compose UI 测试与真机自动化。
 

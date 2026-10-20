@@ -41,6 +41,8 @@ class VideoEncoder(
     private var lastAdjustMs: Long = 0L
     private var averageEncodeMs: Double = 0.0
     private var lastFedAtUs: Long = 0L
+    private var lastOutputPtsUs: Long = 0L
+    private var lastLatencyResetMs: Long = 0L
     private var closed: Boolean = false
 
     private val bufferInfo = MediaCodec.BufferInfo()
@@ -60,6 +62,7 @@ class VideoEncoder(
             return
         }
         val current = codec ?: return
+        if (handleLatency(current, ptsUs)) return
         if (!shouldFeed(ptsUs)) return
         feedFrame(current, image, ptsUs)
     }
@@ -87,6 +90,34 @@ class VideoEncoder(
         if (closed) return
         closed = true
         releaseCodec()
+    }
+
+    /**
+     * 延迟保护：编码器输出落后采集超过 2.5 s 时 flush 重建流水线（3 s 冷却），
+     * 避免慢编码设备上队列越积越长导致端到端延迟持续增大。
+     */
+    private fun handleLatency(codec: MediaCodec, ptsUs: Long): Boolean {
+        val last = lastOutputPtsUs
+        if (last <= 0L) return false
+        val lag = ptsUs - last
+        if (lag <= MAX_PIPELINE_LAG_US) return false
+        val now = System.currentTimeMillis()
+        if (now - lastLatencyResetMs < LATENCY_RESET_COOLDOWN_MS) {
+            droppedInWindow++
+            return true
+        }
+        lastLatencyResetMs = now
+        Log.w(TAG, "encoder lag ${lag / 1000} ms, flush pipeline")
+        runCatching {
+            codec.flush()
+            codec.start()
+        }.onFailure { Log.w(TAG, "flush encoder failed", it) }
+        lastOutputPtsUs = 0L
+        lastFedAtUs = 0L
+        pendingKeyFrame = true
+        requestKeyFrame()
+        droppedInWindow++
+        return true
     }
 
     private fun feedFrame(codec: MediaCodec, image: Image, ptsUs: Long) {
@@ -177,6 +208,7 @@ class VideoEncoder(
             }
         }
         if (!containsVcl) return
+        lastOutputPtsUs = info.presentationTimeUs
         runCatching {
             publisher.publishH264(
                 H264AccessUnit(
@@ -219,16 +251,17 @@ class VideoEncoder(
 
         val total = framesInWindow + droppedInWindow
         val dropRatio = if (total > 0) droppedInWindow.toDouble() / total else 0.0
-        val frameBudgetMs = 1000.0 / settings.fps.coerceAtLeast(10)
-        val tooSlow = averageEncodeMs > frameBudgetMs * 0.9
-        val congested = dropRatio > 0.1 || tooSlow
+        // 仅按“实际丢帧”判定拥塞：编码耗时高只影响帧率，不应把用户设定的码率打到地板。
+        // 局域网内带宽充足，码率优先保证画质；最低不低于配置值的一半（且 ≥800 kbps）。
+        val floor = maxOf(MIN_BITRATE, baseBitrate / 2)
+        val congested = dropRatio > 0.15
 
         windowStartMs = now
         framesInWindow = 0
         droppedInWindow = 0
 
         if (congested && now - lastAdjustMs > DOWN_COOLDOWN_MS) {
-            val next = (targetBitrate * 0.8).toInt().coerceAtLeast(MIN_BITRATE)
+            val next = (targetBitrate * 0.8).toInt().coerceAtLeast(floor)
             if (next != targetBitrate) {
                 targetBitrate = next
                 lastAdjustMs = now
@@ -254,14 +287,23 @@ class VideoEncoder(
             .onFailure { Log.w(TAG, "setParameters(bitrate) failed", it) }
     }
 
+    private fun avcLevelFor(w: Int, h: Int): Int = when {
+        w * h >= 1920 * 1080 -> MediaCodecInfo.CodecProfileLevel.AVCLevel4
+        w * h >= 1280 * 720 -> MediaCodecInfo.CodecProfileLevel.AVCLevel31
+        else -> MediaCodecInfo.CodecProfileLevel.AVCLevel3
+    }
+
     private fun restartCodec(frameWidth: Int, frameHeight: Int) {
         releaseCodec()
         try {
-            var candidate: MediaCodec? = null
+            var candidate: MediaCodec? = MediaCodec.createEncoderByType(MIME_VIDEO)
+            val cbrSupported = runCatching {
+                candidate!!.codecInfo.getCapabilitiesForType(MIME_VIDEO).encoderCapabilities
+                    .isBitrateModeSupported(MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR)
+            }.getOrDefault(false)
             try {
-                candidate = MediaCodec.createEncoderByType(MIME_VIDEO)
-                candidate.configure(
-                    buildFormat(frameWidth, frameHeight, includeProfile = true),
+                candidate!!.configure(
+                    buildFormat(frameWidth, frameHeight, includeProfile = true, cbr = cbrSupported),
                     null,
                     null,
                     MediaCodec.CONFIGURE_FLAG_ENCODE,
@@ -270,8 +312,8 @@ class VideoEncoder(
                 Log.w(TAG, "configure baseline failed, retry without profile", t)
                 runCatching { candidate?.release() }
                 candidate = MediaCodec.createEncoderByType(MIME_VIDEO)
-                candidate.configure(
-                    buildFormat(frameWidth, frameHeight, includeProfile = false),
+                candidate!!.configure(
+                    buildFormat(frameWidth, frameHeight, includeProfile = false, cbr = cbrSupported),
                     null,
                     null,
                     MediaCodec.CONFIGURE_FLAG_ENCODE,
@@ -279,6 +321,12 @@ class VideoEncoder(
             }
             val encoder = candidate ?: error("MediaCodec unavailable")
             encoder.start()
+            Log.i(
+                TAG,
+                "encoder started: ${frameWidth}x$frameHeight ${encoder.name} " +
+                    "level=${avcLevelFor(frameWidth, frameHeight)} fps=${settings.fps} " +
+                    "bitrate=$targetBitrate mode=${if (cbrSupported) "CBR" else "VBR"}",
+            )
             codec = encoder
             width = frameWidth
             height = frameHeight
@@ -301,7 +349,7 @@ class VideoEncoder(
         }
     }
 
-    private fun buildFormat(width: Int, height: Int, includeProfile: Boolean): MediaFormat {
+    private fun buildFormat(width: Int, height: Int, includeProfile: Boolean, cbr: Boolean): MediaFormat {
         return MediaFormat.createVideoFormat(MIME_VIDEO, width, height).apply {
             setInteger(
                 MediaFormat.KEY_COLOR_FORMAT,
@@ -310,16 +358,18 @@ class VideoEncoder(
             setInteger(MediaFormat.KEY_BIT_RATE, targetBitrate)
             setInteger(MediaFormat.KEY_FRAME_RATE, settings.fps.coerceIn(15, 60))
             setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, KEY_FRAME_INTERVAL_SECONDS)
-            runCatching {
-                setInteger(
-                    MediaFormat.KEY_BITRATE_MODE,
-                    MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_VBR,
-                )
-            }
+            // 1080p30 需要 AVC Level 4.0；Level 3.1 仅覆盖到 720p30，错配会导致部分编码器降速/异常。
+            setInteger(MediaFormat.KEY_LEVEL, avcLevelFor(width, height))
+            runCatching { setInteger(MediaFormat.KEY_OPERATING_RATE, settings.fps.coerceIn(15, 60)) }
+            runCatching { setInteger(MediaFormat.KEY_PRIORITY, 0) }
+            setInteger(
+                MediaFormat.KEY_BITRATE_MODE,
+                if (cbr) MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR
+                else MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_VBR,
+            )
             if (includeProfile) {
                 runCatching {
                     setInteger(MediaFormat.KEY_PROFILE, MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline)
-                    setInteger(MediaFormat.KEY_LEVEL, MediaCodecInfo.CodecProfileLevel.AVCLevel31)
                 }
             }
         }
@@ -337,6 +387,8 @@ class VideoEncoder(
         const val MIME_VIDEO = "video/avc"
         const val KEY_FRAME_INTERVAL_SECONDS = 2
         const val MIN_BITRATE = 800_000
+        const val MAX_PIPELINE_LAG_US = 2_500_000L
+        const val LATENCY_RESET_COOLDOWN_MS = 3_000L
         const val MAX_BITRATE = 4_000_000
         const val ABR_WINDOW_MS = 1_000L
         const val DOWN_COOLDOWN_MS = 5_000L

@@ -25,10 +25,14 @@ class JpegEncoder(
         try {
             val (width, height) = YuvUtils.nv21Format(image.width, image.height)
             if (width <= 0 || height <= 0) return
-            val nv21 = YuvUtils.imageToNv21(image, width, height)
-            val yuvImage = YuvImage(nv21, ImageFormat.NV21, width, height, null)
+            // 1080p 全尺寸 JPEG 过重：MJPEG 作为降级通道缩到 ≤960 宽，压缩耗时显著下降。
+            val scaleW = if (width > MAX_JPEG_WIDTH) MAX_JPEG_WIDTH else width
+            val scaleH = (height.toLong() * scaleW / width).toInt() and 1.inv()
+            val nv21 = YuvUtils.imageToNv21Scaled(image, scaleW, scaleH)
+            if (nv21.isEmpty()) return
+            val yuvImage = YuvImage(nv21, ImageFormat.NV21, scaleW, scaleH, null)
             val output = ByteArrayOutputStream(nv21.size / 4)
-            val ok = yuvImage.compressToJpeg(Rect(0, 0, width, height), quality, output)
+            val ok = yuvImage.compressToJpeg(Rect(0, 0, scaleW, scaleH), quality, output)
             if (ok) {
                 publisher.publishJpeg(output.toByteArray())
             }
@@ -43,6 +47,7 @@ class JpegEncoder(
 
     private companion object {
         const val TAG = "JpegEncoder"
-        const val FRAME_INTERVAL = 2
+        const val FRAME_INTERVAL = 3
+        const val MAX_JPEG_WIDTH = 960
     }
 }

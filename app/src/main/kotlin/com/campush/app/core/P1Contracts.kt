@@ -39,6 +39,9 @@ data class P1UiState(
     val port: Int = 8089,
     val pinRequired: Boolean = false,
     val pin: String? = null,
+    /** 实际编码分辨率（相机支持的分辨率可能与设置不同，0 表示尚未开始）。 */
+    val actualWidth: Int = 0,
+    val actualHeight: Int = 0,
     val viewers: Int = 0,
     val maxViewers: Int = 3,
     val bitrateKbps: Int = 0,

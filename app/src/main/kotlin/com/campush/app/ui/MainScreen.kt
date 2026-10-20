@@ -301,7 +301,17 @@ private fun TopStatusBar(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             MetricCard("模式", cameraModeLabel(state.cameraMode, state.cameraFacing))
-            MetricCard("画质", if (state.settings.powerSave) "480p · 24fps（省电）" else "${state.settings.height}p · ${state.settings.fps}fps")
+            MetricCard(
+                "画质",
+                when {
+                    state.settings.powerSave -> "480p · 24fps（省电）"
+                    state.streaming && state.actualHeight > 0 -> {
+                        val actual = "${state.actualWidth}×${state.actualHeight}"
+                        if (state.actualHeight != state.settings.height) "$actual（设定 ${state.settings.height}p）" else actual
+                    }
+                    else -> "${state.settings.height}p · ${state.settings.fps}fps"
+                },
+            )
             MetricCard(
                 "码率",
                 if (state.bitrateKbps > 0) "${state.bitrateKbps} kbps" else "${state.settings.bitrateKbps} kbps",

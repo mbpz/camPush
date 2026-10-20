@@ -48,6 +48,9 @@ class LanStreamEngine(
     /** 视频/音频共用时间原点（System.nanoTime），避免 A/V 时间戳不同源。 */
     private var originNs: Long = 0L
 
+    private var lastActualWidth: Int = 0
+    private var lastActualHeight: Int = 0
+
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val networkMonitor = NetworkMonitor(context.applicationContext)
@@ -188,6 +191,13 @@ class LanStreamEngine(
             height = activeSettings.height,
             fps = activeSettings.fps,
             frameCallback = { image, _ ->
+                if (image.width != lastActualWidth || image.height != lastActualHeight) {
+                    lastActualWidth = image.width
+                    lastActualHeight = image.height
+                    StreamingBridge.update {
+                        it.copy(actualWidth = image.width, actualHeight = image.height)
+                    }
+                }
                 val nowUs = (System.nanoTime() - originNs) / 1_000L
                 video.encode(image, nowUs)
                 jpeg.onFrame(image)

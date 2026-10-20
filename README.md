@@ -210,7 +210,7 @@ python3 scripts/check_docs.py --strict
 | 09 task-plan | 960 | 3 | 基线 v1.1（P1/P2/P3） |
 | 10 observability | 876 | 2 | 基线 v1.1（阶段启用） |
 | 11 risk-adr | 512 | 2 | 基线 v1.2（ADR-013） |
-| 12 p1-implementation | 235 | 0 | 实现基线 v1.0 |
+| 12 p1-implementation | 262 | 0 | 实现基线 v1.0 |
 | PRD v1.0 | 643 | 0 | 需求基线（原文） |
 
 > 子文档中 “00 v1.1/v1.2” 的引用为其写作时点；以 00 当前版本 v1.5 为准。
@@ -279,3 +279,4 @@ camPush/
 | v1.0 | 2026-10-20 | Team Lead | 首次交付：13 份文档 + 一致性门禁；契约基线 v1.4 |
 | v1.1 | 2026-10-20 | Team Lead | 交付顺序改为 LAN-first：新增 P1/P2/P3 路线图与 Top5 决策门禁；09/10/11/08 阶段化重排；00 升 v1.5（§20 契约启用矩阵）；PRD 引用与门禁同步 |
 | v1.2 | 2026-10-20 | Team Lead | **P1 实现落地**：app + lan-core + player.html + 构建脚本；46 项 JVM 测试、26 项播放页自检、模拟器/浏览器 E2E 通过；新增 docs/12 实现说明与截图 |
+| v1.3 | 2026-10-20 | Team Lead | 1080p 性能修复：AVC Level 按分辨率选择、16:9 分辨率选择、ABR 策略修正、MJPEG 降采样、编码延迟保护、播放端追帧阈值；新增实际编码分辨率显示 |
