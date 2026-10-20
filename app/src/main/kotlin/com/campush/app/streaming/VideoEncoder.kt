@@ -378,23 +378,45 @@ class VideoEncoder(
                 candidate!!.codecInfo.getCapabilitiesForType(MIME_VIDEO).encoderCapabilities
                     .isBitrateModeSupported(MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR)
             }.getOrDefault(false)
+            val preferredProfile = if (frameWidth * frameHeight >= 1280 * 720) {
+                MediaCodecInfo.CodecProfileLevel.AVCProfileHigh
+            } else {
+                MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline
+            }
             try {
                 candidate!!.configure(
-                    buildFormat(frameWidth, frameHeight, includeProfile = true, cbr = cbrSupported),
+                    buildFormat(frameWidth, frameHeight, profile = preferredProfile, cbr = cbrSupported),
                     null,
                     null,
                     MediaCodec.CONFIGURE_FLAG_ENCODE,
                 )
             } catch (t: Throwable) {
-                Log.w(TAG, "configure baseline failed, retry without profile", t)
+                Log.w(TAG, "configure with profile=$preferredProfile failed, retry baseline", t)
                 runCatching { candidate?.release() }
                 candidate = MediaCodec.createEncoderByType(MIME_VIDEO)
-                candidate!!.configure(
-                    buildFormat(frameWidth, frameHeight, includeProfile = false, cbr = cbrSupported),
-                    null,
-                    null,
-                    MediaCodec.CONFIGURE_FLAG_ENCODE,
-                )
+                try {
+                    candidate!!.configure(
+                        buildFormat(
+                            frameWidth,
+                            frameHeight,
+                            profile = MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline,
+                            cbr = cbrSupported,
+                        ),
+                        null,
+                        null,
+                        MediaCodec.CONFIGURE_FLAG_ENCODE,
+                    )
+                } catch (t2: Throwable) {
+                    Log.w(TAG, "configure baseline failed, retry default", t2)
+                    runCatching { candidate?.release() }
+                    candidate = MediaCodec.createEncoderByType(MIME_VIDEO)
+                    candidate!!.configure(
+                        buildFormat(frameWidth, frameHeight, profile = null, cbr = cbrSupported),
+                        null,
+                        null,
+                        MediaCodec.CONFIGURE_FLAG_ENCODE,
+                    )
+                }
             }
             val encoder = candidate ?: error("MediaCodec unavailable")
             encoder.start()
@@ -426,7 +448,7 @@ class VideoEncoder(
         }
     }
 
-    private fun buildFormat(width: Int, height: Int, includeProfile: Boolean, cbr: Boolean): MediaFormat {
+    private fun buildFormat(width: Int, height: Int, profile: Int?, cbr: Boolean): MediaFormat {
         return MediaFormat.createVideoFormat(MIME_VIDEO, width, height).apply {
             setInteger(
                 MediaFormat.KEY_COLOR_FORMAT,
@@ -444,10 +466,8 @@ class VideoEncoder(
                 if (cbr) MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR
                 else MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_VBR,
             )
-            if (includeProfile) {
-                runCatching {
-                    setInteger(MediaFormat.KEY_PROFILE, MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline)
-                }
+            if (profile != null) {
+                runCatching { setInteger(MediaFormat.KEY_PROFILE, profile) }
             }
         }
     }
@@ -467,7 +487,7 @@ class VideoEncoder(
         const val MAX_PIPELINE_LAG_US = 2_500_000L
         const val LATENCY_RESET_COOLDOWN_MS = 3_000L
         const val RESTART_DEBOUNCE_FRAMES = 60
-        const val MAX_BITRATE = 4_000_000
+        const val MAX_BITRATE = 8_000_000
         const val ABR_WINDOW_MS = 1_000L
         const val DOWN_COOLDOWN_MS = 5_000L
         const val UP_COOLDOWN_MS = 10_000L

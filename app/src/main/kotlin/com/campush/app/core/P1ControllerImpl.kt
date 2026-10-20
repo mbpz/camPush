@@ -39,11 +39,7 @@ class P1ControllerImpl(context: Context) : P1Controller {
 
     /** 帧率优先自适应：连续低帧率采样、降档级别（PRD §8.4 性能保护）。 */
     private var lowFpsSamples: Int = 0
-    private var midFpsSamples: Int = 0
-    private var adaptLevel: Int = 0
-    private var lastAdaptAtMs: Long = 0L
     private var fpsWarningShown: Boolean = false
-    private var streamingSinceMs: Long = 0L
 
     private val _state = MutableStateFlow(restoreState())
     override val state: StateFlow<P1UiState> = _state.asStateFlow()
@@ -209,7 +205,7 @@ class P1ControllerImpl(context: Context) : P1Controller {
             width = settings.width.coerceIn(320, 1920) and 1.inv(),
             height = settings.height.coerceIn(240, 1080) and 1.inv(),
             fps = settings.fps.coerceIn(15, 30),
-            bitrateKbps = settings.bitrateKbps.coerceIn(800, 4000),
+            bitrateKbps = settings.bitrateKbps.coerceIn(800, 8000),
         )
         _state.update { it.copy(settings = sanitized) }
         persistSettings(sanitized)
@@ -304,47 +300,17 @@ class P1ControllerImpl(context: Context) : P1Controller {
     private fun applySnapshot(snapshot: EngineSnapshot) {
         if (snapshot.phase == EnginePhase.STREAMING) {
             val fps = snapshot.fps
-            if (snapshot.cameraAvailable && fps in 1..24) {
+            // 画质优先：不再自动降分辨率（避免“画质漂移”）；仅在持续低于 30fps 时提示。
+            if (snapshot.cameraAvailable && fps in 1..29) {
                 lowFpsSamples++
             } else {
                 lowFpsSamples = 0
             }
-            val now = System.currentTimeMillis()
-            if (streamingSinceMs == 0L) streamingSinceMs = now
-            val stateNow = _state.value
-            val effectiveHeight = stateNow.actualHeight.takeIf { it > 0 } ?: stateNow.settings.height
-            // 帧率优先：连续 3s 低于 15fps 就降一档分辨率（播放地址不变），最多降到 480p。
-            if (lowFpsSamples >= 3 && adaptLevel < 2 && snapshot.cameraAvailable &&
-                now - lastAdaptAtMs > ADAPT_COOLDOWN_MS && now - streamingSinceMs > STARTUP_GRACE_MS
-            ) {
-                val next = if (effectiveHeight > 720) {
-                    stateNow.settings.copy(
-                        width = 1280,
-                        height = 720,
-                        bitrateKbps = minOf(stateNow.settings.bitrateKbps, 2500),
-                    )
-                } else {
-                    stateNow.settings.copy(
-                        width = 854,
-                        height = 480,
-                        bitrateKbps = minOf(stateNow.settings.bitrateKbps, 1200),
-                    )
-                }
-                adaptLevel++
-                lastAdaptAtMs = now
-                lowFpsSamples = 0
-                StreamingBridge.emitWarning("当前设备无法稳定 30fps，已自动降低分辨率（播放地址不变）；可在设置中改回")
-                StreamingBridge.engine?.updateMediaConfig(next, stateNow.cameraFacing)
-                return
-            }
-            if (snapshot.cameraAvailable && fps in 10..29) {
-                midFpsSamples++
-            } else {
-                midFpsSamples = 0
-            }
-            if (midFpsSamples >= 5 && !fpsWarningShown) {
+            if (lowFpsSamples >= 5 && !fpsWarningShown) {
                 fpsWarningShown = true
-                StreamingBridge.emitWarning("当前约 ${snapshot.fps} fps，低于 30fps；可尝试 720p 或检查设备性能")
+                StreamingBridge.emitWarning(
+                    "当前约 ${snapshot.fps} fps，低于 30fps；最高画质受设备性能限制，可在设置中选 720p 提升帧率"
+                )
             }
         }
         _state.update { current ->

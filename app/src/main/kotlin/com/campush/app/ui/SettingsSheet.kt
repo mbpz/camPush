@@ -185,7 +185,7 @@ private fun SettingsContent(
         )
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(1500, 2500, 4000).forEach { kbps ->
+            listOf(1500, 2500, 4000, 6000).forEach { kbps ->
                 ChoiceChip(
                     label = "$kbps kbps",
                     selected = settings.bitrateKbps == kbps,
