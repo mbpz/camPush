@@ -25,6 +25,7 @@ import com.campush.app.streaming.EngineSnapshot
 import com.campush.app.streaming.LanStreamEngine
 import com.campush.app.streaming.StreamStartOptions
 import com.campush.app.streaming.StreamingBridge
+import com.campush.app.streaming.pipeline.CameraMediaPipelineFactory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -48,7 +49,8 @@ class LanStreamingService : LifecycleService() {
     override fun onCreate() {
         super.onCreate()
         instanceAlive = true
-        engine = LanStreamEngine(this, this)
+        // 组合根：Service 负责把具体管线适配器装配给引擎；引擎只依赖 MediaPipeline 契约。
+        engine = LanStreamEngine(this, this, CameraMediaPipelineFactory(this, this))
         StreamingBridge.engine = engine
         createNotificationChannel()
         snapshotJob = lifecycleScope.launch {

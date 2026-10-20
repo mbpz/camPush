@@ -23,11 +23,13 @@ lan-core (纯 JVM 端侧服务) ──> 无 Android 依赖
 - `app-core` 不得依赖具体相机/编码器实现；需要新能力时向 `app-streaming` / `app-camera` 新增接口。
 - `lan-core` 对外只暴露 `com.campush.lan.Api.kt` 中的冻结契约，新增能力先改契约再实现，保持纯 JVM、可单测。
 
-### 1.2 可替换管线必须隐藏在抽象后
+### 1.2 可替换管线必须隐藏在抽象后（已落地）
 
-- 采集/编码管线（CameraX ImageAnalysis、Camera2 + MediaRecorder Surface、未来 WebRTC/GL）必须通过统一管线接口接入，
-  `LanStreamEngine` 不得把某一种管线的生命周期/类名写死到 UI 或业务逻辑中。
-- 新增管线 = 新增一个实现 + 适配器，**不得**在 UI/控制器里加重载分支。
+- 契约：`core/MediaPipeline.kt`（`MediaPipeline` / `MediaPipelineFactory` / `MediaPipelineSpec` / `MediaPipelineCallbacks`）；
+- 适配器：`streaming/pipeline/` 下 `SurfaceMediaPipeline`（Camera2+MediaRecorder）与 `CameraXMediaPipeline`（兼容）；
+- 组合根：`LanStreamingService` 创建 `CameraMediaPipelineFactory` 注入引擎；
+- `LanStreamEngine` **只 import 契约**，不得直接引用 `CameraHost` / `Camera2SurfacePipeline` / `VideoEncoder` / `JpegEncoder`；
+- 新增管线 = 新增一个 `MediaPipeline` 实现 + 工厂装配，**不得**在 UI/控制器里加重载分支；
 - 管线失败必须可回退（当前：Surface 管线失败 → CameraX 兼容管线），回退不改变播放地址/契约。
 
 ### 1.3 契约冻结

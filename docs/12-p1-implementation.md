@@ -346,7 +346,30 @@ Camera2 ──Surface──> MediaRecorder(SURFACE, MPEG_2_TS) ──硬件 H.26
 `phase=STREAMING surface=true actual=1280x720 serverFps=29` 与 `Surface: recorder ready ...` 等日志；
 token 篡改 → 401。
 
-### 5.10 真实浏览器播放（宿主 Chrome headless）
+### 5.10 管线抽象重构（架构红线落地）
+
+**问题**：`LanStreamEngine` 直接引用 `Camera2SurfacePipeline` 与 `CameraHost`，违反“可替换管线必须隐藏在抽象后”。
+
+**重构**
+
+| 层 | 内容 |
+|---|---|
+| 契约（core） | `MediaPipeline`、`MediaPipelineFactory`、`MediaPipelineSpec`、`MediaPipelineCallbacks`、`PipelineDiagnostics` |
+| 适配器（streaming/pipeline） | `SurfaceMediaPipeline`（Camera2+MediaRecorder）、`CameraXMediaPipeline`（兼容管线） |
+| 组合根 | `LanStreamingService` 创建 `CameraMediaPipelineFactory` 注入 `LanStreamEngine` |
+| 引擎 | 只 import `core.MediaPipeline*`，不再出现 `CameraHost` / `Camera2SurfacePipeline` / `VideoEncoder` / `JpegEncoder` |
+
+**验证**
+
+```bash
+grep -n "CameraHost\|Camera2SurfacePipeline\|VideoEncoder\|JpegEncoder"   app/src/main/kotlin/com/campush/app/streaming/LanStreamEngine.kt   # 无输出
+```
+
+- 行为回归：模拟器推流 Surface 管线正常启动（`pipeline started kind=SURFACE`），浏览器 `readyState=4`、28–30fps；
+- lan-core 47/47、assembleDebug、文档门禁通过；
+- 后续新增管线只需实现 `MediaPipeline` 并在工厂装配，UI/引擎无需改动。
+
+### 5.11 真实浏览器播放（宿主 Chrome headless）
 
 - 打开唯一地址 → **FLV→MSE 成功**：`video.readyState=4`、`currentTime≈0.8s`、`buffered≈2.1s`、`videoWidth=1920`；
 - 无控制台错误；HUD 显示「直播中 / 0/3 人观看 / 871 kbps · 20 fps」；
