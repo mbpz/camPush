@@ -42,6 +42,7 @@ TARGETS = {
     "docs/09-task-plan.md": 300,
     "docs/10-observability.md": 300,
     "docs/11-risk-adr.md": 300,
+    "docs/12-p1-implementation.md": 150,
     "docs/PRD-v1.0.md": 300,
 }
 
@@ -73,6 +74,7 @@ DOC_NETWORKS = [
     ipaddress.ip_network("198.51.100.0/24"),
     ipaddress.ip_network("203.0.113.0/24"),
     ipaddress.ip_network("127.0.0.0/8"),
+    ipaddress.ip_network("10.0.2.0/24"),   # Android 模拟器 NAT 文档地址
 ]
 
 # 00 §4.2 冻结的 URL 模板

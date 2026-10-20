@@ -1,0 +1,115 @@
+package com.campush.lan
+
+/**
+ * Lan-core 公共 API（Lead 冻结；core-dev 只实现，不改签名）。
+ * 契约来源：docs/00-conventions.md §8、docs/05-lan-service.md、docs/06-playback-page.md。
+ */
+
+enum class LanRoomState { CREATED, LIVE, STOPPING, CLOSED, FAILED }
+
+data class LanConfig(
+    val port: Int = 8089,
+    val portRange: IntRange = 8089..8099,
+    val maxViewers: Int = 3,
+    val pinRequired: Boolean = false,
+    val pin: String? = null,
+    val pageTokenTtlSeconds: Long = 3600,
+    val mediaTokenTtlSeconds: Long = 300,
+    val bindAddress: String = "0.0.0.0",
+)
+
+data class LanStatus(
+    val state: LanRoomState,
+    val lanIp: String,
+    val port: Int,
+    val viewers: Int,
+    val maxViewers: Int,
+    val pinRequired: Boolean,
+    val mediaProtocols: List<String>,
+    val uptimeSeconds: Long,
+    val bitrateBps: Long,
+    val fps: Int,
+    val startedAtMillis: Long,
+)
+
+data class H264AccessUnit(
+    val nalUnits: List<ByteArray>,
+    val ptsUs: Long,
+    val isKeyFrame: Boolean,
+    val sps: ByteArray? = null,
+    val pps: ByteArray? = null,
+)
+
+data class AacAccessUnit(
+    val frame: ByteArray,
+    val ptsUs: Long,
+    val isSequenceHeader: Boolean = false,
+    val sampleRate: Int = 48000,
+    val channels: Int = 1,
+)
+
+data class MediaStats(
+    val fps: Int = 0,
+    val bitrateBps: Long = 0,
+    val lastVideoAtMillis: Long = 0,
+    val lastAudioAtMillis: Long = 0,
+)
+
+interface LanMediaPublisher {
+    fun publishJpeg(jpeg: ByteArray)
+    fun publishH264(unit: H264AccessUnit)
+    fun publishAac(unit: AacAccessUnit)
+    fun stats(): MediaStats
+    fun requestKeyFrame()
+}
+
+enum class LanEvent {
+    SERVER_STARTED,
+    SERVER_STOPPED,
+    VIEWER_JOINED,
+    VIEWER_LEFT,
+    VIEWER_LIMITED,
+    PIN_LOCKED,
+    AP_ISOLATION_SUSPECTED,
+    ERROR,
+}
+
+data class LanEventData(
+    val event: LanEvent,
+    val message: String? = null,
+    val viewers: Int = 0,
+    val code: Int? = null,
+)
+
+fun interface LanEventListener {
+    fun onEvent(event: LanEventData)
+}
+
+class LanException(
+    val code: Int,
+    message: String,
+    val userHint: String? = null,
+) : Exception(message)
+
+/**
+ * 端侧局域网服务。start() 返回唯一播放地址 `http://{lanIp}:{port}/s/{pageToken}`；
+ * stop() 必须在 ≤1 s 内关闭端口并销毁 token 密钥。
+ */
+class LanServer(
+    val config: LanConfig,
+    private val ipProvider: () -> String?,
+    private val listener: LanEventListener? = null,
+    private val clock: () -> Long = System::currentTimeMillis,
+) {
+    private val impl = LanServerImpl(config, ipProvider, listener, clock)
+
+    val publisher: LanMediaPublisher = impl.publisher
+
+    fun start(): String = impl.start()
+
+    fun stop(): Unit = impl.stop()
+
+    fun status(): LanStatus = impl.status()
+
+    fun updatePin(required: Boolean, pin: String?): Unit = impl.updatePin(required, pin)
+}

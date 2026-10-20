@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">CamPush</string>
+    <string name="notification_channel_name">推流服务</string>
+    <string name="notification_channel_desc">局域网推流运行状态</string>
+</resources>

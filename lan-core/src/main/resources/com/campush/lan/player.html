@@ -1,0 +1,1048 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; media-src blob:; connect-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="color-scheme" content="dark">
+<title>CamPush 实时画面</title>
+<style>
+:root{--bg:#0b0f14;--fg:#e8eef6;--muted:#8fa0b3;--line:#1e2a38;--accent:#34d399;--danger:#f87171;--card:#121a24}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:15px/1.55 -apple-system,BlinkMacSystemFont,"Helvetica Neue","PingFang SC","Microsoft YaHei",sans-serif}
+#app{display:flex;flex-direction:column;height:100%;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+#hud{display:flex;align-items:center;flex-wrap:wrap;row-gap:4px;gap:10px;padding:10px 14px;min-height:52px;border-bottom:1px solid var(--line)}
+#hud .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent);flex:none}
+#hud .dot.off{background:var(--muted);box-shadow:none}
+#hud .sp{flex:1}
+#hud .meta{display:flex;gap:10px;color:var(--muted);font-size:13px;white-space:nowrap;overflow:hidden;min-width:0}
+#hud button{background:var(--card);color:var(--fg);border:1px solid var(--line);border-radius:10px;min-width:44px;min-height:44px;padding:0 12px;font:inherit;font-size:13px}
+#stage{position:relative;flex:1;min-height:0;background:#000;overflow:hidden}
+#v,#mj{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000}
+#mj[hidden],#v[hidden]{display:none}
+#sound{position:absolute;left:50%;bottom:calc(18px + env(safe-area-inset-bottom));transform:translateX(-50%);border:0;border-radius:999px;background:rgba(18,26,36,.92);color:var(--fg);padding:10px 18px;font:inherit;font-size:13px;border:1px solid var(--line)}
+.layer{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;text-align:center;background:rgba(11,15,20,.86)}
+.layer[hidden]{display:none}
+.spinner{width:34px;height:34px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--accent);animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#loadText{color:var(--muted);margin:0;font-size:14px}
+#err .badge{width:52px;height:52px;border-radius:50%;border:2px solid var(--danger);color:var(--danger);display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:700}
+#err h1{font-size:19px;margin:0}
+#errMsg{margin:0;max-width:30em;color:var(--fg)}
+#errCode{color:var(--muted);font-size:12px;margin:0;min-height:1em}
+#retry{border:0;border-radius:12px;background:var(--accent);color:#04120c;font:inherit;font-weight:600;padding:12px 28px;min-height:46px;margin-top:6px}
+#err .list{color:var(--muted);font-size:12px;margin:0;text-align:left;max-width:32em}
+#pinLayer .card{width:min(360px,100%);background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px;display:flex;flex-direction:column;gap:10px;text-align:left}
+#pinLayer h2{margin:0;font-size:17px}
+#pinLayer p{margin:0}
+#pin{width:100%;min-height:48px;border-radius:10px;border:1px solid var(--line);background:#0a1219;color:var(--fg);font:inherit;font-size:22px;letter-spacing:.35em;text-align:center;padding:8px}
+#pin:focus{outline:2px solid var(--accent);outline-offset:1px}
+.errtext{color:var(--danger);font-size:13px;min-height:1.2em}
+#pinOk{border:0;border-radius:10px;background:var(--accent);color:#04120c;font:inherit;font-weight:600;min-height:46px}
+#pinOk[disabled]{opacity:.55}
+#foot{padding:8px 14px calc(8px + env(safe-area-inset-bottom));border-top:1px solid var(--line);color:var(--muted);font-size:12px;text-align:center;word-break:break-word}
+@media (max-width:560px){#hud .meta{order:5;flex-basis:100%;justify-content:flex-end;font-size:12px}}
+#foot b{color:#c9d6e5;font-weight:500}
+.visually-hidden{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+@media (max-height:420px){#hud{min-height:44px;padding:6px 10px}#foot{display:none}}
+@media (prefers-reduced-motion:reduce){.spinner{animation:none}}
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="hud">
+    <span class="dot off" id="liveDot"></span>
+    <span id="liveText" style="font-size:13px;color:var(--muted)">连接中</span>
+    <span class="sp"></span>
+    <div class="meta"><span id="mViewers"></span><span id="mRate"></span></div>
+    <button id="btnSound" type="button" aria-label="开启声音">声音</button>
+    <button id="btnFull" type="button" aria-label="全屏">全屏</button>
+  </header>
+  <main id="stage">
+    <video id="v" playsinline autoplay muted></video>
+    <img id="mj" alt="直播画面（兼容模式）">
+    <div class="layer" id="load" role="status" aria-live="polite">
+      <div class="spinner" aria-hidden="true"></div>
+      <p id="loadText">正在加载…</p>
+    </div>
+    <div class="layer" id="err" hidden role="alert">
+      <div class="badge" aria-hidden="true">!</div>
+      <h1 id="errTitle">播放失败</h1>
+      <p id="errMsg"></p>
+      <p id="errCode"></p>
+      <ul class="list" id="errTips" hidden>
+        <li>确认观看设备与分享者在同一 Wi-Fi / 热点</li>
+        <li>若路由器开启 AP 隔离/访客网络隔离，请关闭后重试</li>
+        <li>确认分享者仍在推流，且浏览器为最新版本</li>
+      </ul>
+      <button id="retry" type="button">重试</button>
+    </div>
+    <div class="layer" id="pinLayer" hidden>
+      <div class="card" role="dialog" aria-modal="true" aria-labelledby="pinTitle">
+        <h2 id="pinTitle">请输入观看口令</h2>
+        <p class="visually-hidden" id="pinDesc">4 到 6 位数字，由分享者提供</p>
+        <p style="color:var(--muted);font-size:13px">口令由分享者提供</p>
+        <input id="pin" type="tel" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{4,6}" aria-label="观看口令" aria-describedby="pinDesc">
+        <p class="errtext" id="pinErr" role="alert"></p>
+        <button id="pinOk" type="button">确定</button>
+      </div>
+    </div>
+    <button id="sound" type="button" hidden>点击开启声音</button>
+  </main>
+  <footer id="foot"><b>仅同一局域网可观看</b> · 明文 HTTP，请勿在不可信网络使用</footer>
+</div>
+<script>
+(function(){
+'use strict';
+/*TESTABLE-START*/
+function concatAll(list){
+  var n=0,i;
+  for(i=0;i<list.length;i++){ n+=list[i].length; }
+  var out=new Uint8Array(n),p=0;
+  for(i=0;i<list.length;i++){ out.set(list[i],p); p+=list[i].length; }
+  return out;
+}
+function asciiBytes(s){
+  var a=new Uint8Array(s.length),i;
+  for(i=0;i<s.length;i++){ a[i]=s.charCodeAt(i)&0xff; }
+  return a;
+}
+function u16be(v){ return new Uint8Array([(v>>>8)&0xff,v&0xff]); }
+function u32be(v){ return new Uint8Array([(v>>>24)&0xff,(v>>>16)&0xff,(v>>>8)&0xff,v&0xff]); }
+function u64be(v){ var hi=Math.floor(v/4294967296),lo=v>>>0; return concatAll([u32be(hi),u32be(lo)]); }
+function zeros(n){ return new Uint8Array(n); }
+function mp4box(type,parts){ var body=concatAll(parts); return concatAll([u32be(8+body.length),asciiBytes(type),body]); }
+function fullbox(type,version,flags,parts){
+  return mp4box(type,[new Uint8Array([version&0xff,(flags>>16)&0xff,(flags>>8)&0xff,flags&0xff])].concat(parts));
+}
+function parsePathToken(path){
+  if(typeof path!=='string'){ return null; }
+  var m=/^\/s\/([A-Za-z0-9._~-]{1,4096})$/.exec(path);
+  return m?m[1]:null;
+}
+function parseFlvHeader(b){
+  if(!b||b.length<9){ return null; }
+  if(b[0]!==0x46||b[1]!==0x4c||b[2]!==0x56||b[3]!==1){ return null; }
+  var off=(b[5]<<24)|(b[6]<<16)|(b[7]<<8)|b[8];
+  off=off>>>0;
+  if(off<9||off>b.length){ return null; }
+  return {version:1,hasAudio:(b[4]&4)!==0,hasVideo:(b[4]&1)!==0,dataOffset:off};
+}
+function parseFlvTag(b,o){
+  if(!b||o<0||b.length<o+11){ return null; }
+  var type=b[o];
+  var size=(b[o+1]<<16)|(b[o+2]<<8)|b[o+3];
+  var ts=(((b[o+4]<<16)|(b[o+5]<<8)|b[o+6])>>>0)+((b[o+7]<<24)>>>0);
+  var streamId=(b[o+8]<<16)|(b[o+9]<<8)|b[o+10];
+  var dataStart=o+11,dataEnd=dataStart+size;
+  if(size<0||dataEnd+4>b.length){ return null; }
+  var prev=((b[dataEnd]<<24)|(b[dataEnd+1]<<16)|(b[dataEnd+2]<<8)|b[dataEnd+3])>>>0;
+  return {type:type,dataSize:size,timestampMs:ts>>>0,streamId:streamId,dataStart:dataStart,dataEnd:dataEnd,prevTagSize:prev,nextOffset:dataEnd+4};
+}
+function parseVideoTag(b,start,end){
+  if(!b||end-start<1){ return null; }
+  var b0=b[start],frameType=b0>>4,codecId=b0&15;
+  if(codecId!==7){ return {frameType:frameType,codecId:codecId,avcPacketType:-1,cts:0,payload:null}; }
+  if(end-start<5){ return null; }
+  var pt=b[start+1];
+  var cts=(b[start+2]<<16)|(b[start+3]<<8)|b[start+4];
+  if(cts&0x800000){ cts-=0x1000000; }
+  return {frameType:frameType,codecId:codecId,avcPacketType:pt,cts:cts,payload:b.subarray(start+5,end)};
+}
+function parseAudioTag(b,start,end){
+  if(!b||end-start<2){ return null; }
+  var b0=b[start],soundFormat=b0>>4;
+  if(soundFormat!==10){ return {soundFormat:soundFormat,aacPacketType:-1,payload:null}; }
+  return {soundFormat:soundFormat,aacPacketType:b[start+1],payload:b.subarray(start+2,end)};
+}
+var AAC_RATES=[96000,88200,64000,48000,44100,32000,24000,22050,16000,12000,11025,8000,7350];
+function parseAacAsc(b){
+  if(!b||b.length<2){ return null; }
+  var objectType=b[0]>>3;
+  var idx=((b[0]&7)<<1)|(b[1]>>7);
+  var channels=(b[1]>>3)&15;
+  if(objectType!==2||idx>=AAC_RATES.length){ return null; }
+  return {objectType:objectType,sampleRate:AAC_RATES[idx],channels:channels||2,asc:new Uint8Array([b[0],b[1]])};
+}
+function parseAvcConfigRecord(b){
+  if(!b||b.length<7||b[0]!==1){ return null; }
+  var profile=b[1],compat=b[2],level=b[3],lengthSize=(b[4]&3)+1;
+  var pos=5,n=b[pos++]&31;
+  if(n===0){ return null; }
+  var sps=[],i,len;
+  for(i=0;i<n;i++){
+    if(pos+2>b.length){ return null; }
+    len=(b[pos]<<8)|b[pos+1]; pos+=2;
+    if(len<1||pos+len>b.length){ return null; }
+    sps.push(b.subarray(pos,pos+len)); pos+=len;
+  }
+  if(pos>=b.length){ return null; }
+  var np=b[pos++]&255;
+  if(np===0){ return null; }
+  var pps=[];
+  for(i=0;i<np;i++){
+    if(pos+2>b.length){ return null; }
+    len=(b[pos]<<8)|b[pos+1]; pos+=2;
+    if(len<1||pos+len>b.length){ return null; }
+    pps.push(b.subarray(pos,pos+len)); pos+=len;
+  }
+  return {configurationVersion:1,profile:profile,compat:compat,level:level,lengthSize:lengthSize,sps:sps,pps:pps};
+}
+function buildAvcC(cfg){
+  if(!cfg||!cfg.sps||!cfg.sps.length||!cfg.pps||!cfg.pps.length){ return null; }
+  var sps=cfg.sps[0],pps=cfg.pps[0];
+  if(sps.length>65535||pps.length>65535){ return null; }
+  var ls=cfg.lengthSize||4;
+  return concatAll([
+    new Uint8Array([1,cfg.profile&0xff,cfg.compat&0xff,cfg.level&0xff,0xfc|(ls-1),0xe0|1]),
+    u16be(sps.length),sps,
+    new Uint8Array([1]),u16be(pps.length),pps
+  ]);
+}
+function hex2(v){ var s=(v&0xff).toString(16).toUpperCase(); return s.length<2?'0'+s:s; }
+function codecStringFromAvcC(cfg){
+  if(!cfg){ return null; }
+  return 'avc1.'+hex2(cfg.profile)+hex2(cfg.compat)+hex2(cfg.level);
+}
+function parseAvcNalus(payload,lengthSize){
+  if(!payload){ return []; }
+  if(lengthSize!==1&&lengthSize!==2&&lengthSize!==4){ return []; }
+  var out=[],p=0,n=payload.length;
+  while(p+lengthSize<=n){
+    var len=0,i;
+    for(i=0;i<lengthSize;i++){ len=(len<<8)|payload[p+i]; }
+    p+=lengthSize;
+    if(len<=0||p+len>n){ break; }
+    out.push(payload.subarray(p,p+len));
+    p+=len;
+  }
+  return out;
+}
+function spsToRbsp(sps){
+  var out=[],i,zeros=0;
+  for(i=0;i<sps.length;i++){
+    var b=sps[i];
+    if(zeros>=2&&b===3){ zeros=0; continue; }
+    if(b===0){ zeros++; } else { zeros=0; }
+    out.push(b);
+  }
+  return new Uint8Array(out);
+}
+function parseSpsSize(sps){
+  if(!sps||sps.length<4){ return null; }
+  var r=spsToRbsp(sps);
+  var pos=(sps[0]&0x1f)===7?8:0; // 跳过 NAL header（SPS type 7）
+  function bit(){
+    var byte=r[pos>>3];
+    if(byte===undefined){ throw new Error('eof'); }
+    var v=(byte>>(7-(pos&7)))&1; pos++; return v;
+  }
+  function bits(n){ var v=0,i; for(i=0;i<n;i++){ v=(v<<1)|bit(); } return v; }
+  function ue(){
+    var lz=0;
+    while(bit()===0){ lz++; if(lz>32){ throw new Error('ue'); } }
+    return (1<<lz)-1+(lz?bits(lz):0);
+  }
+  function se(){ var k=ue(); return (k&1)?(k+1)/2:-(k>>1); }
+  var HIGH=[100,110,122,244,44,83,86,118,128,138,139,134,135];
+  try{
+    var profile=bits(8); bits(8); bits(8);
+    ue();
+    var chroma=1;
+    if(HIGH.indexOf(profile)>=0){
+      chroma=ue();
+      if(chroma===3){ bit(); }
+      ue(); ue(); bit();
+      if(bit()){
+        var n=chroma!==3?8:12,i,j;
+        for(i=0;i<n;i++){
+          if(bit()){
+            var size=i<6?16:64,last=8,next=8;
+            for(j=0;j<size;j++){
+              if(next!==0){ next=(last+se()+256)%256; }
+              last=next===0?last:next;
+            }
+          }
+        }
+      }
+    }
+    ue();
+    var poc=ue();
+    if(poc===0){ ue(); }
+    else if(poc===1){
+      bit(); se(); se();
+      var cnt=ue();
+      for(var k=0;k<cnt;k++){ se(); }
+    }
+    ue(); bit();
+    var wMbs=ue(), hMap=ue();
+    var frameMbsOnly=bit();
+    if(!frameMbsOnly){ bit(); bit(); }
+    bit();
+    var cropL=0,cropR=0,cropT=0,cropB=0;
+    if(bit()){ cropL=ue(); cropR=ue(); cropT=ue(); cropB=ue(); }
+    var subW=1,subH=1;
+    if(chroma===1){ subW=2; subH=2; }
+    else if(chroma===2){ subW=2; subH=1; }
+    var width=(wMbs+1)*16-subW*(cropL+cropR);
+    var height=(2-frameMbsOnly)*(hMap+1)*16-subH*(2-frameMbsOnly)*(cropT+cropB);
+    if(!(width>0&&height>0&&width<=8192&&height<=8192)){ return null; }
+    return {width:width,height:height};
+  }catch(e){ return null; }
+}
+function fixTimestamp(ts,last){
+  last=Math.max(0,Math.floor(last||0));
+  if(!isFinite(ts)){ return last; }
+  ts=Math.max(0,Math.floor(ts));
+  return ts>=last?ts:last+1;
+}
+function matrixBytes(){
+  return concatAll([u32be(0x00010000),u32be(0),u32be(0),u32be(0),u32be(0x00010000),u32be(0),u32be(0),u32be(0),u32be(0x40000000)]);
+}
+function makeTkhd(id,width,height,isAudio){
+  return fullbox('tkhd',0,0x000007,[
+    u32be(0),u32be(0),u32be(id),u32be(0),u32be(0),u64be(0),
+    u16be(0),u16be(0),u16be(isAudio?0x0100:0),u16be(0),
+    matrixBytes(),u32be(width<<16),u32be(height<<16)
+  ]);
+}
+function makeMvhd(nextId){
+  return fullbox('mvhd',0,0,[
+    u32be(0),u32be(0),u32be(1000),u32be(0),u32be(0x00010000),u16be(0x0100),u16be(0),
+    u64be(0),matrixBytes(),
+    u32be(0),u32be(0),u32be(0),u32be(0),u32be(0),u32be(0),u32be(nextId)
+  ]);
+}
+function makeMdhd(timescale){
+  return fullbox('mdhd',0,0,[u32be(0),u32be(0),u32be(timescale),u32be(0),u16be(0x55c4),u16be(0)]);
+}
+function makeHdlr(handler,name){
+  return fullbox('hdlr',0,0,[u32be(0),asciiBytes(handler),u32be(0),u32be(0),u32be(0),asciiBytes(name),zeros(1)]);
+}
+function makeDinf(){
+  return mp4box('dinf',[fullbox('dref',0,0,[u32be(1),fullbox('url ',0,1,[])])]);
+}
+function makeStsdVideo(cfg){
+  var avc1=mp4box('avc1',[
+    zeros(6),u16be(1),u16be(0),u16be(0),u32be(0),u32be(0),u32be(0),
+    u16be(cfg.width||0),u16be(cfg.height||0),
+    u32be(0x00480000),u32be(0x00480000),u32be(0),u16be(1),
+    zeros(32),u16be(0x0018),u16be(0xffff),
+    mp4box('avcC',[buildAvcC(cfg)])
+  ]);
+  return fullbox('stsd',0,0,[u32be(1),avc1]);
+}
+function sizeDesc(tag,body){
+  if(body.length>127){ throw new Error('descriptor too long'); }
+  return concatAll([new Uint8Array([tag,body.length]),body]);
+}
+function makeEsds(asc,sampleRate){
+  var dsi=sizeDesc(0x05,asc);
+  var dcdBody=concatAll([new Uint8Array([0x40,0x15]),zeros(3),u32be(128000),u32be(128000),dsi]);
+  var dcd=sizeDesc(0x04,dcdBody);
+  var sl=sizeDesc(0x06,new Uint8Array([2]));
+  var esBody=concatAll([u16be(1),new Uint8Array([0]),dcd,sl]);
+  return fullbox('esds',0,0,[sizeDesc(0x03,esBody)]);
+}
+function makeStsdAudio(cfg){
+  var mp4a=mp4box('mp4a',[
+    zeros(6),u16be(1),zeros(8),
+    u16be(cfg.channels||1),u16be(16),u16be(0),u16be(0),
+    u32be((cfg.sampleRate||48000)<<16),
+    makeEsds(cfg.asc,cfg.sampleRate)
+  ]);
+  return fullbox('stsd',0,0,[u32be(1),mp4a]);
+}
+function makeStbl(stsd){
+  return mp4box('stbl',[
+    stsd,
+    fullbox('stts',0,0,[u32be(0)]),
+    fullbox('stsc',0,0,[u32be(0)]),
+    fullbox('stsz',0,0,[u32be(0),u32be(0)]),
+    fullbox('stco',0,0,[u32be(0)])
+  ]);
+}
+function makeMinfVideo(cfg){
+  return mp4box('minf',[
+    fullbox('vmhd',0,1,[u16be(0),u16be(0),u16be(0),u16be(0)]),
+    makeDinf(),makeStbl(makeStsdVideo(cfg))
+  ]);
+}
+function makeMinfAudio(cfg){
+  return mp4box('minf',[
+    fullbox('smhd',0,0,[u16be(0),u16be(0)]),
+    makeDinf(),makeStbl(makeStsdAudio(cfg))
+  ]);
+}
+function makeTrakVideo(cfg){
+  return mp4box('trak',[makeTkhd(1,cfg.width||0,cfg.height||0,false),
+    mp4box('mdia',[makeMdhd(1000),makeHdlr('vide','VideoHandler'),makeMinfVideo(cfg)])]);
+}
+function makeTrakAudio(cfg){
+  return mp4box('trak',[makeTkhd(2,0,0,true),
+    mp4box('mdia',[makeMdhd(cfg.sampleRate||48000),makeHdlr('soun','SoundHandler'),makeMinfAudio(cfg)])]);
+}
+function makeTrex(id){
+  return fullbox('trex',0,0,[u32be(id),u32be(1),u32be(0),u32be(0),u32be(0)]);
+}
+function buildMoov(opt){
+  if(!opt||!opt.video||!opt.video.sps||!opt.video.sps.length){ return null; }
+  var audio=(opt.audio&&opt.audio.asc&&opt.audio.sampleRate)?opt.audio:null;
+  var parts=[makeMvhd(audio?3:2),makeTrakVideo(opt.video)];
+  if(audio){ parts.push(makeTrakAudio(audio)); }
+  parts.push(mp4box('mvex',[makeTrex(1)].concat(audio?[makeTrex(2)]:[])));
+  return mp4box('moov',parts);
+}
+function buildFtyp(){
+  return mp4box('ftyp',[asciiBytes('isom'),u32be(0x200),asciiBytes('isom'),asciiBytes('iso5'),asciiBytes('avc1'),asciiBytes('mp41')]);
+}
+function buildInitSegment(opt){
+  try{
+    if(!opt||!opt.video||!opt.video.sps||!opt.video.sps.length){ return null; }
+    var video={profile:opt.video.profile,compat:opt.video.compat,level:opt.video.level,
+      lengthSize:opt.video.lengthSize||4,sps:opt.video.sps,pps:opt.video.pps,
+      width:opt.video.width||0,height:opt.video.height||0};
+    var audio=null;
+    if(opt.audio&&opt.audio.asc&&opt.audio.sampleRate&&opt.audio.asc.length>=2){
+      audio={sampleRate:opt.audio.sampleRate,channels:opt.audio.channels||2,asc:opt.audio.asc};
+    }
+    return concatAll([buildFtyp(),buildMoov({video:video,audio:audio})]);
+  }catch(e){ return null; }
+}
+function makeTrun(dataOffset,durations,sizes,keyFlags){
+  var parts=[u32be(durations.length),u32be(dataOffset)],i;
+  for(i=0;i<durations.length;i++){
+    parts.push(u32be(durations[i]));
+    parts.push(u32be(sizes[i]));
+    parts.push(u32be(keyFlags[i]?0x02000000:0x01010000));
+  }
+  return fullbox('trun',0,0x000701,parts);
+}
+function buildMediaSegment(seq,videoSamples,audioSamples,audioTimescale){
+  if(!videoSamples||!videoSamples.length){ return null; }
+  var i,n=videoSamples.length;
+  var durations=[],sizes=[],keys=[],vBytes=[],vTotal=0;
+  for(i=0;i<n;i++){
+    var next=(i<n-1)?videoSamples[i+1].ptsMs:videoSamples[i].ptsMs+33;
+    var d=next-videoSamples[i].ptsMs;
+    durations.push(d>0?d:33);
+    sizes.push(videoSamples[i].bytes.length);
+    vTotal+=videoSamples[i].bytes.length;
+    keys.push(!!videoSamples[i].isKey);
+    vBytes.push(videoSamples[i].bytes);
+  }
+  var hasAudio=!!(audioSamples&&audioSamples.length);
+  var aSizes=[],aBytes=[],aTotal=0,aDurations=[],aBase=0;
+  var ats=audioTimescale||48000;
+  if(hasAudio){
+    aBase=Math.round(audioSamples[0].ptsMs*ats/1000);
+    for(i=0;i<audioSamples.length;i++){
+      aSizes.push(audioSamples[i].bytes.length);
+      aDurations.push(1024);
+      aBytes.push(audioSamples[i].bytes);
+      aTotal+=audioSamples[i].bytes.length;
+    }
+  }
+  function makeMoof(vOff,aOff){
+    var parts=[
+      fullbox('mfhd',0,0,[u32be(seq)]),
+      mp4box('traf',[
+        fullbox('tfhd',0,0x020000,[u32be(1)]),
+        fullbox('tfdt',1,0,[u64be(videoSamples[0].ptsMs)]),
+        makeTrun(vOff,durations,sizes,keys)
+      ])
+    ];
+    if(hasAudio){
+      parts.push(mp4box('traf',[
+        fullbox('tfhd',0,0x020000,[u32be(2)]),
+        fullbox('tfdt',1,0,[u64be(aBase)]),
+        makeTrun(aOff,aDurations,aSizes,new Array(aSizes.length).fill(false))
+      ]));
+    }
+    return mp4box('moof',parts);
+  }
+  var probe=makeMoof(0,0);
+  var vOff=probe.length+8;
+  var aOff=vOff+vTotal;
+  var moof=makeMoof(vOff,aOff);
+  var mdat=mp4box('mdat',vBytes.concat(aBytes));
+  return concatAll([moof,mdat]);
+}
+/*TESTABLE-END*/
+
+var $=function(id){ return document.getElementById(id); };
+var E={v:$('v'),mj:$('mj'),liveDot:$('liveDot'),liveText:$('liveText'),viewers:$('mViewers'),
+  rate:$('mRate'),soundBtn:$('btnSound'),fullBtn:$('btnFull'),load:$('load'),loadText:$('loadText'),
+  err:$('err'),errTitle:$('errTitle'),errMsg:$('errMsg'),errCode:$('errCode'),errTips:$('errTips'),
+  retry:$('retry'),pinLayer:$('pinLayer'),pin:$('pin'),pinErr:$('pinErr'),pinOk:$('pinOk'),
+  sound:$('sound'),stage:$('stage'),foot:$('foot')};
+var S={phase:'boot',pageToken:parsePathToken(location.pathname),mediaToken:null,
+  playSessionId:null,protocols:null,pin:'',pinRequired:false,viewers:0,maxViewers:3,
+  hasAudio:false,muted:true,playId:0,startedAt:Date.now(),firstFrame:false,
+  statusTimer:null,renewTimer:null,watchTimer:null,telemQueue:[],flvAbort:null,
+  mseUrl:null,ms:null,sb:null,awaitingPin:false,reconnecting:0,closed:false,lastBytesAt:0};
+
+function text(el,v){ if(el){ el.textContent=v; } }
+function show(el,on){ if(el){ el.hidden=!on; } }
+function setLoad(msg){ text(E.loadText,msg); show(E.load,true); }
+function hideLoad(){ show(E.load,false); }
+function setLive(on){ E.liveDot.className='dot'+(on?'':' off'); text(E.liveText,on?'直播中':'连接中'); }
+function telem(name,props){
+  try{
+    S.telemQueue.push({name:name,ts:Date.now(),props:props||{}});
+    if(S.telemQueue.length>50){ S.telemQueue.shift(); }
+  }catch(e){}
+}
+function flushTelem(){
+  if(!S.telemQueue.length){ return; }
+  var batch=S.telemQueue.splice(0,50);
+  try{
+    fetch('/api/v1/telemetry/batch',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({events:batch}),cache:'no-store',keepalive:true}).catch(function(){});
+  }catch(e){}
+}
+function mapError(code){
+  switch(code){
+    case 3004: return {title:'需要观看口令',msg:'该画面需要观看口令，请输入分享者提供的 4–6 位数字。',tips:false};
+    case 3005: return {title:'口令错误',msg:'口令不正确，请重新输入。',tips:false};
+    case 3006: return {title:'口令已锁定',msg:'口令尝试次数过多，请稍后再试（约 10 分钟）。',tips:false};
+    case 3008: return {title:'请求过于频繁',msg:'请求过于频繁，请稍后再试。',tips:false};
+    case 6005: return {title:'观看人数已满',msg:'局域网观看人数已达上限，建议分享者切换公网模式。',tips:false};
+    case 3001: case 3002: case 3003:
+      return {title:'地址无效或已过期',msg:'播放链接无效或已过期，请向分享者重新获取播放地址。',tips:false};
+    case 2002: case 2003: case 410:
+      return {title:'直播已结束',msg:'分享者已停止推流，直播已结束。',tips:false};
+    case 404: return {title:'地址无效',msg:'播放地址无效，请确认链接完整。',tips:false};
+    case 6003: return {title:'网络连接中断',msg:'无法连接局域网服务，请确认与分享者处于同一 Wi-Fi / 热点。',tips:true};
+    case 6004: return {title:'疑似 AP 隔离',msg:'路由器可能开启了 AP 隔离（设备隔离），观看设备无法访问分享者。请按下方清单排查。',tips:true};
+    case 6006: return {title:'媒体服务异常',msg:'分享者的媒体服务异常，请稍后重试。',tips:true};
+    case 5004: return {title:'等待画面超时',msg:'暂时没有收到画面，请确认分享者仍在推流后重试。',tips:true};
+    case 5005: return {title:'浏览器不支持',msg:'当前浏览器无法播放该画面，请使用最新版 Chrome、Edge 或 Safari 打开。',tips:false};
+    default: return {title:'播放失败',msg:'播放失败，请检查网络后重试。',tips:true};
+  }
+}
+function renderError(code,msg){
+  var m=mapError(code);
+  E.errTitle.textContent=m.title;
+  E.errMsg.textContent=msg||m.msg;
+  E.errCode.textContent=code?'错误码：'+code:'';
+  show(E.errTips,!!m.tips);
+  show(E.err,true); hideLoad(); setLive(false);
+  try{ E.retry.focus(); }catch(e){}
+  telem('play_failed',{code:code||0});
+}
+function fail(code,msg){
+  stopEverything();
+  S.phase='failed';
+  renderError(code,msg);
+}
+function ended(msg){
+  stopEverything();
+  S.phase='ended'; S.closed=true;
+  E.errTitle.textContent='直播已结束';
+  E.errMsg.textContent=msg||'分享者已停止推流。';
+  E.errCode.textContent='';
+  show(E.errTips,false); show(E.err,true); hideLoad(); setLive(false);
+  text(E.liveText,'已结束'); show(E.retry,false);
+}
+function stopEverything(){
+  S.playId++;
+  if(S.flvAbort){ try{ S.flvAbort.abort(); }catch(e){} S.flvAbort=null; }
+  clearInterval(S.statusTimer); S.statusTimer=null;
+  clearInterval(S.watchTimer); S.watchTimer=null;
+  clearInterval(S.renewTimer); S.renewTimer=null;
+  clearTimeout(S.mjTimer); clearInterval(S.mjPoll);
+  teardownMse();
+  try{ E.mj.onload=null; E.mj.onerror=null; E.mj.removeAttribute('src'); }catch(e){}
+  show(E.mj,false); show(E.v,true);
+  flushTelem();
+}
+function teardownMse(){
+  SEG_QUEUE.length=0;
+  try{ if(S.sb){ S.sb.removeEventListener('updateend',onSbUpdate); } }catch(e){}
+  S.sb=null;
+  try{ if(S.v.src){ E.v.pause(); E.v.removeAttribute('src'); E.v.load(); } }catch(e){}
+  if(S.mseUrl){ try{ URL.revokeObjectURL(S.mseUrl); }catch(e){} S.mseUrl=null; }
+  S.ms=null;
+}
+function apiFetch(path,opts){
+  var o=opts||{};
+  o.cache='no-store';
+  o.headers=o.headers||{};
+  o.headers['X-Page-Token']=S.pageToken||'';
+  return fetch(path,o);
+}
+function readJson(res){
+  return res.text().then(function(t){
+    var j=null; try{ j=JSON.parse(t); }catch(e){}
+    return {ok:res.ok,status:res.status,json:j};
+  });
+}
+function authFail(res){
+  var j=res.json||{};
+  var code=j.code||0;
+  if(res.status===410){ ended(); return; }
+  if(res.status===404){ fail(404,j.userHint); return; }
+  if(res.status===429){
+    fail(code||6005,j.userHint);
+    return;
+  }
+  if(res.status===401){
+    if(code===3004){ showPin(''); return; }
+    if(code===3005){ showPin(j.userHint||'口令错误，请重试'); return; }
+    fail(code||3002,j.userHint);
+    return;
+  }
+  fail(code||6001,j.userHint);
+}
+function start(){
+  S.phase='boot'; S.firstFrame=false; S.hasAudio=false; S.closed=false; S.reconnecting=0;
+  show(E.err,false); show(E.pinLayer,false); show(E.mj,false); show(E.v,true); show(E.retry,true);
+  show(E.soundBtn,false); show(E.sound,false); text(E.soundBtn,'声音'); setLive(false);
+  S.pageToken=parsePathToken(location.pathname);
+  telem('play_page_open',{});
+  if(!S.pageToken){ fail(3002); return; }
+  setLoad('正在加载…');
+  apiFetch('/api/v1/status').then(readJson).then(function(res){
+    if(!res.ok){ authFail(res); return; }
+    var st=res.json||{};
+    S.viewers=st.viewers||0; S.maxViewers=st.maxViewers||3;
+    var state=String(st.state||'').toLowerCase();
+    if(state==='closed'||state==='failed'){ ended(); return; }
+    if(state==='stopping'||state==='created'){ setLoad('分享者正在准备…'); }
+    updateHud(st);
+    S.pinRequired=!!st.pinRequired;
+    setLoad(S.pinRequired?'需要观看口令':'正在连接画面…');
+    if(S.pinRequired){ showPin(''); return; }
+    createSession('');
+  }).catch(function(){ fail(6003); });
+}
+function showPin(msg){
+  S.awaitingPin=true; S.phase='auth';
+  show(E.pinLayer,true); show(E.err,false);
+  E.pin.value='';
+  E.pinErr.textContent=msg||'';
+  E.pinOk.disabled=false;
+  try{ E.pin.focus(); }catch(e){}
+}
+function submitPin(){
+  var v=(E.pin.value||'').replace(/\D/g,'');
+  if(!/^\d{4,6}$/.test(v)){ E.pinErr.textContent='请输入 4–6 位数字口令'; return; }
+  E.pinOk.disabled=true;
+  createSession(v);
+}
+function createSession(pin){
+  var body={};
+  if(pin){ body.pin=pin; }
+  setLoad(pin?'正在校验口令…':'正在连接画面…');
+  return apiFetch('/api/v1/play-session',{method:'POST',
+    headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+    .then(readJson).then(function(res){
+      if(!res.ok){
+        var j=res.json||{},code=j.code||0;
+        if(code===3004){ E.pinOk.disabled=false; showPin(''); return; }
+        if(code===3005){ E.pinOk.disabled=false; showPin(j.userHint||'口令错误，请重试'); return; }
+        if(code===3006||code===3008){
+          E.pinOk.disabled=true;
+          showPin(j.userHint||mapError(code).msg);
+          setTimeout(function(){ E.pinOk.disabled=false; },4000);
+          return;
+        }
+        authFail(res);
+        return;
+      }
+      var j=res.json||{};
+      S.pin=pin||'';
+      S.awaitingPin=false; show(E.pinLayer,false);
+      S.mediaToken=j.mediaToken||'';
+      S.playSessionId=j.playSessionId||'';
+      S.protocols=j.protocols||{};
+      S.hasAudio=false;
+      if(!S.mediaToken){ fail(3002,'未获取到播放凭证，请重试'); return; }
+      scheduleRenew();
+      playWithFallback();
+    });
+}
+function scheduleRenew(){
+  clearInterval(S.renewTimer);
+  S.renewTimer=setInterval(function(){
+    if(S.phase!=='playing'&&S.phase!=='trying'){ return; }
+    if(!S.mediaToken){ return; }
+    var body={}; if(S.pin){ body.pin=S.pin; } if(S.playSessionId){ body.playSessionId=S.playSessionId; }
+    apiFetch('/api/v1/play-session',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(body)}).then(readJson).then(function(res){
+        if(res.ok&&res.json&&res.json.mediaToken){ S.mediaToken=res.json.mediaToken; }
+      }).catch(function(){});
+  },240000);
+}
+function playWithFallback(){
+  S.phase='trying'; S.reconnecting=0;
+  tryFlv();
+}
+function flvUnsupported(){
+  if(!window.MediaSource){ return true; }
+  if(typeof window.MediaSource.isTypeSupported!=='function'){ return true; }
+  return false;
+}
+function tryFlv(){
+  if(flvUnsupported()){ tryMjpeg('mse_unsupported'); return; }
+  var id=++S.playId;
+  teardownMse();
+  S.currentProtocol='flv'; S.firstFrame=false;
+  setLoad('正在连接画面…');
+  var ms=null;
+  try{ ms=new MediaSource(); }catch(e){ tryMjpeg('mse_init_failed'); return; }
+  S.ms=ms;
+  S.mseUrl=URL.createObjectURL(ms);
+  E.v.muted=S.muted; E.v.autoplay=true; E.v.src=S.mseUrl;
+  show(E.v,true); show(E.mj,false);
+  var timer=setTimeout(function(){
+    if(id!==S.playId||S.firstFrame){ return; }
+    try{ if(S.flvAbort){ S.flvAbort.abort(); } }catch(e){}
+    tryMjpeg('flv_timeout');
+  },2000);
+  S.flvTimer=timer;
+  ms.addEventListener('sourceopen',function(){
+    if(id!==S.playId){ return; }
+    try{ E.v.play().catch(function(){}); }catch(e){}
+    fetchFlv(id,timer);
+  },{once:true});
+}
+function onSbUpdate(){
+  if(S.phase==='failed'||S.phase==='ended'){ return; }
+  pumpQueue();
+  var v=E.v;
+  try{
+    if(v.buffered.length){
+      var end=v.buffered.end(v.buffered.length-1);
+      if(end-v.currentTime>2.5){ v.currentTime=Math.max(0,end-0.2); }
+    }
+  }catch(e){}
+}
+var SEG_QUEUE=[];
+function pumpQueue(){
+  var sb=S.sb;
+  if(!sb||sb.updating||!SEG_QUEUE.length){ return; }
+  try{ sb.appendBuffer(SEG_QUEUE.shift()); }
+  catch(e){
+    if(e&&(e.name==='QuotaExceededError')){
+      try{
+        var v=E.v;
+        var keep=Math.max(0,v.currentTime-2);
+        if(sb.buffered.length){ sb.remove(0,keep); }
+      }catch(e2){ tryMjpeg('mse_quota'); }
+      return;
+    }
+    tryMjpeg('mse_append_failed');
+  }
+}
+function flushSection(buf){ SEG_QUEUE.push(buf); pumpQueue(); }
+function fetchFlv(id,timer){
+  var url=(S.protocols&&S.protocols.flv&&S.protocols.flv.url)||'/live.flv';
+  var ctrl=new AbortController();
+  S.flvAbort=ctrl;
+  fetch(url+'?mt='+encodeURIComponent(S.mediaToken),{signal:ctrl.signal,cache:'no-store'})
+    .then(function(res){
+      if(id!==S.playId){ return; }
+      if(!res.ok){
+        if(res.status===401){ fail(3003); return; }
+        if(res.status===429){ fail(6005); return; }
+        tryMjpeg('flv_http_'+res.status);
+        return;
+      }
+      if(!res.body||!res.body.getReader){ tryMjpeg('stream_unsupported'); return; }
+      var reader=res.body.getReader();
+      var parser=new FlvParser(id,timer);
+      S.lastBytesAt=Date.now();
+      startWatchdog(id);
+      function pump(){
+        reader.read().then(function(r){
+          if(id!==S.playId){ return; }
+          if(r.done){ parser.end(); return; }
+          S.lastBytesAt=Date.now();
+          parser.feed(r.value);
+          pump();
+        }).catch(function(){
+          if(id===S.playId){ parser.error(); }
+        });
+      }
+      pump();
+    }).catch(function(err){
+      if(id!==S.playId){ return; }
+      if(err&&err.name==='AbortError'){ return; }
+      tryMjpeg('flv_fetch_failed');
+    });
+}
+function startWatchdog(id){
+  clearInterval(S.watchTimer);
+  S.watchTimer=setInterval(function(){
+    if(id!==S.playId||S.phase!=='playing'){ return; }
+    if(Date.now()-S.lastBytesAt>3000){ reconnectFlv(); }
+  },1000);
+}
+function reconnectFlv(){
+  if(S.reconnecting>=5){ tryMjpeg('reconnect_exhausted'); return; }
+  S.reconnecting++;
+  var n=S.reconnecting;
+  var delay=Math.min(8000,500*Math.pow(2,n-1))*(0.8+Math.random()*0.4);
+  setLoad('正在重连（第 '+n+' 次）…');
+  try{ if(S.flvAbort){ S.flvAbort.abort(); } }catch(e){}
+  clearInterval(S.watchTimer); S.watchTimer=null;
+  teardownMse();
+  var id=++S.playId;
+  setTimeout(function(){
+    if(id!==S.playId){ return; }
+    renewToken().then(function(){
+      S.phase='trying'; S.firstFrame=false;
+      tryFlv();
+    });
+  },delay);
+}
+function renewToken(){
+  var body={}; if(S.pin){ body.pin=S.pin; } if(S.playSessionId){ body.playSessionId=S.playSessionId; }
+  return apiFetch('/api/v1/play-session',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(body)}).then(readJson).then(function(res){
+      if(res.ok&&res.json&&res.json.mediaToken){ S.mediaToken=res.json.mediaToken; }
+    }).catch(function(){});
+}
+function FlvParser(id,timer){
+  this.id=id; this.timer=timer; this.buf=new Uint8Array(0); this.header=null;
+  this.vcfg=null; this.acfg=null; this.useAudio=false; this.baseV=null; this.baseA=null;
+  this.lastV=0; this.lastA=0; this.started=false; this.gV=[]; this.gA=[]; this.seq=0;
+}
+FlvParser.prototype.feed=function(chunk){
+  if(this.id!==S.playId){ return; }
+  try{
+    this.buf=concatAll([this.buf,chunk]);
+    var pos=0;
+    if(!this.header){
+      if(this.buf.length<13){ return; }
+      var h=parseFlvHeader(this.buf);
+      if(!h||!h.hasVideo){ this.fail('bad_header'); return; }
+      this.header=h; pos=13;
+    }
+    while(true){
+      var tag=parseFlvTag(this.buf,pos);
+      if(!tag){ break; }
+      this.onTag(tag);
+      pos=tag.nextOffset;
+    }
+    if(pos>0){ this.buf=this.buf.subarray(pos); }
+  }catch(e){ this.fail('parse_error'); }
+};
+FlvParser.prototype.onTag=function(tag){
+  var buf=this.buf;
+  if(tag.type===9){
+    var v=parseVideoTag(buf,tag.dataStart,tag.dataEnd);
+    if(!v||!v.payload||v.avcPacketType<0){ return; }
+    if(v.avcPacketType===0){
+      var cfg=parseAvcConfigRecord(v.payload);
+      if(cfg){ this.vcfg=cfg; }
+      return;
+    }
+    if(v.avcPacketType!==1||!this.vcfg){ return; }
+    var nalus=parseAvcNalus(v.payload,this.vcfg.lengthSize);
+    if(!nalus.length){ return; }
+    var ts=fixTimestamp(tag.timestampMs+v.cts,this.lastV);
+    this.lastV=ts;
+    if(this.baseV===null){ this.baseV=ts; }
+    this.pushVideo({ptsMs:ts-this.baseV,isKey:v.frameType===1,bytes:new Uint8Array(v.payload)});
+    return;
+  }
+  if(tag.type===8){
+    var a=parseAudioTag(buf,tag.dataStart,tag.dataEnd);
+    if(!a||a.soundFormat!==10||!a.payload){ return; }
+    if(a.aacPacketType===0){ var asc=parseAacAsc(a.payload); if(asc){ this.acfg=asc; } return; }
+    if(a.aacPacketType!==1||!this.useAudio){ return; }
+    var ats=fixTimestamp(tag.timestampMs,this.lastA);
+    this.lastA=ats;
+    if(this.baseA===null){ this.baseA=this.baseV===null?ats:this.baseV; }
+    this.pushAudio({ptsMs:ats-this.baseA,bytes:new Uint8Array(a.payload)});
+  }
+};
+FlvParser.prototype.ensureStart=function(sample){
+  if(this.started){ return true; }
+  if(!this.vcfg||!this.vcfg.sps.length){ return false; }
+  this.useAudio=!!(this.acfg&&this.acfg.asc&&this.acfg.sampleRate);
+  var codec=codecStringFromAvcC(this.vcfg);
+  var mime='video/mp4; codecs="'+codec+(this.useAudio?',mp4a.40.2':'')+'"';
+  if(!window.MediaSource.isTypeSupported(mime)){
+    if(this.useAudio){ this.useAudio=false; mime='video/mp4; codecs="'+codec+'"'; }
+    if(!window.MediaSource.isTypeSupported(mime)){ this.fail('codec_unsupported'); return false; }
+  }
+  var dim=parseSpsSize(this.vcfg.sps[0])||{width:0,height:0};
+  var init=buildInitSegment({
+    video:{profile:this.vcfg.profile,compat:this.vcfg.compat,level:this.vcfg.level,
+      lengthSize:this.vcfg.lengthSize,sps:this.vcfg.sps,pps:this.vcfg.pps,width:dim.width,height:dim.height},
+    audio:this.useAudio?{sampleRate:this.acfg.sampleRate,channels:this.acfg.channels,asc:this.acfg.asc}:null
+  });
+  if(!init){ this.fail('init_failed'); return false; }
+  try{
+    if(!S.ms||S.ms.readyState!=='open'){ return false; }
+    if(!S.sb){
+      S.sb=S.ms.addSourceBuffer(mime);
+      S.sb.addEventListener('updateend',onSbUpdate);
+    }
+  }catch(e){ this.fail('sourcebuffer_failed'); return false; }
+  S.hasAudio=this.useAudio;
+  flushSection(init);
+  this.started=true;
+  return true;
+};
+FlvParser.prototype.pushVideo=function(sample){
+  if(!this.started&&!this.ensureStart(sample)){ return; }
+  if(sample.isKey&&this.gV.length){ this.flushGroup(); }
+  this.gV.push(sample);
+  if(this.gV.length===1){ this.flushGroup(); return; }
+  var dur=sample.ptsMs-this.gV[0].ptsMs;
+  if(dur>=500){ this.flushGroup(); }
+};
+FlvParser.prototype.pushAudio=function(sample){
+  if(!this.started){ return; }
+  this.gA.push(sample);
+  if(this.gA.length>50){ this.gA.shift(); }
+};
+FlvParser.prototype.flushGroup=function(){
+  if(!this.gV.length){ return; }
+  var g=this.gV; this.gV=[];
+  var last=g[g.length-1].ptsMs;
+  var aud=[],rest=[],i;
+  for(i=0;i<this.gA.length;i++){
+    if(this.gA[i].ptsMs<=last+100){ aud.push(this.gA[i]); } else { rest.push(this.gA[i]); }
+  }
+  this.gA=rest;
+  var seg=buildMediaSegment(++this.seq,g,aud,this.acfg?this.acfg.sampleRate:48000);
+  if(seg){ flushSection(seg); }
+};
+FlvParser.prototype.fail=function(reason){
+  if(this.id!==S.playId){ return; }
+  tryMjpeg('flv_'+reason);
+};
+FlvParser.prototype.end=function(){
+  if(this.id!==S.playId){ return; }
+  if(S.phase==='playing'){ reconnectFlv(); }
+};
+FlvParser.prototype.error=function(){
+  if(this.id!==S.playId){ return; }
+  if(S.phase==='playing'){ reconnectFlv(); } else { tryMjpeg('flv_stream_error'); }
+};
+function markFirstFrame(){
+  if(S.firstFrame){ return; }
+  S.firstFrame=true;
+  clearTimeout(S.flvTimer);
+  hideLoad();
+  S.phase='playing'; setLive(true);
+  S.reconnecting=0; S.lastBytesAt=Date.now();
+  try{ E.v.play().catch(function(){}); }catch(e){}
+  telem('play_first_frame',{playProtocol:S.currentProtocol||'flv',timeToFirstFrameMs:Date.now()-S.startedAt});
+  show(E.soundBtn,!!S.hasAudio);
+  if(S.hasAudio){ show(E.sound,true); } else { show(E.sound,false); }
+  startStatusPoll();
+}
+function tryMjpeg(reason){
+  var id=++S.playId;
+  if(S.flvAbort){ try{ S.flvAbort.abort(); }catch(e){} S.flvAbort=null; }
+  clearInterval(S.watchTimer); S.watchTimer=null;
+  clearTimeout(S.mjTimer); clearInterval(S.mjPoll);
+  teardownMse();
+  S.currentProtocol='mjpeg';
+  telem('play_fallback',{from:'flv',to:'mjpeg',reason:reason||'unknown'});
+  setLoad('正在切换兼容模式…');
+  show(E.v,false); show(E.mj,true); show(E.sound,false); show(E.soundBtn,false);
+  S.hasAudio=false;
+  var url=(S.protocols&&S.protocols.mjpeg&&S.protocols.mjpeg.url)||'/stream.mjpg';
+  var done=false;
+  function ok(){
+    if(done||id!==S.playId){ return; }
+    done=true; markFirstFrame();
+  }
+  E.mj.onload=ok;
+  E.mj.onerror=function(){
+    if(done||id!==S.playId){ return; }
+    done=true;
+    fail(5004,'已切换兼容模式仍无法播放，请确认分享者在线后重试。');
+  };
+  E.mj.src=url+'?mt='+encodeURIComponent(S.mediaToken);
+  var t=setTimeout(function(){
+    if(done||id!==S.playId){ return; }
+    if(E.mj.naturalWidth>0){ ok(); } else {
+      done=true;
+      fail(5004,'兼容模式加载超时，请确认分享者在线后重试。');
+    }
+  },2000);
+  var poll=setInterval(function(){
+    if(done||id!==S.playId){ clearInterval(poll); return; }
+    if(E.mj.naturalWidth>0){ clearInterval(poll); clearTimeout(t); ok(); }
+  },300);
+  S.mjTimer=t; S.mjPoll=poll;
+}
+function startStatusPoll(){
+  clearInterval(S.statusTimer);
+  S.statusTimer=setInterval(function(){
+    if(S.closed||S.phase==='failed'||S.phase==='ended'){ return; }
+    apiFetch('/api/v1/status').then(readJson).then(function(res){
+      if(!res.ok){
+        if(res.status===410){ ended(); }
+        return;
+      }
+      var st=res.json||{};
+      var state=String(st.state||'').toLowerCase();
+      if(state==='closed'||state==='failed'){ ended(); return; }
+      S.viewers=st.viewers||0; S.maxViewers=st.maxViewers||3;
+      updateHud(st);
+    }).catch(function(){});
+  },5000);
+}
+function updateHud(st){
+  var viewers=st.viewers; if(typeof viewers!=='number'){ viewers=S.viewers; }
+  var max=st.maxViewers; if(typeof max!=='number'){ max=S.maxViewers; }
+  text(E.viewers, viewers+'/'+max+' 人观看');
+  var kbps=st.bitrateKbps;
+  if(typeof kbps!=='number'&&typeof st.bitrateBps==='number'){ kbps=Math.round(st.bitrateBps/1000); }
+  var rate=(typeof kbps==='number'?kbps:0)+' kbps';
+  if(typeof st.fps==='number'){ rate+=' · '+st.fps+' fps'; }
+  text(E.rate,rate);
+}
+function bind(){
+  E.retry.addEventListener('click',function(){ start(); });
+  E.pinOk.addEventListener('click',submitPin);
+  E.pin.addEventListener('keydown',function(e){ if(e.key==='Enter'){ submitPin(); } });
+  E.pin.addEventListener('input',function(){ E.pin.value=E.pin.value.replace(/\D/g,'').slice(0,6); });
+  E.soundBtn.addEventListener('click',function(){
+    S.muted=false; E.v.muted=false;
+    if(E.v.play){ E.v.play().catch(function(){}); }
+    text(E.soundBtn,'静音');
+    show(E.sound,false);
+  });
+  E.sound.addEventListener('click',function(){
+    S.muted=false; E.v.muted=false;
+    if(E.v.play){ E.v.play().catch(function(){}); }
+    show(E.sound,false);
+    text(E.soundBtn,'静音');
+    E.soundBtn.setAttribute('aria-label','静音');
+  });
+  E.fullBtn.addEventListener('click',function(){
+    try{
+      if(document.fullscreenElement){ document.exitFullscreen().catch(function(){}); }
+      else if(E.stage.requestFullscreen){ E.stage.requestFullscreen().catch(function(){}); }
+    }catch(e){}
+  });
+  E.v.addEventListener('loadeddata',function(){ if(S.currentProtocol!=='mjpeg'){ markFirstFrame(); } });
+  E.v.addEventListener('playing',function(){ if(S.currentProtocol!=='mjpeg'){ markFirstFrame(); } });
+  E.v.addEventListener('error',function(){
+    if(S.currentProtocol==='mjpeg'||S.phase!=='trying'){ return; }
+    tryMjpeg('video_element_error');
+  });
+  setInterval(flushTelem,10000);
+  document.addEventListener('visibilitychange',function(){
+    if(document.hidden){ return; }
+    if(S.phase==='playing'){ renewToken(); }
+  });
+}
+bind();
+start();
+})();
+</script>
+</body>
+</html>

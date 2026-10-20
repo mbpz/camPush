@@ -2,3 +2,15 @@
 __pycache__/
 *.pyc
 .idea/
+.gradle/
+build/
+**/build/
+local.properties
+.tooling/
+.android-sdk/
+*.apk
+*.aab
+captures/
+.kotlin/
+.gradle-home/
+.android-home/

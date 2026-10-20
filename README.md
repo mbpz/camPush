@@ -9,7 +9,8 @@
 | 交付顺序 | **P1 局域网 → P2 公网 → P3 专业化/商业化** |
 | 契约基线版本 | [00-conventions.md](./docs/00-conventions.md) **v1.5** |
 | 需求基线 | [PRD v1.0](./docs/PRD-v1.0.md) |
-| 文档规模 | 13 份（00–11 + PRD），约 1.5 万行，70 张 Mermaid 图，650+ 张表格 |
+| 实现状态 | **P1 已实现**：Android 客户端 + 端侧服务 + LAN 播放页；46 项测试通过（[实现说明](./docs/12-p1-implementation.md)） |
+| 文档规模 | 14 份（00–12 + PRD），约 1.6 万行，70 张 Mermaid 图，650+ 张表格 |
 | 质量门禁 | `python3 scripts/check_docs.py --strict`（当前：通过） |
 | 维护人 | Team Lead |
 | 最后更新 | 2026-10-20 |
@@ -65,6 +66,18 @@ PRD 定义 **What / Why**；本集定义 **How / 边界 / 验收 / 排期 / 风�
 
 > **P2-GATE = 2026-12-25**：Top5 全关 + M0-WAN（E2/E4/E5 必过、E3 条件项）+ P1 验收通过 + 云环境就绪，缺一不启动 P2 开发。阶段与功能版本 M0–M3 的映射见 [00 §20.5](./docs/00-conventions.md)，决策台账见 [11 §2.6](./docs/11-risk-adr.md)。
 
+### 2.4 P1 实现（已交付）
+
+| 项 | 内容 |
+|---|---|
+| 代码 | `app/`（Compose + CameraX 客户端）、`lan-core/`（纯 JVM 端侧服务）、`tools/player-selftest/`（播放页自检） |
+| 构建 | `scripts/setup-toolchain.sh` → `scripts/build.sh :app:assembleDebug`（沙箱内 SDK/Gradle 全部落在 workspace） |
+| 自动化 | `:lan-core:test` **46/46**；播放页 Node 自检 **26/26**；APK 构建通过 |
+| 端到端 | Android 14 模拟器：播放页 200（43 KB）、MJPEG/FLV 出流、3 观看者上限、PIN 校验、端口 8090、停止即失效；Chrome 实播 FLV→MSE `readyState=4` |
+| 细节 | [docs/12-p1-implementation.md](./docs/12-p1-implementation.md) |
+
+![P1 主界面](./docs/assets/p1-main.png)
+
 ---
 
 ## 3. 文档地图
@@ -83,6 +96,7 @@ PRD 定义 **What / Why**；本集定义 **How / 边界 / 验收 / 排期 / 风�
 | 09 | [task-plan](./docs/09-task-plan.md) | **P1/P2/P3 排期**：WBS 118 Task、依赖 DAG、关键路径、DoR/DoD、AC 映射、缓冲与裁剪 | 项目管理 / 全员 |
 | 10 | [observability](./docs/10-observability.md) | 指标分阶段启用（P1 LAN / P2 WAN）、24 事件埋点、漏斗、SLO、23 条告警、埋点 QA | 数据 / QA |
 | 11 | [risk-adr](./docs/11-risk-adr.md) | 20 条风险、Top5 决策门禁、ADR-001～013（含 LAN-first 分期）、降级路径 | 产品 / 技术负责人 |
+| 12 | [p1-implementation](./docs/12-p1-implementation.md) | **P1 实现说明**：代码结构、构建运行、功能清单、验收证据、已知限制 | 研发 / QA |
 | — | [PRD v1.0](./docs/PRD-v1.0.md) | 用户提供的需求原文（不改写，仅引用） | 全员 |
 | — | [scripts/check_docs.py](./scripts/check_docs.py) | 8 类文档一致性 CI 门禁 | 全员 |
 
@@ -196,6 +210,7 @@ python3 scripts/check_docs.py --strict
 | 09 task-plan | 960 | 3 | 基线 v1.1（P1/P2/P3） |
 | 10 observability | 876 | 2 | 基线 v1.1（阶段启用） |
 | 11 risk-adr | 512 | 2 | 基线 v1.2（ADR-013） |
+| 12 p1-implementation | 231 | 0 | 实现基线 v1.0 |
 | PRD v1.0 | 643 | 0 | 需求基线（原文） |
 
 > 子文档中 “00 v1.1/v1.2” 的引用为其写作时点；以 00 当前版本 v1.5 为准。
@@ -223,6 +238,10 @@ python3 scripts/check_docs.py --strict
 ```text
 camPush/
 ├── README.md                 # 本导航
+├── app/                      # P1 Android 客户端（Compose/CameraX/前台服务）
+├── lan-core/                 # P1 端侧服务（纯 JVM，含 player.html）
+├── tools/player-selftest/    # 播放页 Node 自检
+├── scripts/                  # setup-toolchain.sh / build.sh / check_docs.py
 ├── docs/
 │   ├── PRD-v1.0.md           # 需求原文基线（不改写）
 │   ├── 00-conventions.md     # 契约基线 + 交付分期 + v1.1–v1.5 裁定
@@ -259,3 +278,4 @@ camPush/
 |---|---|---|---|
 | v1.0 | 2026-10-20 | Team Lead | 首次交付：13 份文档 + 一致性门禁；契约基线 v1.4 |
 | v1.1 | 2026-10-20 | Team Lead | 交付顺序改为 LAN-first：新增 P1/P2/P3 路线图与 Top5 决策门禁；09/10/11/08 阶段化重排；00 升 v1.5（§20 契约启用矩阵）；PRD 引用与门禁同步 |
+| v1.2 | 2026-10-20 | Team Lead | **P1 实现落地**：app + lan-core + player.html + 构建脚本；46 项 JVM 测试、26 项播放页自检、模拟器/浏览器 E2E 通过；新增 docs/12 实现说明与截图 |

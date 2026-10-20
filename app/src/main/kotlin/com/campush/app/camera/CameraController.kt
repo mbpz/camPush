@@ -1,0 +1,336 @@
+package com.campush.app.camera
+
+import android.content.Context
+import android.media.Image
+import android.os.Handler
+import android.os.Looper
+import android.util.Log
+import android.util.Size
+import androidx.camera.core.Camera
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.ImageProxy
+import androidx.camera.core.Preview
+import androidx.camera.core.UseCase
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.view.PreviewView
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.findViewTreeLifecycleOwner
+import com.campush.app.core.CameraFacingUi
+import com.campush.app.core.P1Error
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+
+/**
+ * CameraX 采集：Preview + ImageAnalysis（YUV_420_888，KEEP_ONLY_LATEST）。
+ *
+ * - 推流中绑定到前台服务（LifecycleOwner = LanStreamingService），保证切后台不断流；
+ * - 空闲时绑定到预览 View 所在的 Activity 生命周期，只开 Preview 供 UI 预览；
+ * - 前后摄切换采用 unbind/rebind，编码管线与推流状态不受影响；
+ * - 所有 CameraX 调用切到主线程执行，分析/编码回调跑在单线程 executor（docs/02 §4）。
+ */
+class CameraController internal constructor(context: Context) {
+
+    private val appContext: Context = context.applicationContext
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val mainExecutor = ContextCompat.getMainExecutor(appContext)
+
+    private var provider: ProcessCameraProvider? = null
+    private var analysisExecutor: ExecutorService? = null
+
+    private var previewUseCase: Preview? = null
+    private var analysisUseCase: ImageAnalysis? = null
+    private var camera: Camera? = null
+
+    private var previewView: PreviewView? = null
+    private var previewOwner: LifecycleOwner? = null
+    private var streamingOwner: LifecycleOwner? = null
+
+    private var facing: CameraFacingUi = CameraFacingUi.BACK
+    private var streaming: Boolean = false
+    private var paused: Boolean = false
+    private var torchOn: Boolean = false
+
+    private var targetWidth: Int = 1280
+    private var targetHeight: Int = 720
+    private var targetFps: Int = 30
+
+    private var onFrame: ((Image, Long) -> Unit)? = null
+    private var onCameraError: ((P1Error) -> Unit)? = null
+
+    fun isStreaming(): Boolean = streaming
+
+    /** 绑定预览 View（由 app-ui 的 CameraPreview composable 调用）。 */
+    fun bindPreview(view: PreviewView) {
+        runOnMain {
+            previewView = view
+            view.post {
+                runOnMain {
+                    view.findViewTreeLifecycleOwner()?.let { previewOwner = it }
+                    if (streaming) {
+                        // 推流中旋转/重建 UI：只替换预览 surface，不打断采集与推流。
+                        previewUseCase?.let { preview ->
+                            if (paused) {
+                                preview.setSurfaceProvider(null)
+                            } else {
+                                runCatching { preview.setSurfaceProvider(view.surfaceProvider) }
+                            }
+                        }
+                    } else if (previewOwner != null) {
+                        bindInternal(includeAnalysis = false)
+                    }
+                }
+            }
+        }
+    }
+
+    fun unbindPreview() {
+        runOnMain {
+            previewView = null
+            if (streaming) {
+                // 推流中 UI 销毁：仅摘掉预览 surface，采集/编码继续。
+                runCatching { previewUseCase?.setSurfaceProvider(null) }
+            } else {
+                unbindAll()
+                shutdownExecutor()
+            }
+        }
+    }
+
+    fun pausePreview() {
+        runOnMain {
+            paused = true
+            // CameraX 1.3 的 UseCase 无 setEnabled；推流中仅解绑预览 surface，ImageAnalysis 继续采集。
+            previewUseCase?.setSurfaceProvider(null)
+        }
+    }
+
+    fun resumePreview() {
+        runOnMain {
+            paused = false
+            val view = previewView
+            val preview = previewUseCase
+            if (view != null && preview != null) {
+                runCatching { preview.setSurfaceProvider(view.surfaceProvider) }
+            }
+        }
+    }
+
+    /**
+     * 开始推流采集：绑定到 [lifecycleOwner]（通常为 LanStreamingService），
+     * 关闭仅预览模式并启用 Preview + ImageAnalysis。
+     */
+    fun startStreaming(
+        lifecycleOwner: LifecycleOwner,
+        facing: CameraFacingUi,
+        width: Int,
+        height: Int,
+        fps: Int,
+        frameCallback: (Image, Long) -> Unit,
+        errorCallback: (P1Error) -> Unit,
+    ) {
+        runOnMain {
+            this.streamingOwner = lifecycleOwner
+            this.facing = facing
+            this.targetWidth = width
+            this.targetHeight = height
+            this.targetFps = fps
+            this.onFrame = frameCallback
+            this.onCameraError = errorCallback
+            this.streaming = true
+            ensureExecutor()
+            bindInternal(includeAnalysis = true)
+        }
+    }
+
+    /** 停止推流采集，回落到仅预览模式（若预览仍绑定）。 */
+    fun stopStreaming() {
+        runOnMain {
+            if (!streaming) return@runOnMain
+            streaming = false
+            onFrame = null
+            onCameraError = null
+            unbindAll()
+            shutdownExecutor()
+            if (previewView != null && previewOwner != null) {
+                bindInternal(includeAnalysis = false)
+            }
+        }
+    }
+
+    fun switchCamera(newFacing: CameraFacingUi) {
+        runOnMain {
+            if (facing == newFacing) return@runOnMain
+            facing = newFacing
+            if (streaming || previewView != null) {
+                bindInternal(includeAnalysis = streaming)
+            }
+        }
+    }
+
+    fun setTorch(on: Boolean) {
+        runOnMain {
+            torchOn = on
+            val bound = camera ?: return@runOnMain
+            if (!bound.cameraInfo.hasFlashUnit()) return@runOnMain
+            runCatching {
+                bound.cameraControl.enableTorch(on)
+            }.onFailure { Log.w(TAG, "enableTorch failed", it) }
+        }
+    }
+
+    fun hasFlash(): Boolean = camera?.cameraInfo?.hasFlashUnit() == true
+
+    private fun bindInternal(includeAnalysis: Boolean) {
+        val owner = if (streaming) streamingOwner else previewOwner
+        if (owner == null) return
+        if (owner.lifecycle.currentState == Lifecycle.State.DESTROYED) return
+        val tryBind: (ProcessCameraProvider) -> Unit = { cameraProvider ->
+            try {
+                cameraProvider.unbindAll()
+                val selector = CameraSelector.Builder()
+                    .requireLensFacing(
+                        if (facing == CameraFacingUi.FRONT) CameraSelector.LENS_FACING_FRONT
+                        else CameraSelector.LENS_FACING_BACK
+                    )
+                    .build()
+
+                val preview = Preview.Builder().build()
+                previewView?.let { view ->
+                    runCatching { preview.setSurfaceProvider(view.surfaceProvider) }
+                        .onFailure { Log.w(TAG, "set preview surfaceProvider failed", it) }
+                }
+                val useCases = mutableListOf<UseCase>(preview)
+
+                var analysis: ImageAnalysis? = null
+                if (includeAnalysis && onFrame != null) {
+                    analysis = ImageAnalysis.Builder()
+                        .setTargetResolution(Size(even(targetWidth), even(targetHeight)))
+                        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                        .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_YUV_420_888)
+                        .build()
+                    analysis.setAnalyzer(ensureExecutor()) { proxy -> deliverFrame(proxy) }
+                    useCases.add(analysis)
+                }
+
+                val bound = cameraProvider.bindToLifecycle(owner, selector, *useCases.toTypedArray())
+                camera = bound
+                previewUseCase = preview
+                analysisUseCase = analysis
+                if (paused) preview.setSurfaceProvider(null)
+                if (torchOn && bound.cameraInfo.hasFlashUnit()) {
+                    runCatching { bound.cameraControl.enableTorch(true) }
+                }
+            } catch (t: Throwable) {
+                Log.w(TAG, "bindToLifecycle failed", t)
+                previewUseCase = null
+                analysisUseCase = null
+                camera = null
+                reportError(t)
+            }
+        }
+
+        val ready = provider
+        if (ready != null) {
+            tryBind(ready)
+            return
+        }
+
+        val future = ProcessCameraProvider.getInstance(appContext)
+        future.addListener({
+            val resolved = runCatching { future.get() }.getOrElse { error ->
+                Log.w(TAG, "ProcessCameraProvider unavailable", error)
+                reportError(error)
+                return@addListener
+            }
+            provider = resolved
+            tryBind(resolved)
+        }, mainExecutor)
+    }
+
+    private fun deliverFrame(proxy: ImageProxy) {
+        try {
+            val callback = onFrame ?: return
+            val image = proxy.image ?: return
+            val ptsUs = proxy.imageInfo.timestamp / 1_000L
+            callback(image, ptsUs)
+        } catch (t: Throwable) {
+            Log.w(TAG, "frame delivery failed", t)
+        } finally {
+            runCatching { proxy.close() }
+        }
+    }
+
+    private fun reportError(t: Throwable) {
+        val callback = onCameraError ?: return
+        val code = when (t) {
+            is SecurityException -> 1001
+            is IllegalArgumentException -> 1003
+            else -> 1003
+        }
+        val error = if (code == 1001) {
+            P1Error(1001, "未授予摄像头权限，无法预览与推流", "请在系统设置中允许相机权限后重试")
+        } else {
+            P1Error(1003, "摄像头不可用，可能被其他应用占用", "请关闭其他使用摄像头的应用后重试")
+        }
+        callback(error)
+    }
+
+    private fun unbindAll() {
+        runCatching { provider?.unbindAll() }
+        previewUseCase = null
+        analysisUseCase = null
+        camera = null
+    }
+
+    private fun ensureExecutor(): ExecutorService {
+        val existing = analysisExecutor
+        if (existing != null && !existing.isShutdown) return existing
+        val executor = Executors.newSingleThreadExecutor { runnable ->
+            Thread(runnable, "campush-camera").apply { isDaemon = true }
+        }
+        analysisExecutor = executor
+        return executor
+    }
+
+    private fun shutdownExecutor() {
+        val executor = analysisExecutor ?: return
+        analysisExecutor = null
+        runCatching { executor.shutdown() }
+    }
+
+    private fun runOnMain(block: () -> Unit) {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            block()
+        } else {
+            mainHandler.post(block)
+        }
+    }
+
+    private fun even(value: Int): Int = if (value % 2 == 0) value else value - 1
+
+    private companion object {
+        const val TAG = "CameraController"
+    }
+}
+
+/**
+ * 进程内单例：App UI 与前台服务共享同一个 CameraX 管线，以便推流启动时把绑定生命周期
+ * 从 Activity 切到 Service，停止后回落到仅预览。
+ */
+object CameraHost {
+    @Volatile
+    private var instance: CameraController? = null
+
+    fun get(context: Context): CameraController {
+        val existing = instance
+        if (existing != null) return existing
+        return synchronized(this) {
+            instance ?: CameraController(context.applicationContext).also { instance = it }
+        }
+    }
+
+    fun current(): CameraController? = instance
+}

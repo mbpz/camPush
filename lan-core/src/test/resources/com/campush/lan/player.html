@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="campush-player-version" content="1.0.0-test">
+    <title>CamPush LAN Player (test fixture)</title>
+    <style>body{margin:0;background:#000;color:#fff;font-family:-apple-system,sans-serif}</style>
+</head>
+<body>
+<main id="app">
+    <video id="player" playsinline muted></video>
+    <div id="state">loading</div>
+</main>
+<script>
+    // 测试夹具：仅用于 lan-core 的 JUnit 端到端测试（真实 player.html 由 player-dev 提供）。
+    window.__CAMPUSH_TEST_PLAYER__ = true;
+</script>
+</body>
+</html>
