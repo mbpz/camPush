@@ -24,6 +24,7 @@ data class EngineSnapshot(
     val bitrateKbps: Int = 0,
     val fps: Int = 0,
     val cameraAvailable: Boolean = true,
+    val surfacePipeline: Boolean = false,
     val networkLabel: String = "未知",
 )
 

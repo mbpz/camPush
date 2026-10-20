@@ -1,5 +1,6 @@
 package com.campush.app.core
 
+import android.view.SurfaceView
 import androidx.camera.view.PreviewView
 import kotlinx.coroutines.flow.StateFlow
 
@@ -47,6 +48,7 @@ data class P1UiState(
     val bitrateKbps: Int = 0,
     val fps: Int = 0,
     val cameraAvailable: Boolean = true,
+    val surfacePipeline: Boolean = false,
     val networkLabel: String = "未知",
     val torchOn: Boolean = false,
     val muted: Boolean = false,
@@ -76,6 +78,10 @@ interface P1Controller {
     /** 预览绑定由 app-ui 的 CameraPreview composable 调用。 */
     fun bindPreview(previewView: PreviewView)
     fun unbindPreview()
+
+    /** 零拷贝推流模式下的原生相机预览 Surface。 */
+    fun bindStreamPreview(view: SurfaceView)
+    fun unbindStreamPreview()
     fun pausePreview()
     fun resumePreview()
 }

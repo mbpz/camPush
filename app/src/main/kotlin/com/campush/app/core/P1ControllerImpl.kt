@@ -166,7 +166,8 @@ class P1ControllerImpl(context: Context) : P1Controller {
         }
         prefs.edit().putString(KEY_FACING, next.name).apply()
         if (hasPermission(Manifest.permission.CAMERA)) {
-            CameraHost.get(appContext).switchCamera(next)
+            if (_state.value.streaming) StreamingBridge.engine?.switchCameraSurface(next)
+            else CameraHost.get(appContext).switchCamera(next)
         }
     }
 
@@ -177,7 +178,8 @@ class P1ControllerImpl(context: Context) : P1Controller {
         }
         _state.update { it.copy(torchOn = on) }
         if (hasPermission(Manifest.permission.CAMERA)) {
-            CameraHost.get(appContext).setTorch(on)
+            if (_state.value.streaming) StreamingBridge.engine?.setTorchSurface(on)
+            else CameraHost.get(appContext).setTorch(on)
         }
     }
 
@@ -259,6 +261,14 @@ class P1ControllerImpl(context: Context) : P1Controller {
 
     override fun unbindPreview() {
         CameraHost.current()?.unbindPreview()
+    }
+
+    override fun bindStreamPreview(view: android.view.SurfaceView) {
+        StreamingBridge.engine?.bindStreamPreview(view)
+    }
+
+    override fun unbindStreamPreview() {
+        StreamingBridge.engine?.unbindStreamPreview()
     }
 
     override fun pausePreview() {
@@ -360,6 +370,7 @@ class P1ControllerImpl(context: Context) : P1Controller {
                     bitrateKbps = snapshot.bitrateKbps,
                     fps = snapshot.fps,
                     cameraAvailable = snapshot.cameraAvailable,
+                    surfacePipeline = snapshot.surfacePipeline,
                     networkLabel = snapshot.networkLabel,
                 )
                 EnginePhase.STOPPING,

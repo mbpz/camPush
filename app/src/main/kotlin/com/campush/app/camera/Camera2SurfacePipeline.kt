@@ -1,0 +1,325 @@
+package com.campush.app.camera
+
+import android.content.Context
+import android.graphics.SurfaceTexture
+import android.hardware.camera2.CameraCaptureSession
+import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CameraDevice
+import android.hardware.camera2.CameraManager
+import android.hardware.camera2.CaptureRequest
+import android.hardware.camera2.params.StreamConfigurationMap
+import android.media.MediaRecorder
+import android.os.Build
+import android.os.Handler
+import android.os.HandlerThread
+import android.os.ParcelFileDescriptor
+import android.util.Log
+import android.util.Range
+import android.util.Size
+import android.view.Surface
+import com.campush.app.core.CameraFacingUi
+import com.campush.app.streaming.TsDemuxer
+import java.io.InputStream
+
+/**
+ * 零拷贝推流管线：Camera2 -> MediaRecorder(SURFACE) -> MPEG-TS -> TsDemuxer -> MediaHub。
+ *
+ * 相机帧直接进硬件编码器（不再经过 CameraX ImageAnalysis 的 YUV 转换），
+ * 1080p30 由设备硬件保证；预览 SurfaceView 直接由相机会话输出，预览与推流互不抢带宽。
+ */
+class Camera2SurfacePipeline(
+    private val context: Context,
+    private val facing: CameraFacingUi,
+    private val width: Int,
+    private val height: Int,
+    private val fps: Int,
+    private val bitrateKbps: Int,
+    private val onAccessUnit: (ptsUs: Long, isKey: Boolean, nalUnits: List<ByteArray>) -> Unit,
+    private val onActualSize: (Int, Int) -> Unit,
+    private val onError: (String) -> Unit,
+    private val onStarted: () -> Unit,
+) {
+
+    private val thread = HandlerThread("campush-camera2").apply { start() }
+    private val handler = Handler(thread.looper)
+
+    private var manager: CameraManager? = null
+    private var device: CameraDevice? = null
+    private var session: CameraCaptureSession? = null
+    private var recorder: MediaRecorder? = null
+    private var pipeRead: ParcelFileDescriptor? = null
+    private var pipeWrite: ParcelFileDescriptor? = null
+    private var recorderSurface: Surface? = null
+    private var previewSurface: Surface? = null
+    private var actualWidth = width
+    private var actualHeight = height
+    private var torch = false
+    private var running = false
+    private var started = false
+    private var readerThread: Thread? = null
+    private var errorSent = false
+
+    fun start() {
+        handler.post {
+            running = true
+            try {
+                val mgr = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+                manager = mgr
+                val cameraId = findCameraId(mgr) ?: throw IllegalStateException("未找到可用摄像头")
+                val chars = mgr.getCameraCharacteristics(cameraId)
+                chooseVideoSize(chars)
+                mgr.openCamera(cameraId, deviceCallback, handler)
+            } catch (t: Throwable) {
+                reportError("打开相机失败：${t.message}")
+            }
+        }
+    }
+
+    fun stop() {
+        handler.post { cleanup() }
+    }
+
+    /** 同步停止：等待相机/编码器/会话释放完成，避免切换摄像头时新旧相机会话竞争。 */
+    fun stopAwait(timeoutMs: Long = 2_000L) {
+        val latch = java.util.concurrent.CountDownLatch(1)
+        handler.post {
+            cleanup()
+            latch.countDown()
+        }
+        runCatching { latch.await(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS) }
+    }
+
+    private fun cleanup() {
+        running = false
+        try { readerThread?.interrupt() } catch (_: Throwable) {}
+        readerThread = null
+        runCatching { session?.close() }
+        session = null
+        runCatching { recorder?.let { if (started) it.stop(); it.reset(); it.release() } }
+        recorder = null
+        started = false
+        runCatching { recorderSurface?.release() }
+        recorderSurface = null
+        runCatching { pipeRead?.close() }
+        pipeRead = null
+        runCatching { pipeWrite?.close() }
+        pipeWrite = null
+        runCatching { device?.close() }
+        device = null
+        thread.quitSafely()
+    }
+
+    fun setPreviewSurface(surface: Surface?) {
+        handler.post {
+            if (previewSurface == surface) return@post
+            previewSurface = surface
+            if (device != null && recorderSurface != null) recreateSession()
+        }
+    }
+
+    fun setTorch(on: Boolean) {
+        handler.post {
+            torch = on
+            session?.let { s ->
+                runCatching { s.setRepeatingRequest(buildRequest(), null, handler) }
+            }
+        }
+    }
+
+    private val deviceCallback = object : CameraDevice.StateCallback() {
+        override fun onOpened(camera: CameraDevice) {
+            if (!running) {
+                runCatching { camera.close() }
+                return
+            }
+            device = camera
+            try {
+                setupRecorder()
+                createSession()
+            } catch (t: Throwable) {
+                Log.w(TAG, "setup recorder failed", t)
+                reportError("零拷贝编码初始化失败：${t.message}")
+            }
+        }
+
+        override fun onDisconnected(camera: CameraDevice) {
+            runCatching { camera.close() }
+            reportError("相机已断开")
+        }
+
+        override fun onError(camera: CameraDevice, error: Int) {
+            runCatching { camera.close() }
+            reportError("相机错误 code=$error")
+        }
+    }
+
+    private fun setupRecorder() {
+        val pipe = ParcelFileDescriptor.createPipe()
+        pipeRead = pipe[0]
+        pipeWrite = pipe[1]
+        val rec = newMediaRecorder()
+        rec.setVideoSource(MediaRecorder.VideoSource.SURFACE)
+        rec.setOutputFormat(MediaRecorder.OutputFormat.MPEG_2_TS)
+        rec.setVideoEncoder(MediaRecorder.VideoEncoder.H264)
+        rec.setVideoSize(actualWidth, actualHeight)
+        rec.setVideoFrameRate(fps)
+        rec.setVideoEncodingBitRate((bitrateKbps.coerceIn(500, 20_000)) * 1000)
+        runCatching { rec.setOrientationHint(90) }
+        rec.setOutputFile(pipeWrite!!.fileDescriptor)
+        rec.prepare()
+        recorder = rec
+        recorderSurface = rec.surface
+        Log.i(TAG, "recorder ready ${actualWidth}x$actualHeight@$fps ${bitrateKbps}kbps")
+        onActualSize(actualWidth, actualHeight)
+    }
+
+    @Suppress("DEPRECATION")
+    private fun createSession() {
+        val dev = device ?: return
+        val recSurface = recorderSurface ?: return
+        val targets = ArrayList<Surface>(2)
+        targets.add(recSurface)
+        previewSurface?.let { targets.add(it) }
+        dev.createCaptureSession(targets, object : CameraCaptureSession.StateCallback() {
+            override fun onConfigured(session: CameraCaptureSession) {
+                if (!running) return
+                this@Camera2SurfacePipeline.session = session
+                try {
+                    recorder?.start()
+                    started = true
+                } catch (t: Throwable) {
+                    reportError("编码器启动失败：${t.message}")
+                    return
+                }
+                runCatching { session.setRepeatingRequest(buildRequest(), null, handler) }
+                    .onFailure { reportError("启动相机会话失败：${it.message}") }
+                startReader()
+                onStarted()
+                Log.i(TAG, "surface pipeline started")
+            }
+
+            override fun onConfigureFailed(session: CameraCaptureSession) {
+                reportError("相机会话配置失败")
+            }
+        }, handler)
+    }
+
+    private fun recreateSession() {
+        if (!running) return
+        handler.post {
+            runCatching { session?.close() }
+            session = null
+            val dev = device ?: return@post
+            val recSurface = recorderSurface ?: return@post
+            val targets = ArrayList<Surface>(2)
+            targets.add(recSurface)
+            previewSurface?.let { targets.add(it) }
+            @Suppress("DEPRECATION")
+            dev.createCaptureSession(targets, object : CameraCaptureSession.StateCallback() {
+                override fun onConfigured(session: CameraCaptureSession) {
+                    if (!running) return
+                    this@Camera2SurfacePipeline.session = session
+                    if (!started) {
+                        runCatching { recorder?.start() }
+                        started = true
+                    }
+                    runCatching { session.setRepeatingRequest(buildRequest(), null, handler) }
+                }
+
+                override fun onConfigureFailed(session: CameraCaptureSession) {
+                    Log.w(TAG, "recreate preview session failed")
+                }
+            }, handler)
+        }
+    }
+
+    private fun buildRequest(): CaptureRequest {
+        val dev = device ?: throw IllegalStateException("camera closed")
+        val builder = dev.createCaptureRequest(CameraDevice.TEMPLATE_RECORD)
+        recorderSurface?.let { builder.addTarget(it) }
+        previewSurface?.let { builder.addTarget(it) }
+        builder.set(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
+        builder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO)
+        builder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, aeRange(dev.id))
+        builder.set(CaptureRequest.FLASH_MODE, if (torch) CaptureRequest.FLASH_MODE_TORCH else CaptureRequest.FLASH_MODE_OFF)
+        return builder.build()
+    }
+
+    private fun aeRange(cameraId: String): Range<Int> {
+        val chars = manager?.getCameraCharacteristics(cameraId)
+        val ranges = chars?.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES)
+        if (ranges != null && ranges.isNotEmpty()) {
+            ranges.firstOrNull { it.upper == fps && it.lower == fps }?.let { return it }
+            ranges.firstOrNull { it.upper == fps }?.let { return it }
+            return ranges.maxByOrNull { it.upper } ?: Range(fps, fps)
+        }
+        return Range(fps, fps)
+    }
+
+    private fun chooseVideoSize(chars: CameraCharacteristics) {
+        val map = chars.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP) ?: return
+        val sizes = map.getOutputSizes(MediaRecorder::class.java)
+            ?: map.getOutputSizes(SurfaceTexture::class.java)
+            ?: return
+        if (sizes.isEmpty()) return
+        val target = Size(width, height)
+        val targetRatio = width.toDouble() / height
+        val candidates = sizes.filter { size ->
+            val r = size.width.toDouble() / size.height
+            kotlin.math.abs(r - targetRatio) < 0.05
+        }.ifEmpty { sizes.toList() }
+        val chosen = candidates.minByOrNull { size ->
+            val area = size.width.toLong() * size.height
+            kotlin.math.abs(area - target.width.toLong() * target.height) +
+                if (area > target.width.toLong() * target.height) 1_000_000_000L else 0L
+        } ?: target
+        actualWidth = chosen.width
+        actualHeight = chosen.height
+    }
+
+    private fun findCameraId(mgr: CameraManager): String? {
+        val want = if (facing == CameraFacingUi.FRONT) CameraCharacteristics.LENS_FACING_FRONT else CameraCharacteristics.LENS_FACING_BACK
+        return mgr.cameraIdList.firstOrNull { id ->
+            mgr.getCameraCharacteristics(id).get(CameraCharacteristics.LENS_FACING) == want
+        } ?: mgr.cameraIdList.firstOrNull()
+    }
+
+    private fun startReader() {
+        if (readerThread != null) return
+        val input: InputStream = ParcelFileDescriptor.AutoCloseInputStream(pipeRead ?: return)
+        val demux = TsDemuxer { ptsUs, isKey, nals ->
+            if (nals.isNotEmpty()) onAccessUnit(ptsUs, isKey, nals)
+        }
+        val thread = Thread({
+            val buffer = ByteArray(64 * 1024)
+            try {
+                while (running) {
+                    val n = input.read(buffer)
+                    if (n <= 0) break
+                    demux.feed(buffer, 0, n)
+                }
+            } catch (t: Throwable) {
+                if (running) Log.w(TAG, "ts reader stopped", t)
+            } finally {
+                runCatching { input.close() }
+            }
+        }, "campush-ts-reader")
+        readerThread = thread
+        thread.start()
+    }
+
+    private fun reportError(message: String) {
+        if (errorSent) return
+        errorSent = true
+        Log.w(TAG, "surface pipeline error: $message")
+        onError(message)
+    }
+
+    private fun newMediaRecorder(): MediaRecorder =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) MediaRecorder(context) else @Suppress("DEPRECATION") MediaRecorder()
+
+    companion object {
+        private const val TAG = "Camera2SurfacePipeline"
+        fun isSupported(): Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+    }
+}

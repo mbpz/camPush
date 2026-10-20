@@ -293,7 +293,44 @@ ANDROID_HOME="$PWD/.android-sdk" GRADLE_USER_HOME="$PWD/.gradle-home" \
 - 真机上若选到 `hardware=true` 的硬件编码器（高通/联发科/三星等），1080p 30fps 应可达成；若日志仍 `hardware=false`，
   说明该机型硬件编码器只支持 Surface 输入，需要 Camera2 + Surface 零拷贝管线（下一步改造）。
 
-### 5.8 真实浏览器播放（宿主 Chrome headless）
+### 5.8 零拷贝 Surface 管线（Camera2 + MediaRecorder，默认启用）
+
+**目标**：对齐抖音直播类产品的相机性能——预览 30fps、推流 30fps，且不再受 CameraX ImageAnalysis 的 YUV 转换/并发限帧影响。
+
+**架构**
+
+```
+Camera2 ──Surface──> MediaRecorder(SURFACE, MPEG_2_TS) ──硬件 H.264──> TS pipe
+   └──SurfaceView 原生预览（30fps，全画质）                  │
+                                                      TsDemuxer（PAT/PMT/PES → Annex-B）
+                                                             │
+                                                     MediaHub → FLV → 浏览器 MSE
+```
+
+- 相机帧直接进硬件编码器 Surface，**没有 YUV 转换、没有 JPEG 预览开销**；
+- App 内预览用 SurfaceView 直接吃相机会话输出，与推流互不抢带宽；
+- 音频仍由独立 AAC 编码器采集，时间戳共用 `originNs` 基准；
+- 切换摄像头时同步释放旧相机会话（`stopAwait` 消除竞争），视频 PTS 追加管线重启时刻，保证时间戳单调；
+- 初始化失败自动回退 CameraX 兼容管线（播放地址不变）。
+
+**实测（模拟器）**
+
+| 场景 | 实际编码 | 浏览器 |
+|---|---|---|
+| 前摄 | **1920×1080 · 30fps** | HUD 29–30fps，`readyState=4`，`videoWidth=1920` |
+| 后摄（模拟器仅 720p） | 1280×720 · 30fps | HUD 29fps，`readyState=4` |
+| 推流中切换前后摄 | 新管线 30fps | 播放不中断，时间戳单调 |
+
+- App 内预览为原生 SurfaceView（相机全画质 30fps），不再是 960 宽 JPEG；
+- 播放器追帧阈值 0.6s，观看端延迟约 0.6–1s。
+
+**已知限制**
+
+- Surface 模式不产出 MJPEG（浏览器优先 FLV；回退兼容模式仍有 MJPEG）；
+- 画面方向为相机传感器方向，竖屏观看如需旋转需后续增加旋转元数据/播放器 CSS 处理；
+- 需要 API 26+；低版本自动走兼容管线。
+
+### 5.9 真实浏览器播放（宿主 Chrome headless）
 
 - 打开唯一地址 → **FLV→MSE 成功**：`video.readyState=4`、`currentTime≈0.8s`、`buffered≈2.1s`、`videoWidth=1920`；
 - 无控制台错误；HUD 显示「直播中 / 0/3 人观看 / 871 kbps · 20 fps」；

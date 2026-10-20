@@ -2,11 +2,14 @@ package com.campush.app.streaming
 
 import android.content.Context
 import android.util.Log
+import android.view.SurfaceView
 import androidx.lifecycle.LifecycleOwner
+import com.campush.app.camera.Camera2SurfacePipeline
 import com.campush.app.camera.CameraHost
 import com.campush.app.core.CameraFacingUi
 import com.campush.app.core.StreamSettingsUi
 import com.campush.app.network.NetworkMonitor
+import com.campush.lan.H264AccessUnit
 import com.campush.lan.LanConfig
 import com.campush.lan.LanEvent
 import com.campush.lan.LanEventData
@@ -55,6 +58,10 @@ class LanStreamEngine(
     private var pipelineSettings: StreamSettingsUi? = null
     private var pipelineFacing: CameraFacingUi = CameraFacingUi.BACK
     private var pipelineJob: Job? = null
+    private var surfacePipeline: Camera2SurfacePipeline? = null
+    private var surfaceDisabled: Boolean = false
+    private var streamPreviewView: SurfaceView? = null
+    private var surfaceMediaBaseUs: Long = 0L
     private var lowFpsStreak: Int = 0
     private var lowFpsWarned: Boolean = false
     private var cameraAvailable: Boolean = true
@@ -259,24 +266,78 @@ class LanStreamEngine(
         facing: CameraFacingUi,
         publisher: LanMediaPublisher,
     ): Boolean {
+        val micDenied = startAudio(settings, publisher)
+        if (!surfaceDisabled && Camera2SurfacePipeline.isSupported()) {
+            startSurfacePipeline(settings, facing, publisher)
+        } else {
+            startLegacyPipeline(settings, facing, publisher, micDenied)
+        }
+        return micDenied
+    }
+
+    private fun startAudio(settings: StreamSettingsUi, publisher: LanMediaPublisher): Boolean {
+        if (!settings.audioEnabled) return false
+        val audio = AudioEncoder(
+            context.applicationContext,
+            publisher,
+            streamMuted,
+            basePtsUs = (System.nanoTime() - originNs) / 1_000L,
+        )
+        val denied = !audio.start()
+        audioEncoder = audio
+        return denied
+    }
+
+    private fun startSurfacePipeline(
+        settings: StreamSettingsUi,
+        facing: CameraFacingUi,
+        publisher: LanMediaPublisher,
+    ) {
+        surfaceMediaBaseUs = (System.nanoTime() - originNs) / 1_000L
+        val ptsBase = surfaceMediaBaseUs
+        val pipeline = Camera2SurfacePipeline(
+            context = context.applicationContext,
+            facing = facing,
+            width = settings.width,
+            height = settings.height,
+            fps = settings.fps,
+            bitrateKbps = settings.bitrateKbps,
+            onAccessUnit = { ptsUs, isKey, nals ->
+                runCatching {
+                    publisher.publishH264(H264AccessUnit(nals, ptsBase + ptsUs, isKey))
+                }.onFailure { Log.w(TAG, "publish surface H264 failed", it) }
+            },
+            onActualSize = { w, h ->
+                lastActualWidth = w
+                lastActualHeight = h
+                StreamingBridge.update { it.copy(actualWidth = w, actualHeight = h) }
+            },
+            onError = { message -> onSurfacePipelineError(message) },
+            onStarted = {
+                StreamingBridge.update { it.copy(surfacePipeline = true) }
+                Log.i(TAG, "surface pipeline active")
+            },
+        )
+        surfacePipeline = pipeline
+        streamPreviewView?.let { view ->
+            runCatching { pipeline.setPreviewSurface(view.holder.surface) }
+        }
+        pipeline.start()
+    }
+
+    private fun startLegacyPipeline(
+        settings: StreamSettingsUi,
+        facing: CameraFacingUi,
+        publisher: LanMediaPublisher,
+        micDenied: Boolean,
+    ) {
+        StreamingBridge.update { it.copy(surfacePipeline = false) }
         val video = VideoEncoder(publisher, settings) { error ->
             fail(error.code, error.message, error.hint)
         }
         videoEncoder = video
         val jpeg = JpegEncoder(publisher) { bytes -> StreamingBridge.publishPreviewJpeg(bytes) }
         jpegEncoder = jpeg
-
-        var micDenied = false
-        if (settings.audioEnabled) {
-            val audio = AudioEncoder(
-                context.applicationContext,
-                publisher,
-                streamMuted,
-                basePtsUs = (System.nanoTime() - originNs) / 1_000L,
-            )
-            micDenied = !audio.start()
-            audioEncoder = audio
-        }
 
         CameraHost.get(context).startStreaming(
             lifecycleOwner = cameraLifecycleOwner,
@@ -294,30 +355,89 @@ class LanStreamEngine(
                 }
                 val nowUs = (System.nanoTime() - originNs) / 1_000L
                 video.encode(image, nowUs)
-                // 低频小尺寸 JPEG：同时用于 MJPEG 降级与推流期间的 App 内预览。
                 jpeg.onFrame(image)
             },
             errorCallback = { error -> fail(error.code, error.message, error.hint) },
             cameraStateCallback = { available -> onCameraAvailability(available) },
         )
         video.requestKeyFrame()
-        return micDenied
+    }
+
+    /** Surface 管线初始化失败：回退到 CameraX 兼容管线，播放地址/服务不变。 */
+    private fun onSurfacePipelineError(message: String) {
+        if (phase != EnginePhase.STREAMING && phase != EnginePhase.STARTING) return
+        Log.w(TAG, "surface pipeline failed: $message, fallback legacy")
+        surfaceDisabled = true
+        surfacePipeline?.let { runCatching { it.stop() } }
+        surfacePipeline = null
+        StreamingBridge.update { it.copy(surfacePipeline = false) }
+        StreamingBridge.emitWarning("零拷贝编码不可用，已回退兼容模式：$message")
+        val settings = pipelineSettings ?: return
+        val publisher = publisherRef ?: return
+        stopAudio()
+        val micDenied = startAudio(settings, publisher)
+        startLegacyPipeline(settings, pipelineFacing, publisher, micDenied)
     }
 
     private fun stopMediaPipeline() {
-        audioEncoder?.let { runCatching { it.stop() } }
-        audioEncoder = null
+        surfacePipeline?.let { runCatching { it.stopAwait() } }
+        surfacePipeline = null
+        stopAudio()
         videoEncoder?.let { runCatching { it.close() } }
         videoEncoder = null
         jpegEncoder?.let { runCatching { it.close() } }
         jpegEncoder = null
         runCatching { CameraHost.current()?.stopStreaming() }
+        StreamingBridge.update { it.copy(surfacePipeline = false) }
+        StreamingBridge.publishPreviewJpeg(null)
     }
 
-    /**
-     * 画质自适应：保持 LanServer/播放地址不变，仅以新分辨率重启相机与编码器。
-     * 用于“帧率优先”策略（用户要求 ≥30fps）。
-     */
+    private fun stopAudio() {
+        audioEncoder?.let { runCatching { it.stop() } }
+        audioEncoder = null
+    }
+
+    fun bindStreamPreview(view: SurfaceView) {
+        streamPreviewView = view
+        runCatching { surfacePipeline?.setPreviewSurface(view.holder.surface) }
+    }
+
+    fun unbindStreamPreview() {
+        streamPreviewView = null
+        runCatching { surfacePipeline?.setPreviewSurface(null) }
+    }
+
+    fun switchCameraSurface(target: CameraFacingUi) {
+        val next = target
+        pipelineFacing = next
+        if (surfacePipeline != null) {
+            val settings = pipelineSettings ?: return
+            val publisher = publisherRef ?: return
+            pipelineJob?.cancel()
+            pipelineJob = scope.launch {
+                withContext(Dispatchers.Default) {
+                    surfacePipeline?.let { runCatching { it.stopAwait() } }
+                    surfacePipeline = null
+                }
+                withContext(Dispatchers.Default) {
+                    startSurfacePipeline(settings, next, publisher)
+                }
+                Log.i(TAG, "surface pipeline switched to $next")
+            }
+        } else {
+            CameraHost.get(context).switchCamera(next)
+        }
+    }
+
+    fun setTorchSurface(on: Boolean) {
+        if (surfacePipeline != null) {
+            surfacePipeline?.setTorch(on)
+        } else {
+            CameraHost.get(context).setTorch(on)
+        }
+    }
+
+    /** 重启媒体子管线（保持 LanServer/播放地址不变）。 */
     fun updateMediaConfig(settings: StreamSettingsUi, facing: CameraFacingUi) {
         if (phase != EnginePhase.STREAMING) return
         val publisher = publisherRef ?: return

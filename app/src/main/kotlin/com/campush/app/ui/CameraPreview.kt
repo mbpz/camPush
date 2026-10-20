@@ -1,6 +1,8 @@
 package com.campush.app.ui
 
 import android.graphics.BitmapFactory
+import android.view.SurfaceHolder
+import android.view.SurfaceView
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -41,7 +43,11 @@ import kotlinx.coroutines.withContext
 fun CameraPreview(controller: P1Controller, modifier: Modifier = Modifier) {
     val state by controller.state.collectAsStateWithLifecycle()
     if (state.streaming) {
-        JpegPreview(controller = controller, modifier = modifier)
+        if (state.surfacePipeline) {
+            SurfaceStreamPreview(controller = controller, modifier = modifier)
+        } else {
+            JpegPreview(controller = controller, modifier = modifier)
+        }
     } else {
         CameraXPreview(controller = controller, modifier = modifier)
     }
@@ -83,6 +89,38 @@ private fun JpegPreview(controller: P1Controller, modifier: Modifier = Modifier)
             )
         }
     }
+}
+
+@Composable
+private fun SurfaceStreamPreview(controller: P1Controller, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val surfaceView = remember(context) { SurfaceView(context) }
+
+    DisposableEffect(controller, surfaceView) {
+        val callback = object : SurfaceHolder.Callback {
+            override fun surfaceCreated(holder: SurfaceHolder) {
+                controller.bindStreamPreview(surfaceView)
+            }
+
+            override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
+                controller.bindStreamPreview(surfaceView)
+            }
+
+            override fun surfaceDestroyed(holder: SurfaceHolder) {
+                controller.unbindStreamPreview()
+            }
+        }
+        surfaceView.holder.addCallback(callback)
+        if (surfaceView.holder.surface?.isValid == true) {
+            controller.bindStreamPreview(surfaceView)
+        }
+        onDispose {
+            surfaceView.holder.removeCallback(callback)
+            controller.unbindStreamPreview()
+        }
+    }
+
+    AndroidView(factory = { surfaceView }, modifier = modifier)
 }
 
 @Composable
