@@ -16,6 +16,9 @@ import androidx.camera.core.UseCase
 import androidx.camera.core.resolutionselector.AspectRatioStrategy
 import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.core.resolutionselector.ResolutionStrategy
+import androidx.camera.camera2.interop.Camera2Interop
+import android.hardware.camera2.CaptureRequest
+import android.util.Range
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
@@ -69,6 +72,7 @@ class CameraController internal constructor(context: Context) {
     private var recoveryScheduled: Boolean = false
     private var recoveryAttempts: Int = 0
     private var cameraLost: Boolean = false
+    private var forceFpsRange: Boolean = true
     private var lastFrameAtMs: Long = 0L
     private val recoveryRunnable = Runnable { attemptRecovery() }
     private val watchdogRunnable = object : Runnable {
@@ -161,6 +165,7 @@ class CameraController internal constructor(context: Context) {
             this.onCameraState = cameraStateCallback
             this.recoveryAttempts = 0
             this.cameraLost = false
+            this.forceFpsRange = true
             this.lastFrameAtMs = System.currentTimeMillis()
             this.streaming = true
             ensureExecutor()
@@ -244,11 +249,20 @@ class CameraController internal constructor(context: Context) {
                             )
                         )
                         .build()
-                    analysis = ImageAnalysis.Builder()
+                    val analysisBuilder = ImageAnalysis.Builder()
                         .setResolutionSelector(resolutionSelector)
                         .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                         .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_YUV_420_888)
-                        .build()
+                    if (forceFpsRange && targetFps >= 30) {
+                        // 部分设备/低照度下 AE 会把采集降到 15fps；局域网推流优先保证帧率。
+                        runCatching {
+                            Camera2Interop.Extender(analysisBuilder).setCaptureRequestOption(
+                                CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE,
+                                Range(30, 30),
+                            )
+                        }
+                    }
+                    analysis = analysisBuilder.build()
                     analysis.setAnalyzer(ensureExecutor()) { proxy -> deliverFrame(proxy) }
                     useCases.add(analysis)
                 }
@@ -273,7 +287,12 @@ class CameraController internal constructor(context: Context) {
                 previewUseCase = null
                 analysisUseCase = null
                 camera = null
-                if (streaming && recoveryAttempts > 0) {
+                if (forceFpsRange && streaming) {
+                    // 设备不支持强制 30fps AE range：退回默认，重新绑定一次。
+                    Log.w(TAG, "bind with forced 30fps failed, retry without it", t)
+                    forceFpsRange = false
+                    mainHandler.post { bindInternal(includeAnalysis = true) }
+                } else if (streaming && recoveryAttempts > 0) {
                     // 其他应用仍占用摄像头：继续等待，不把端侧服务打掉。
                     scheduleRecovery()
                 } else {

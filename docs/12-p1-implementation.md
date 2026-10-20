@@ -175,7 +175,8 @@ ANDROID_HOME="$PWD/.android-sdk" GRADLE_USER_HOME="$PWD/.gradle-home" \
 | MJPEG 拖慢主线程 | 1080p 每 2 帧做全尺寸 NV21 转换 + JPEG 压缩 | MJPEG 缩到 ≤960 宽、每 3 帧一次，仅作降级通道 |
 | 延迟累积 | 慢编码设备上编码队列越积越长；播放器追帧阈值 2.5 s | 编码器输出落后采集 >2.5 s 时 flush 重建流水线（3 s 冷却）；播放端追帧阈值 2.5 s→1.2 s |
 | 码率数值误解 | VBR 下静态画面实际码率远低于目标值 | 日志与 UI 区分「目标码率/实际码率」，并新增「实际编码分辨率」显示 |
-| 真机仍报 1 fps / 79 kbps（待真机日志确认） | 可能：相机输出尺寸抖动导致每帧重建编码器；或设备 1080p 分析输出本身只有 ~1 fps | ① 尺寸变化去抖 60 帧并缩放喂入现有编码器，避免 restart 循环；② 连续 5 s fps<5 且码率<300 kbps 时自动降至 720p 并提示；③ 每 5 s 输出编码诊断日志（in/out/drops/restarts/size/target/avgEncodeMs）；④ 记录 CameraX 实际分析分辨率 |
+| 真机 1–2 fps / 79 kbps | 可能：相机输出尺寸抖动导致每帧重建编码器；或设备 1080p 分析输出本身很低；或 AE 低照度降档 | ① 尺寸变化去抖 60 帧并缩放喂入现有编码器；② 每 5 s 输出编码诊断日志（inFps/outFps/drops/restarts/size/target/avgEncodeMs）；③ 记录 CameraX 实际分析分辨率 |
+| 局域网内浏览器显示 14 fps（目标 ≥30fps） | 低照度下 AE 常把采集降到 15 fps 档；或 HAL 对 1080p 分析限帧 | 对 ImageAnalysis 强制 `CONTROL_AE_TARGET_FPS_RANGE=(30,30)`（不支持时自动回退重绑）；<25fps 自动降一档分辨率（播放地址不变，最多 2 档）；诊断日志增加 inFps/outFps |
 
 **修复后实测（模拟器，1080p 设定）**
 
@@ -225,8 +226,9 @@ ANDROID_HOME="$PWD/.android-sdk" GRADLE_USER_HOME="$PWD/.gradle-home" \
 | 机制 | 行为 |
 |---|---|
 | 不再自我拖慢 | MJPEG 仅在存在 MJPEG 观看者时才编码 JPEG（无观看者时完全跳过）；推流期间 `FLAG_KEEP_SCREEN_ON`，避免熄屏触发相机降频 |
-| 异常低帧率（<10fps 持续 3s） | 自动降一档分辨率（1080→720→480，最多 2 档）：**只重启相机/编码子管线，LanServer 与 playUrl 保持不变**；提示“已自动降低分辨率（播放地址不变）” |
-| 10–29fps | 仅提示“当前约 X fps，低于 30fps；可尝试 720p 或检查设备性能”，**不再自动降画质**，避免画质漂移 |
+| 强制 30fps 采集 | `Camera2Interop` 设置 `CONTROL_AE_TARGET_FPS_RANGE=(30,30)`，避免低照度 AE 自动降到 15fps；设备不支持时自动回退默认范围并重绑 |
+| 异常低帧率（<25fps 持续 3s，启动 6s 宽限） | 自动降一档分辨率（1080→720→480，最多 2 档）：**只重启相机/编码子管线，LanServer 与 playUrl 保持不变**；提示“已自动降低分辨率（播放地址不变）” |
+| 10–29fps 提示 | 诊断日志给出 inFps/outFps，便于区分“相机进帧少”还是“编码出帧少” |
 | 可观测 | 主界面显示实际编码分辨率与实时 fps；设置页提示“稳定 30fps 建议 720p” |
 
 **实测**

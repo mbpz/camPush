@@ -49,6 +49,8 @@ class VideoEncoder(
     private var inputFrames: Long = 0L
     private var outputFrames: Long = 0L
     private var lastDiagAtMs: Long = 0L
+    private var lastDiagInput: Long = 0L
+    private var lastDiagOutput: Long = 0L
     private var lastLatencyResetMs: Long = 0L
     private var closed: Boolean = false
 
@@ -211,10 +213,15 @@ class VideoEncoder(
     private fun diagnose() {
         val now = System.currentTimeMillis()
         if (now - lastDiagAtMs < 5_000) return
+        val elapsedSec = ((now - lastDiagAtMs).coerceAtLeast(1L)) / 1000.0
+        val inFps = ((inputFrames - lastDiagInput) / elapsedSec).toInt()
+        val outFps = ((outputFrames - lastDiagOutput) / elapsedSec).toInt()
         lastDiagAtMs = now
+        lastDiagInput = inputFrames
+        lastDiagOutput = outputFrames
         Log.i(
             TAG,
-            "diag: in=$inputFrames out=$outputFrames drops=$droppedInWindow restarts=$restartCount " +
+            "diag: inFps=$inFps outFps=$outFps drops=$droppedInWindow restarts=$restartCount " +
                 "size=${width}x$height target=${targetBitrate} avgEncodeMs=${"%.1f".format(averageEncodeMs)}",
         )
     }

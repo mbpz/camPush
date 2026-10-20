@@ -304,7 +304,7 @@ class P1ControllerImpl(context: Context) : P1Controller {
     private fun applySnapshot(snapshot: EngineSnapshot) {
         if (snapshot.phase == EnginePhase.STREAMING) {
             val fps = snapshot.fps
-            if (snapshot.cameraAvailable && fps in 1..9) {
+            if (snapshot.cameraAvailable && fps in 1..24) {
                 lowFpsSamples++
             } else {
                 lowFpsSamples = 0
