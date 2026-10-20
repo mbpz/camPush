@@ -3,7 +3,9 @@ package com.campush.app.streaming
 import android.media.Image
 import android.media.MediaCodec
 import android.media.MediaCodecInfo
+import android.media.MediaCodecList
 import android.media.MediaFormat
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import com.campush.app.core.P1Error
@@ -27,6 +29,10 @@ class VideoEncoder(
     private var codec: MediaCodec? = null
     private var width: Int = 0
     private var height: Int = 0
+    private var inputColorFormat: Int = MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible
+    private var byteBufferInput: Boolean = false
+    private var encoderName: String = ""
+    private var yuvScratch: ByteArray = ByteArray(0)
 
     private var sps: ByteArray? = null
     private var pps: ByteArray? = null
@@ -158,6 +164,10 @@ class VideoEncoder(
     }
 
     private fun feedFrame(codec: MediaCodec, image: Image, ptsUs: Long) {
+        if (byteBufferInput) {
+            feedByteBuffer(codec, image, ptsUs)
+            return
+        }
         val startNs = System.nanoTime()
         try {
             val inputIndex = codec.dequeueInputBuffer(0L)
@@ -186,6 +196,82 @@ class VideoEncoder(
             averageEncodeMs = if (averageEncodeMs == 0.0) costMs else averageEncodeMs * 0.9 + costMs * 0.1
             maybeAdjustBitrate()
         }
+    }
+
+    /** 非 Flexible 颜色格式：把 YUV 转为编码器需要的 I420/NV12，再按 ByteBuffer 输入。 */
+    private fun feedByteBuffer(codec: MediaCodec, image: Image, ptsUs: Long) {
+        val startNs = System.nanoTime()
+        try {
+            val needed = width * height * 3 / 2
+            if (needed <= 0) return
+            if (yuvScratch.size < needed) yuvScratch = ByteArray(needed)
+            val bytes = yuvScratch
+            when (inputColorFormat) {
+                MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420SemiPlanar ->
+                    YuvUtils.imageToNv12Into(image, width, height, bytes)
+                else -> YuvUtils.imageToI420Into(image, width, height, bytes)
+            }
+            val inputIndex = codec.dequeueInputBuffer(0L)
+            if (inputIndex < 0) {
+                droppedInWindow++
+                drain(codec)
+                return
+            }
+            val buffer = codec.getInputBuffer(inputIndex) ?: run {
+                codec.queueInputBuffer(inputIndex, 0, 0, ptsUs, 0)
+                droppedInWindow++
+                return
+            }
+            buffer.clear()
+            val size = minOf(needed, buffer.capacity())
+            buffer.put(bytes, 0, size)
+            codec.queueInputBuffer(inputIndex, 0, size, ptsUs, 0)
+            framesInWindow++
+            lastFedAtUs = ptsUs
+            drain(codec)
+        } catch (t: Throwable) {
+            Log.w(TAG, "encode(bytebuffer) failed", t)
+        } finally {
+            val costMs = (System.nanoTime() - startNs) / 1_000_000.0
+            averageEncodeMs = if (averageEncodeMs == 0.0) costMs else averageEncodeMs * 0.9 + costMs * 0.1
+            maybeAdjustBitrate()
+        }
+    }
+
+    private data class EncoderChoice(val name: String, val colorFormat: Int, val hardware: Boolean)
+
+    /**
+     * 选择编码器：优先硬件编码器，并挑选它支持的 YUV 颜色格式。
+     * 很多机型硬件编码器不支持 COLOR_FormatYUV420Flexible，若直接用默认选择会落到软件编码器
+     * （1080p 下仅几帧每秒），这是“预览 30fps、一推流就 2fps”的常见原因。
+     */
+    private fun chooseEncoder(width: Int, height: Int): EncoderChoice? {
+        val result = ArrayList<Pair<Int, EncoderChoice>>()
+        val list = runCatching { MediaCodecList(MediaCodecList.REGULAR_CODECS) }.getOrNull() ?: return null
+        for (info in list.codecInfos) {
+            if (!info.isEncoder) continue
+            if (!info.supportedTypes.any { it.equals(MIME_VIDEO, ignoreCase = true) }) continue
+            val caps = runCatching { info.getCapabilitiesForType(MIME_VIDEO) }.getOrNull() ?: continue
+            val videoCaps = caps.videoCapabilities ?: continue
+            if (!runCatching { videoCaps.isSizeSupported(width, height) }.getOrDefault(false)) continue
+            val hardware = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                info.isHardwareAccelerated
+            } else {
+                !info.name.startsWith("OMX.google", true) && !info.name.startsWith("c2.android", true)
+            }
+            val colorPrefs = intArrayOf(
+                MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420SemiPlanar,
+                MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Planar,
+                MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible,
+            )
+            val color = colorPrefs.firstOrNull { caps.colorFormats.contains(it) } ?: continue
+            var score = if (hardware) 100 else 0
+            if (color != MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible) score += 5
+            result.add(score to EncoderChoice(info.name, color, hardware))
+        }
+        val best = result.maxByOrNull { it.first }?.second ?: return null
+        Log.i(TAG, "encoder choice=${best.name} hardware=${best.hardware} color=${best.colorFormat}")
+        return best
     }
 
     private fun feedFrameScaled(codec: MediaCodec, image: Image, ptsUs: Long) {
@@ -373,7 +459,13 @@ class VideoEncoder(
     private fun restartCodec(frameWidth: Int, frameHeight: Int) {
         releaseCodec()
         try {
-            var candidate: MediaCodec? = MediaCodec.createEncoderByType(MIME_VIDEO)
+            val choice = chooseEncoder(frameWidth, frameHeight)
+            inputColorFormat = choice?.colorFormat ?: MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible
+            byteBufferInput = inputColorFormat != MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible
+            var candidate: MediaCodec? = runCatching {
+                choice?.let { MediaCodec.createByCodecName(it.name) }
+            }.getOrNull() ?: MediaCodec.createEncoderByType(MIME_VIDEO)
+            encoderName = candidate!!.name
             val cbrSupported = runCatching {
                 candidate!!.codecInfo.getCapabilitiesForType(MIME_VIDEO).encoderCapabilities
                     .isBitrateModeSupported(MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR)
@@ -385,7 +477,7 @@ class VideoEncoder(
             }
             try {
                 candidate!!.configure(
-                    buildFormat(frameWidth, frameHeight, profile = preferredProfile, cbr = cbrSupported),
+                    buildFormat(frameWidth, frameHeight, profile = preferredProfile, cbr = cbrSupported, colorFormat = inputColorFormat),
                     null,
                     null,
                     MediaCodec.CONFIGURE_FLAG_ENCODE,
@@ -401,6 +493,7 @@ class VideoEncoder(
                             frameHeight,
                             profile = MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline,
                             cbr = cbrSupported,
+                            colorFormat = inputColorFormat,
                         ),
                         null,
                         null,
@@ -411,7 +504,7 @@ class VideoEncoder(
                     runCatching { candidate?.release() }
                     candidate = MediaCodec.createEncoderByType(MIME_VIDEO)
                     candidate!!.configure(
-                        buildFormat(frameWidth, frameHeight, profile = null, cbr = cbrSupported),
+                        buildFormat(frameWidth, frameHeight, profile = null, cbr = cbrSupported, colorFormat = inputColorFormat),
                         null,
                         null,
                         MediaCodec.CONFIGURE_FLAG_ENCODE,
@@ -423,7 +516,7 @@ class VideoEncoder(
             Log.i(
                 TAG,
                 "encoder started: ${frameWidth}x$frameHeight ${encoder.name} " +
-                    "level=${avcLevelFor(frameWidth, frameHeight)} fps=${settings.fps} " +
+                    "color=$inputColorFormat level=${avcLevelFor(frameWidth, frameHeight)} fps=${settings.fps} " +
                     "bitrate=$targetBitrate mode=${if (cbrSupported) "CBR" else "VBR"}",
             )
             codec = encoder
@@ -448,12 +541,10 @@ class VideoEncoder(
         }
     }
 
-    private fun buildFormat(width: Int, height: Int, profile: Int?, cbr: Boolean): MediaFormat {
+    private fun buildFormat(width: Int, height: Int, profile: Int?, cbr: Boolean, colorFormat: Int): MediaFormat {
         return MediaFormat.createVideoFormat(MIME_VIDEO, width, height).apply {
-            setInteger(
-                MediaFormat.KEY_COLOR_FORMAT,
-                MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible,
-            )
+            setInteger(MediaFormat.KEY_COLOR_FORMAT, colorFormat)
+            setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, width * height * 3 / 2)
             setInteger(MediaFormat.KEY_BIT_RATE, targetBitrate)
             setInteger(MediaFormat.KEY_FRAME_RATE, settings.fps.coerceIn(15, 60))
             setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, KEY_FRAME_INTERVAL_SECONDS)

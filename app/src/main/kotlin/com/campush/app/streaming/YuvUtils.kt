@@ -181,6 +181,86 @@ internal object YuvUtils {
         return out
     }
 
+
+    /** YUV_420_888 -> I420（Y、U、V 平面顺序），供 COLOR_FormatYUV420Planar 编码器。 */
+    fun imageToI420(src: Image, width: Int, height: Int): ByteArray {
+        val w = width and 1.inv()
+        val h = height and 1.inv()
+        if (w <= 0 || h <= 0) return ByteArray(0)
+        val out = ByteArray(w * h * 3 / 2)
+        imageToI420Into(src, w, h, out)
+        return out
+    }
+
+    /** 复用调用方缓冲区的 I420 转换（避免 30fps 下每帧数 MB 的 GC 压力）。 */
+    fun imageToI420Into(src: Image, width: Int, height: Int, out: ByteArray) {
+        val w = width and 1.inv()
+        val h = height and 1.inv()
+        if (w <= 0 || h <= 0 || out.size < w * h * 3 / 2) return
+        val ySize = w * h
+        copyY(src.planes[0], out, 0, w, h)
+        copyChromaPlane(src.planes[1], out, ySize, w / 2, h / 2)
+        copyChromaPlane(src.planes[2], out, ySize + ySize / 4, w / 2, h / 2)
+    }
+
+    /** YUV_420_888 -> NV12（Y 平面 + UV 交错），供 COLOR_FormatYUV420SemiPlanar 编码器。 */
+    fun imageToNv12(src: Image, width: Int, height: Int): ByteArray {
+        val w = width and 1.inv()
+        val h = height and 1.inv()
+        if (w <= 0 || h <= 0) return ByteArray(0)
+        val out = ByteArray(w * h * 3 / 2)
+        imageToNv12Into(src, w, h, out)
+        return out
+    }
+
+    /** 复用调用方缓冲区的 NV12 转换。 */
+    fun imageToNv12Into(src: Image, width: Int, height: Int, out: ByteArray) {
+        val w = width and 1.inv()
+        val h = height and 1.inv()
+        if (w <= 0 || h <= 0 || out.size < w * h * 3 / 2) return
+        val ySize = w * h
+        copyY(src.planes[0], out, 0, w, h)
+        val uPlane = src.planes[1]
+        val vPlane = src.planes[2]
+        val uBuf = uPlane.buffer
+        val vBuf = vPlane.buffer
+        var pos = ySize
+        for (row in 0 until h / 2) {
+            val uRow = row * uPlane.rowStride
+            val vRow = row * vPlane.rowStride
+            for (col in 0 until w / 2) {
+                out[pos++] = uBuf.get(uRow + col * uPlane.pixelStride)
+                out[pos++] = vBuf.get(vRow + col * vPlane.pixelStride)
+            }
+        }
+    }
+
+    private fun copyY(plane: Image.Plane, out: ByteArray, outOffset: Int, width: Int, height: Int) {
+        val buf = plane.buffer
+        val rowBytes = width
+        for (row in 0 until height) {
+            val srcPos = row * plane.rowStride
+            if (plane.pixelStride == 1) {
+                buf.position(srcPos)
+                buf.get(out, outOffset + row * rowBytes, minOf(rowBytes, buf.remaining()))
+            } else {
+                for (col in 0 until width) {
+                    out[outOffset + row * rowBytes + col] = buf.get(srcPos + col * plane.pixelStride)
+                }
+            }
+        }
+    }
+
+    private fun copyChromaPlane(plane: Image.Plane, out: ByteArray, outOffset: Int, width: Int, height: Int) {
+        val buf = plane.buffer
+        for (row in 0 until height) {
+            val srcPos = row * plane.rowStride
+            for (col in 0 until width) {
+                out[outOffset + row * width + col] = buf.get(srcPos + col * plane.pixelStride)
+            }
+        }
+    }
+
     /** YuvImage 只接受 NV21/NV21 类格式的偶数尺寸。 */
     fun nv21Format(width: Int, height: Int): Pair<Int, Int> =
         if (width > 0 && height > 0) (width and 1.inv()) to (height and 1.inv()) else 0 to 0

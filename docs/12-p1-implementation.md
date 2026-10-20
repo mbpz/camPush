@@ -262,7 +262,33 @@ ANDROID_HOME="$PWD/.android-sdk" GRADLE_USER_HOME="$PWD/.gradle-home" \
 
 > 取舍说明：推流期间降低“本机预览”的开销来换采集/编码 30fps，这是局域网推流更合理的产品选择；若后续要做到“App 内预览也 1080p30”，需要 Camera2 + Surface 零拷贝管线。
 
-### 5.7 真实浏览器播放（宿主 Chrome headless）
+### 5.7 预览 30fps、一点开始推流就掉到 2fps：硬件编码器选择修复
+
+**用户现象**：App 打开预览很流畅（约 30fps），点击「开始推流」后编码帧率直接掉到 2fps；局域网内观看同样只有 2fps。
+
+**根因**：预览走的是相机 Preview 通路（不经过编码器），所以预览正常；开始推流后创建 `MediaCodec`，原实现固定请求
+`COLOR_FormatYUV420Flexible` 并用 `createEncoderByType` 默认选择。**很多机型的硬件 H.264 编码器并不暴露 Flexible 输入**
+（只支持 SemiPlanar/Planar 或仅 Surface 输入），默认选择会落到 **软件编码器**——1080p 软件编码正好只有几帧每秒，
+表现为“预览 30fps、推流 2fps”。
+
+**修复**（`VideoEncoder`）
+
+| 机制 | 行为 |
+|---|---|
+| 编码器枚举 | 遍历 `MediaCodecList`，**优先硬件编码器**（`isHardwareAccelerated`），并校验目标分辨率 |
+| 颜色格式匹配 | 按编码器能力选择 **SemiPlanar(NV12) → Planar(I420) → Flexible**；非 Flexible 时用 ByteBuffer 输入 |
+| YUV 转换 | 新增 `imageToNv12Into` / `imageToI420Into`，复用 ByteArray 缓冲，避免 30fps 下每帧数 MB 的 GC 压力 |
+| 可诊断 | 日志输出 `encoder choice=<codec> hardware=true/false color=<fmt>`，可直接确认是否选到硬件编码器 |
+| 兜底 | 硬件配置失败自动回退 Baseline/默认；全部失败走原 Flexible 软件路径并报 `1005` |
+
+**实测（模拟器只有软件编码器）**
+
+- `encoder choice=c2.android.avc.encoder hardware=false color=21`（模拟器无硬件编码器，符合预期）；
+- 但配合“推流时释放 Preview”（§5.6），1080p 输入/输出稳定 **29/29fps**、0 drops，浏览器 `readyState=4`；
+- 真机上若选到 `hardware=true` 的硬件编码器（高通/联发科/三星等），1080p 30fps 应可达成；若日志仍 `hardware=false`，
+  说明该机型硬件编码器只支持 Surface 输入，需要 Camera2 + Surface 零拷贝管线（下一步改造）。
+
+### 5.8 真实浏览器播放（宿主 Chrome headless）
 
 - 打开唯一地址 → **FLV→MSE 成功**：`video.readyState=4`、`currentTime≈0.8s`、`buffered≈2.1s`、`videoWidth=1920`；
 - 无控制台错误；HUD 显示「直播中 / 0/3 人观看 / 871 kbps · 20 fps」；
