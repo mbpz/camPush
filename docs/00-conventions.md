@@ -3,12 +3,27 @@
 | 项目 | 值 |
 |---|---|
 | 文档状态 | 基线（Draft → Baseline，供全部子文档引用） |
-| 文档版本 | v1.4（v1.0 基线 + v1.1–v1.4 裁定，见 §16–§19） |
+| 文档版本 | v1.5（v1.0 基线 + v1.1–v1.4 裁定 + v1.5 架构解耦红线，见 §16–§20） |
 | 适用 PRD | [PRD v1.0](./PRD-v1.0.md) |
 | 维护人 | Team Lead |
 | 最后更新 | 2026-10-20 |
 
 > 本文件是 `docs/01`–`docs/11` 的**唯一契约来源**。任何子文档中的 URL 模板、字段名、枚举值、token 声明、错误码、状态机、性能数字，必须与本文件一致；子文档只能“细化”，不得“改写”。若发现本文件有缺口或冲突，写入子文档的“开放问题”章节并向 Lead 回报，由 Lead 统一修订本文件。
+
+---
+
+## 0. 工程红线：架构与模块解耦（v1.5）
+
+> 本节为项目级 Agent 记忆（同时写入仓库根目录 `AGENTS.md`），优先级高于任何临时实现方案。
+
+1. **单向依赖**：`app-ui/app-service/app-streaming/app-camera → app-core → lan-core`；`lan-core` 严禁依赖 Android/app。
+2. **UI 只依赖契约**：`app-ui` 只能 import `com.campush.app.core` 的 `P1Controller`/`P1UiState`，禁止直接触碰相机、编码器、引擎、Service 内部实现。
+3. **管线可替换**：CameraX、Camera2+MediaRecorder Surface、未来零拷贝/WebRTC 管线必须置于统一抽象之后；新增管线只允许新增实现与适配器，不得在 UI/控制器里写分支。
+4. **契约冻结**：唯一播放地址、停止即失效、`3002/3003` 语义、局域网停止 ≤1s 不得破坏；跨模块能力先改契约再实现。
+5. **可回退**：新管线失败必须回退兼容管线，回退不得改变播放地址与对外契约。
+6. **验证门禁**：跨模块改动必须通过 `scripts/build.sh :lan-core:test :app:assembleDebug`；播放页改动跑 `tools/player-selftest`；文档改动跑 `scripts/check_docs.py --strict`。
+
+违反以上任一条的改动，Agent 必须先与用户/Lead 确认，不得以“先写通”为由合入。
 
 ---
 

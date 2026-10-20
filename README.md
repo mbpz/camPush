@@ -128,7 +128,17 @@ PRD 定义 **What / Why**；本集定义 **How / 边界 / 验收 / 排期 / 风�
 
 ---
 
-## 6. 契约基线速查（详见 00）
+## 6. Agent 协作约定（项目级记忆）
+
+见 [AGENTS.md](./AGENTS.md)。**架构与模块解耦是最高优先级红线**：
+
+- 依赖严格单向：`app-ui / app-service / app-streaming / app-camera → app-core → lan-core`，`lan-core` 不依赖 Android；
+- `app-ui` 只依赖 `P1Controller` / `P1UiState` 契约，禁止直接操作相机、编码器、引擎内部；
+- CameraX、Camera2+MediaRecorder Surface 等采集/编码管线必须隐藏在统一抽象后，新增管线只加实现与适配器；
+- 唯一播放地址、停止即失效、`3002/3003` 语义、局域网停止 ≤1s 等契约不得破坏；
+- 新管线失败必须回退兼容管线，回退不改变播放地址。
+
+## 7. 契约基线速查（详见 00）
 
 ### 6.1 枚举
 
@@ -173,7 +183,7 @@ PRD 定义 **What / Why**；本集定义 **How / 边界 / 验收 / 排期 / 风�
 
 ---
 
-## 7. 质量门禁
+## 8. 质量门禁
 
 ```bash
 python3 scripts/check_docs.py --strict
@@ -194,7 +204,7 @@ python3 scripts/check_docs.py --strict
 
 ---
 
-## 8. 文档规模与版本
+## 9. 文档规模与版本
 
 | 文档 | 行数 | 图 | 状态 |
 |---|---|---|---|
@@ -217,7 +227,7 @@ python3 scripts/check_docs.py --strict
 
 ---
 
-## 9. 待决策事项
+## 10. 待决策事项
 
 **P2 启动门禁（Top5，必须关闭）**：D-1～D-5，见 §2.3 与 [11 §2.6](./docs/11-risk-adr.md)。
 
@@ -233,7 +243,7 @@ python3 scripts/check_docs.py --strict
 
 ---
 
-## 10. 目录结构
+## 11. 目录结构
 
 ```text
 camPush/
@@ -262,7 +272,7 @@ camPush/
 
 ---
 
-## 11. 使用与维护
+## 12. 使用与维护
 
 1. **契约优先**：字段/路径/枚举/错误码变更先改 [00](./docs/00-conventions.md) 并升次版本；破坏性变更升主版本。
 2. **交付顺序以 P 为准**：功能何时存在可用“M1/M2 起”；何时交付、验收、门禁必须写 P1/P2/P3（映射见 00 §20.5）。
@@ -272,7 +282,7 @@ camPush/
 
 ---
 
-## 12. 变更记录
+## 13. 变更记录
 
 | 版本 | 日期 | 变更人 | 内容 |
 |---|---|---|---|
@@ -289,4 +299,5 @@ camPush/
 | v1.10 | 2026-10-20 | Team Lead | 推流瞬间掉 2fps 修复：枚举并优先硬件 H.264 编码器、按能力选择 NV12/I420/ Flexible 输入、YUV 转换复用缓冲、日志输出 encoder choice |
 | v1.11 | 2026-10-20 | Team Lead | 极低帧率救援：1080p 连续 3s 仅 1–4fps 时自动切 720p（播放地址不变），提示语更新；配合硬件编码器选择排查真机 2fps |
 | v1.12 | 2026-10-20 | Team Lead | 低帧率提示携带编码器名称/软硬编与 in/out fps；播放器追帧阈值 1.2s→0.6s 降低观看延迟 |
+| v1.14 | 2026-10-20 | Team Lead | 项目级 Agent 记忆：新增 AGENTS.md，架构/模块解耦列为最高红线；docs/00 §0 同步 |
 | v1.13 | 2026-10-20 | Team Lead | **零拷贝 Surface 管线**：Camera2→MediaRecorder(TS)→TsDemuxer→FLV，原生 SurfaceView 预览与 1080p30 硬件编码；切换摄像头/时间戳/回退兼容处理 |
