@@ -18,6 +18,7 @@ import android.util.Range
 import android.util.Size
 import android.view.Surface
 import com.campush.app.core.CameraFacingUi
+import com.campush.app.diag.DiagLog
 import com.campush.app.streaming.TsDemuxer
 import java.io.InputStream
 
@@ -170,6 +171,7 @@ class Camera2SurfacePipeline(
         recorder = rec
         recorderSurface = rec.surface
         Log.i(TAG, "recorder ready ${actualWidth}x$actualHeight@$fps ${bitrateKbps}kbps")
+        DiagLog.i("Surface", "recorder ready ${actualWidth}x$actualHeight@$fps ${bitrateKbps}kbps facing=$facing")
         onActualSize(actualWidth, actualHeight)
     }
 
@@ -196,6 +198,7 @@ class Camera2SurfacePipeline(
                 startReader()
                 onStarted()
                 Log.i(TAG, "surface pipeline started")
+                DiagLog.i("Surface", "pipeline started facing=$facing ${actualWidth}x$actualHeight")
             }
 
             override fun onConfigureFailed(session: CameraCaptureSession) {
@@ -312,6 +315,7 @@ class Camera2SurfacePipeline(
         if (errorSent) return
         errorSent = true
         Log.w(TAG, "surface pipeline error: $message")
+        DiagLog.e("Surface", "pipeline error: $message")
         onError(message)
     }
 

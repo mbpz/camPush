@@ -278,6 +278,21 @@ class LanServerE2ETest {
     }
 
     @Test
+    fun logDownloadRequiresValidPageToken() {
+        val s = start(defaultConfig().copy(logProvider = { "CAMPLOG\nline-1\nline-2" }))
+        val port = s.status().port
+        val token = token()
+
+        val ok = TestHttp.request(port, "GET", "/s/$token/logs")
+        assertEquals(200, ok.status)
+        assertTrue(ok.text.contains("CAMPLOG"))
+        assertTrue("headers=${ok.headers}", ok.headers["content-disposition"]?.contains("attachment") == true)
+
+        val bad = TestHttp.request(port, "GET", "/s/tampered/logs")
+        assertEquals(401, bad.status)
+    }
+
+    @Test
     fun stopInvalidatesPortAndIsFast() {
         val s = start()
         val port = s.status().port

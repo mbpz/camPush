@@ -122,6 +122,16 @@ fun MainScreen(controller: P1Controller) {
         }
     }
 
+    val copyLogs: () -> Unit = {
+        val url = state.playUrl
+        if (url != null) {
+            context.copyPlayUrlToClipboard("$url/logs")
+            notify("诊断日志下载地址已复制，局域网电脑浏览器打开即可下载")
+        } else {
+            notify("播放地址尚未生成，请稍候")
+        }
+    }
+
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
@@ -204,6 +214,7 @@ fun MainScreen(controller: P1Controller) {
             onShare = {
                 state.playUrl?.let { context.sharePlayUrl(it) } ?: notify("播放地址尚未生成")
             },
+            onLogs = copyLogs,
             onLanSelected = {
                 if (state.streaming || state.starting) {
                     notify("推流中不可切换，请先停止推流后切换访问范围")
@@ -370,6 +381,7 @@ private fun BottomControls(
     onQr: () -> Unit,
     onPreview: () -> Unit,
     onShare: () -> Unit,
+    onLogs: () -> Unit,
     onLanSelected: () -> Unit,
     onWanLockedClick: () -> Unit,
     onSettings: () -> Unit,
@@ -399,6 +411,7 @@ private fun BottomControls(
                     onQr = onQr,
                     onPreview = onPreview,
                     onShare = onShare,
+                    onLogs = onLogs,
                     compact = isLandscape,
                 )
             } else {

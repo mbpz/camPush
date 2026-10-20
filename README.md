@@ -220,7 +220,7 @@ python3 scripts/check_docs.py --strict
 | 09 task-plan | 960 | 3 | 基线 v1.1（P1/P2/P3） |
 | 10 observability | 876 | 2 | 基线 v1.1（阶段启用） |
 | 11 risk-adr | 512 | 2 | 基线 v1.2（ADR-013） |
-| 12 p1-implementation | 404 | 0 | 实现基线 v1.0 |
+| 12 p1-implementation |      420 | 0 | 实现基线 v1.0 |
 | PRD v1.0 | 643 | 0 | 需求基线（原文） |
 
 > 子文档中 “00 v1.1/v1.2” 的引用为其写作时点；以 00 当前版本 v1.5 为准。
@@ -299,5 +299,6 @@ camPush/
 | v1.10 | 2026-10-20 | Team Lead | 推流瞬间掉 2fps 修复：枚举并优先硬件 H.264 编码器、按能力选择 NV12/I420/ Flexible 输入、YUV 转换复用缓冲、日志输出 encoder choice |
 | v1.11 | 2026-10-20 | Team Lead | 极低帧率救援：1080p 连续 3s 仅 1–4fps 时自动切 720p（播放地址不变），提示语更新；配合硬件编码器选择排查真机 2fps |
 | v1.12 | 2026-10-20 | Team Lead | 低帧率提示携带编码器名称/软硬编与 in/out fps；播放器追帧阈值 1.2s→0.6s 降低观看延迟 |
+| v1.15 | 2026-10-20 | Team Lead | 局域网诊断日志下载：地址卡「日志」一键复制 `播放地址/logs`，电脑浏览器下载 App 内日志/状态/崩溃栈；lan-core 新增 `/s/{token}/logs` |
 | v1.14 | 2026-10-20 | Team Lead | 项目级 Agent 记忆：新增 AGENTS.md，架构/模块解耦列为最高红线；docs/00 §0 同步 |
 | v1.13 | 2026-10-20 | Team Lead | **零拷贝 Surface 管线**：Camera2→MediaRecorder(TS)→TsDemuxer→FLV，原生 SurfaceView 预览与 1080p30 硬件编码；切换摄像头/时间戳/回退兼容处理 |

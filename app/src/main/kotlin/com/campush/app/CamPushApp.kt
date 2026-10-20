@@ -3,6 +3,7 @@ package com.campush.app
 import android.app.Application
 import com.campush.app.core.P1Controller
 import com.campush.app.core.P1ControllerImpl
+import com.campush.app.diag.DiagLog
 
 /**
  * 进程级依赖容器：P1Controller 单例。
@@ -15,6 +16,7 @@ class CamPushApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        DiagLog.init(this)
         if (BuildConfig.DEBUG) {
             android.webkit.WebView.setWebContentsDebuggingEnabled(true)
         }

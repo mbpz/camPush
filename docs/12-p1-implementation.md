@@ -330,7 +330,23 @@ Camera2 ──Surface──> MediaRecorder(SURFACE, MPEG_2_TS) ──硬件 H.26
 - 画面方向为相机传感器方向，竖屏观看如需旋转需后续增加旋转元数据/播放器 CSS 处理；
 - 需要 API 26+；低版本自动走兼容管线。
 
-### 5.9 真实浏览器播放（宿主 Chrome headless）
+### 5.9 局域网诊断日志下载（无需 adb）
+
+**目标**：真机出问题时不再依赖 `adb logcat`，在局域网电脑浏览器直接下载 App 内诊断日志。
+
+| 项 | 说明 |
+|---|---|
+| 下载地址 | `http://{手机IP}:{端口}/s/{pageToken}/logs`（即播放地址后加 `/logs`） |
+| 入口 | 推流中地址卡新增「日志」按钮：复制日志下载地址，发到电脑浏览器打开即下载 `campush-log-<时间>.txt` |
+| 鉴权 | 复用页面 token；token 错误返回 401/`3002`，停止推流后地址失效 |
+| 内容 | App/设备信息、当前引擎状态（phase/管线/分辨率/fps/码率/设置）、最近 800 行 App 内日志、上一次崩溃栈；不包含 token/PIN |
+| 实现 | `DiagLog` 进程内环形缓冲 + `LanConfig.logProvider` + lan-core `GET /s/{token}/logs`（`Content-Disposition: attachment`） |
+
+**实测（模拟器）**：`GET .../s/<token>/logs` → `200 text/plain`，983 字节，包含
+`phase=STREAMING surface=true actual=1280x720 serverFps=29` 与 `Surface: recorder ready ...` 等日志；
+token 篡改 → 401。
+
+### 5.10 真实浏览器播放（宿主 Chrome headless）
 
 - 打开唯一地址 → **FLV→MSE 成功**：`video.readyState=4`、`currentTime≈0.8s`、`buffered≈2.1s`、`videoWidth=1920`；
 - 无控制台错误；HUD 显示「直播中 / 0/3 人观看 / 871 kbps · 20 fps」；

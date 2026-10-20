@@ -54,6 +54,7 @@ fun AddressCard(
     onQr: () -> Unit,
     onPreview: () -> Unit,
     onShare: () -> Unit,
+    onLogs: () -> Unit,
     modifier: Modifier = Modifier,
     compact: Boolean = false,
 ) {
@@ -187,6 +188,12 @@ fun AddressCard(
                         icon = Icons.Filled.Share,
                         label = "分享",
                         onClick = onShare,
+                        modifier = Modifier.weight(1f),
+                    )
+                    AddressAction(
+                        icon = Icons.Filled.Info,
+                        label = "日志",
+                        onClick = onLogs,
                         modifier = Modifier.weight(1f),
                     )
                 }

@@ -205,6 +205,9 @@ internal class LanServerImpl(
 
             request.method == "GET" && request.path == "/favicon.ico" -> HttpResult.Short(204, null, ByteArray(0))
 
+            request.method == "GET" && request.path.startsWith("/s/") &&
+                request.path.endsWith("/logs") -> handleLogs(request)
+
             request.method == "GET" && request.path.startsWith("/s/") -> handlePage(request)
 
             request.method == "GET" && request.path == "/api/v1/status" -> handleStatus(request)
@@ -238,6 +241,33 @@ internal class LanServerImpl(
             pageHeaders(),
         )
         return HttpResult.Short(200, "text/html; charset=utf-8", html, pageHeaders())
+    }
+
+    /** `GET /s/{pageToken}/logs`：返回文本诊断日志，浏览器直接下载保存。 */
+    private fun handleLogs(request: HttpRequest): HttpResult {
+        val token = request.path.removePrefix("/s/").removeSuffix("/logs").trimEnd('/')
+        if (token.isEmpty()) throw HttpError(3001)
+        try {
+            tokensOrThrow().verifyPageToken(token)
+        } catch (e: LanException) {
+            throw HttpError(e.code, userHintOverride = e.userHint)
+        }
+        val provider = config.logProvider
+        val text = if (provider != null) {
+            runCatching { provider() }.getOrElse { "log provider failed: ${it.message}" }
+        } else {
+            "diagnostic log not available"
+        }
+        val stamp = java.text.SimpleDateFormat("yyyyMMdd-HHmmss", java.util.Locale.US).format(java.util.Date())
+        val bytes = text.toByteArray(StandardCharsets.UTF_8)
+        return HttpResult.Short(
+            200,
+            "text/plain; charset=utf-8",
+            bytes,
+            mapOf(
+                "Content-Disposition" to "attachment; filename=\"campush-log-$stamp.txt\"",
+            ),
+        )
     }
 
     private fun handleStatus(request: HttpRequest): HttpResult {

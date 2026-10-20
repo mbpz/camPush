@@ -6,6 +6,7 @@ import android.view.SurfaceView
 import androidx.lifecycle.LifecycleOwner
 import com.campush.app.camera.Camera2SurfacePipeline
 import com.campush.app.camera.CameraHost
+import com.campush.app.diag.DiagLog
 import com.campush.app.core.CameraFacingUi
 import com.campush.app.core.StreamSettingsUi
 import com.campush.app.network.NetworkMonitor
@@ -132,6 +133,15 @@ class LanStreamEngine(
             pinRequired = options.pinRequired,
             pin = options.pin,
             bindAddress = "0.0.0.0",
+            logProvider = {
+                DiagLog.snapshot(
+                    "phase=$phase surface=${surfacePipeline != null} " +
+                        "facing=$pipelineFacing settings=${pipelineSettings ?: options.settings} " +
+                        "actual=${lastActualWidth}x${lastActualHeight} " +
+                        "serverFps=${serverFpsForLog()} bitrate=${serverBitrateForLog()} " +
+                        "streamingOwner=${cameraLifecycleOwner != null}",
+                )
+            },
         )
         val lanServer = LanServer(
             config = config,
@@ -184,6 +194,7 @@ class LanStreamEngine(
         val micDenied = startMediaPipeline(activeSettings, activeFacing, publisher)
 
         phase = EnginePhase.STREAMING
+        DiagLog.i("Engine", "streaming started: surface=${surfacePipeline != null} settings=${pipelineSettings} facing=$pipelineFacing")
         StreamingBridge.update {
             it.copy(
                 phase = EnginePhase.STREAMING,
@@ -204,6 +215,7 @@ class LanStreamEngine(
 
     /** 摄像头被系统回收/被其他应用占用时的恢复状态回调。 */
     private fun onCameraAvailability(available: Boolean) {
+        DiagLog.i("Engine", "camera availability=$available phase=$phase")
         val wasUnavailable = !cameraAvailable
         cameraAvailable = available
         if (phase != EnginePhase.STREAMING) return
@@ -220,6 +232,7 @@ class LanStreamEngine(
     }
 
     fun stop() {
+        DiagLog.i("Engine", "stop requested phase=$phase")
         if (phase == EnginePhase.IDLE) {
             StreamingBridge.engine = null
             return
@@ -366,7 +379,7 @@ class LanStreamEngine(
     /** Surface 管线初始化失败：回退到 CameraX 兼容管线，播放地址/服务不变。 */
     private fun onSurfacePipelineError(message: String) {
         if (phase != EnginePhase.STREAMING && phase != EnginePhase.STARTING) return
-        Log.w(TAG, "surface pipeline failed: $message, fallback legacy")
+        DiagLog.w("Engine", "surface pipeline failed: $message, fallback legacy")
         surfaceDisabled = true
         surfacePipeline?.let { runCatching { it.stop() } }
         surfacePipeline = null
@@ -456,6 +469,10 @@ class LanStreamEngine(
         }
     }
 
+    private fun serverFpsForLog(): Int = runCatching { server?.status()?.fps ?: 0 }.getOrDefault(0)
+
+    private fun serverBitrateForLog(): Long = runCatching { server?.status()?.bitrateBps ?: 0L }.getOrDefault(0L)
+
     private fun startStatsLoop() {
         statsJob?.cancel()
         statsJob = scope.launch {
@@ -473,6 +490,7 @@ class LanStreamEngine(
                 if (lowFpsStreak >= 5 && !lowFpsWarned && phase == EnginePhase.STREAMING && cameraAvailable) {
                     lowFpsWarned = true
                     Log.w(TAG, "low fps detected: fps=${status.fps} bitrate=${status.bitrateBps}")
+                    DiagLog.w("Engine", "low fps: fps=${status.fps} bitrate=${status.bitrateBps} actual=${lastActualWidth}x$lastActualHeight")
                     val diag = videoEncoder?.diagnostics()
                     val codecInfo = diag?.let {
                         "（编码器 ${it.codecName.let { n -> if (it.hardware) "$n/硬编" else "$n/软编" }}，" +
@@ -565,6 +583,7 @@ class LanStreamEngine(
     }
 
     private fun fail(code: Int, message: String? = null, hint: String? = null) {
+        DiagLog.e("Engine", "fail code=$code message=$message hint=$hint phase=$phase")
         scope.launch {
             if (phase == EnginePhase.IDLE || phase == EnginePhase.FAILED) return@launch
             phase = EnginePhase.FAILED
