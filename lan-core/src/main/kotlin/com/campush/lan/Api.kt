@@ -61,6 +61,9 @@ interface LanMediaPublisher {
     fun publishAac(unit: AacAccessUnit)
     fun stats(): MediaStats
     fun requestKeyFrame()
+
+    /** 是否有观看者正在使用 MJPEG；为 false 时客户端可跳过 JPEG 编码以节省 CPU。 */
+    fun isMjpegWanted(): Boolean = false
 }
 
 enum class LanEvent {

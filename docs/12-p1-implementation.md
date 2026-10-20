@@ -218,7 +218,26 @@ ANDROID_HOME="$PWD/.android-sdk" GRADLE_USER_HOME="$PWD/.gradle-home" \
 - 恢复后：状态 `fps=26 / bitrate=2515kbps`，FLV 标签继续，UI 提示“摄像头已恢复，画面继续”；
 - 截图：[相机恢复后的预览](./assets/p1-camera-recovered.png)。
 
-### 5.5 真实浏览器播放（宿主 Chrome headless）
+### 5.5 30fps 优先与画质自适应（播放地址不变）
+
+**目标**：帧率优先，至少 30fps；1080p 无法稳定时降分辨率，但**不改变播放地址**。
+
+| 机制 | 行为 |
+|---|---|
+| 不再自我拖慢 | MJPEG 仅在存在 MJPEG 观看者时才编码 JPEG（无观看者时完全跳过）；推流期间 `FLAG_KEEP_SCREEN_ON`，避免熄屏触发相机降频 |
+| 异常低帧率（<10fps 持续 3s） | 自动降一档分辨率（1080→720→480，最多 2 档）：**只重启相机/编码子管线，LanServer 与 playUrl 保持不变**；提示“已自动降低分辨率（播放地址不变）” |
+| 10–29fps | 仅提示“当前约 X fps，低于 30fps；可尝试 720p 或检查设备性能”，**不再自动降画质**，避免画质漂移 |
+| 可观测 | 主界面显示实际编码分辨率与实时 fps；设置页提示“稳定 30fps 建议 720p” |
+
+**实测**
+
+- 正常 1080p 设定（模拟器实际 1280×720）：`fps 28 / 3966 kbps`，无管线重启、地址稳定；
+- 人为 CPU 压满（6 个 yes 进程）：fps 掉到 8 → 提示并 `media pipeline restarted at 854x480@30`；**前后播放地址逐字节相同**（`cmp` 验证），浏览器连接不断；
+- 解除压力后 fps 恢复；MJPEG 仅在观看者接入后产出（3s 200 KB，日志出现 `YuvToJpegEncoder`，无观看者时无 JPEG 开销）。
+
+> 30fps 上限取决于设备相机 HAL/编码器能力与散热；App 侧已消除自造的降频与质量抖动，并在低于阈值时给出明确提示。
+
+### 5.6 真实浏览器播放（宿主 Chrome headless）
 
 - 打开唯一地址 → **FLV→MSE 成功**：`video.readyState=4`、`currentTime≈0.8s`、`buffered≈2.1s`、`videoWidth=1920`；
 - 无控制台错误；HUD 显示「直播中 / 0/3 人观看 / 871 kbps · 20 fps」；

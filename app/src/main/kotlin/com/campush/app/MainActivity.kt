@@ -1,9 +1,14 @@
 package com.campush.app
 
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.core.view.WindowCompat
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import com.campush.app.ui.MainScreen
 import com.campush.app.ui.PermissionGate
 import com.campush.app.ui.theme.CamPushTheme
@@ -17,6 +22,19 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         val controller = (application as CamPushApp).controller
+        // 推流期间保持屏幕常亮：部分 ROM 在熄屏时会把相机帧率压到 1–2 fps。
+        lifecycleScope.launch {
+            controller.state
+                .map { it.streaming }
+                .distinctUntilChanged()
+                .collect { streaming ->
+                    if (streaming) {
+                        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    } else {
+                        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    }
+                }
+        }
         setContent {
             CamPushTheme {
                 PermissionGate(controller = controller) {

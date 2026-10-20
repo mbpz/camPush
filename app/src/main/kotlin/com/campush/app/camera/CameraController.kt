@@ -240,7 +240,7 @@ class CameraController internal constructor(context: Context) {
                         .setResolutionStrategy(
                             ResolutionStrategy(
                                 Size(even(targetWidth), even(targetHeight)),
-                                ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER,
+                                ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER,
                             )
                         )
                         .build()

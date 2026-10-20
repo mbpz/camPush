@@ -25,6 +25,7 @@ internal class MediaHub(private val clock: () -> Long) : LanMediaPublisher {
     )
 
     private val lock = Object()
+    private val mjpegClients = java.util.concurrent.atomic.AtomicInteger(0)
 
     // 序列头快照（完整 FLV tag 字节；新连接/追帧时随关键帧重发）
     private var videoSequenceHeader: ByteArray? = null
@@ -166,6 +167,16 @@ internal class MediaHub(private val clock: () -> Long) : LanMediaPublisher {
     // ---------------------------------------------------------------- FLV 订阅
 
     fun openFlv(): FlvSubscription = FlvSubscription()
+
+    fun mjpegClientOpened() {
+        mjpegClients.incrementAndGet()
+    }
+
+    fun mjpegClientClosed() {
+        mjpegClients.decrementAndGet()
+    }
+
+    override fun isMjpegWanted(): Boolean = mjpegClients.get() > 0
 
     fun latestJpegVersioned(): Pair<Long, ByteArray>? = synchronized(lock) {
         val jpeg = latestJpeg ?: return null

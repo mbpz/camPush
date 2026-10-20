@@ -37,9 +37,13 @@ class P1ControllerImpl(context: Context) : P1Controller {
     private val prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val networkMonitor = NetworkMonitor(appContext)
 
-    /** 连续低帧率采样与自动降级标记（PRD §8.4 性能保护）。 */
+    /** 帧率优先自适应：连续低帧率采样、降档级别（PRD §8.4 性能保护）。 */
     private var lowFpsSamples: Int = 0
-    private var autoFallbackDone: Boolean = false
+    private var midFpsSamples: Int = 0
+    private var adaptLevel: Int = 0
+    private var lastAdaptAtMs: Long = 0L
+    private var fpsWarningShown: Boolean = false
+    private var streamingSinceMs: Long = 0L
 
     private val _state = MutableStateFlow(restoreState())
     override val state: StateFlow<P1UiState> = _state.asStateFlow()
@@ -299,35 +303,48 @@ class P1ControllerImpl(context: Context) : P1Controller {
 
     private fun applySnapshot(snapshot: EngineSnapshot) {
         if (snapshot.phase == EnginePhase.STREAMING) {
-            if (snapshot.fps in 1..4 && snapshot.bitrateKbps < 300) {
+            val fps = snapshot.fps
+            if (snapshot.cameraAvailable && fps in 1..9) {
                 lowFpsSamples++
             } else {
                 lowFpsSamples = 0
             }
-            val currentSettings = _state.value.settings
-            if (lowFpsSamples >= 5 && !autoFallbackDone && currentSettings.height > 720 &&
-                _state.value.cameraAvailable
+            val now = System.currentTimeMillis()
+            if (streamingSinceMs == 0L) streamingSinceMs = now
+            val stateNow = _state.value
+            val effectiveHeight = stateNow.actualHeight.takeIf { it > 0 } ?: stateNow.settings.height
+            // 帧率优先：连续 3s 低于 15fps 就降一档分辨率（播放地址不变），最多降到 480p。
+            if (lowFpsSamples >= 3 && adaptLevel < 2 && snapshot.cameraAvailable &&
+                now - lastAdaptAtMs > ADAPT_COOLDOWN_MS && now - streamingSinceMs > STARTUP_GRACE_MS
             ) {
-                autoFallbackDone = true
-                lowFpsSamples = 0
-                val reduced = currentSettings.copy(
-                    width = 1280,
-                    height = 720,
-                    bitrateKbps = minOf(currentSettings.bitrateKbps, 2500),
-                )
-                _state.update {
-                    it.copy(
-                        settings = reduced,
-                        warning = "检测到编码帧率过低，已自动降至 720p 保证流畅；可在设置中改回 1080p",
+                val next = if (effectiveHeight > 720) {
+                    stateNow.settings.copy(
+                        width = 1280,
+                        height = 720,
+                        bitrateKbps = minOf(stateNow.settings.bitrateKbps, 2500),
+                    )
+                } else {
+                    stateNow.settings.copy(
+                        width = 854,
+                        height = 480,
+                        bitrateKbps = minOf(stateNow.settings.bitrateKbps, 1200),
                     )
                 }
-                persistSettings(reduced)
-                stop()
-                scope.launch {
-                    delay(1_200)
-                    start()
-                }
+                adaptLevel++
+                lastAdaptAtMs = now
+                lowFpsSamples = 0
+                StreamingBridge.emitWarning("当前设备无法稳定 30fps，已自动降低分辨率（播放地址不变）；可在设置中改回")
+                StreamingBridge.engine?.updateMediaConfig(next, stateNow.cameraFacing)
                 return
+            }
+            if (snapshot.cameraAvailable && fps in 10..29) {
+                midFpsSamples++
+            } else {
+                midFpsSamples = 0
+            }
+            if (midFpsSamples >= 5 && !fpsWarningShown) {
+                fpsWarningShown = true
+                StreamingBridge.emitWarning("当前约 ${snapshot.fps} fps，低于 30fps；可尝试 720p 或检查设备性能")
             }
         }
         _state.update { current ->
@@ -454,5 +471,7 @@ class P1ControllerImpl(context: Context) : P1Controller {
         val PORT_RANGE = 8089..8099
         val PIN_REGEX = Regex("^\\d{4,6}$")
         const val NETWORK_LABEL_REFRESH_MS = 5_000L
+        const val ADAPT_COOLDOWN_MS = 8_000L
+        const val STARTUP_GRACE_MS = 6_000L
     }
 }

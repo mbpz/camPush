@@ -171,6 +171,12 @@ private fun SettingsContent(
                 onClick = { applySettings(settings.copy(width = 1920, height = 1080)) },
             )
         }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = "需要稳定 30fps 建议选 720p；1080p 对设备性能要求较高，实际编码分辨率显示在主界面。",
+            style = MaterialTheme.typography.bodySmall,
+            color = CamPushColors.TextTertiary,
+        )
         Spacer(Modifier.height(14.dp))
         Text(
             text = "码率",

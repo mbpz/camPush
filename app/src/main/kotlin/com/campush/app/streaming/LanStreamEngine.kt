@@ -50,6 +50,11 @@ class LanStreamEngine(
 
     private var lastActualWidth: Int = 0
     private var lastActualHeight: Int = 0
+    private var publisherRef: LanMediaPublisher? = null
+    private var streamMuted: Boolean = false
+    private var pipelineSettings: StreamSettingsUi? = null
+    private var pipelineFacing: CameraFacingUi = CameraFacingUi.BACK
+    private var pipelineJob: Job? = null
     private var lowFpsStreak: Int = 0
     private var lowFpsWarned: Boolean = false
     private var cameraAvailable: Boolean = true
@@ -165,52 +170,11 @@ class LanStreamEngine(
         }
         val activeFacing = if (baseSettings.powerSave) CameraFacingUi.BACK else options.facing
 
-        // 3) 编码器：仅在拿到 publisher 后创建。
-        val video = VideoEncoder(publisher, activeSettings) { error ->
-            fail(error.code, error.message, error.hint)
-        }
-        videoEncoder = video
-        val jpeg = JpegEncoder(publisher)
-        jpegEncoder = jpeg
-
-        var micDenied = false
-        if (baseSettings.audioEnabled) {
-            val audio = AudioEncoder(
-                context.applicationContext,
-                publisher,
-                options.muted,
-                basePtsUs = (System.nanoTime() - originNs) / 1_000L,
-            )
-            micDenied = !audio.start()
-            audioEncoder = audio
-        }
-
-        // 4) 相机：绑定到 Service 生命周期；分析帧在单线程 executor 上编码。
-        val camera = CameraHost.get(context)
-        camera.startStreaming(
-            lifecycleOwner = cameraLifecycleOwner,
-            facing = activeFacing,
-            width = activeSettings.width,
-            height = activeSettings.height,
-            fps = activeSettings.fps,
-            frameCallback = { image, _ ->
-                if (image.width != lastActualWidth || image.height != lastActualHeight) {
-                    lastActualWidth = image.width
-                    lastActualHeight = image.height
-                    StreamingBridge.update {
-                        it.copy(actualWidth = image.width, actualHeight = image.height)
-                    }
-                }
-                val nowUs = (System.nanoTime() - originNs) / 1_000L
-                video.encode(image, nowUs)
-                jpeg.onFrame(image)
-            },
-            errorCallback = { error -> fail(error.code, error.message, error.hint) },
-            cameraStateCallback = { available -> onCameraAvailability(available) },
-        )
-
-        // 5) 启动即强制 IDR（首帧预算）。
-        video.requestKeyFrame()
+        publisherRef = publisher
+        streamMuted = options.muted
+        pipelineSettings = activeSettings
+        pipelineFacing = activeFacing
+        val micDenied = startMediaPipeline(activeSettings, activeFacing, publisher)
 
         phase = EnginePhase.STREAMING
         StreamingBridge.update {
@@ -285,6 +249,92 @@ class LanStreamEngine(
 
     /** 供 Controller 每秒刷新 UI 使用；未启动时返回 null。 */
     fun status(): LanStatus? = runCatching { server?.status() }.getOrNull()
+
+    /**
+     * 启动/重启媒体子管线（相机+编码），不触碰 LanServer。
+     * 用于画质自适应降级：保持播放地址不变。
+     */
+    private fun startMediaPipeline(
+        settings: StreamSettingsUi,
+        facing: CameraFacingUi,
+        publisher: LanMediaPublisher,
+    ): Boolean {
+        val video = VideoEncoder(publisher, settings) { error ->
+            fail(error.code, error.message, error.hint)
+        }
+        videoEncoder = video
+        val jpeg = JpegEncoder(publisher)
+        jpegEncoder = jpeg
+
+        var micDenied = false
+        if (settings.audioEnabled) {
+            val audio = AudioEncoder(
+                context.applicationContext,
+                publisher,
+                streamMuted,
+                basePtsUs = (System.nanoTime() - originNs) / 1_000L,
+            )
+            micDenied = !audio.start()
+            audioEncoder = audio
+        }
+
+        CameraHost.get(context).startStreaming(
+            lifecycleOwner = cameraLifecycleOwner,
+            facing = facing,
+            width = settings.width,
+            height = settings.height,
+            fps = settings.fps,
+            frameCallback = { image, _ ->
+                if (image.width != lastActualWidth || image.height != lastActualHeight) {
+                    lastActualWidth = image.width
+                    lastActualHeight = image.height
+                    StreamingBridge.update {
+                        it.copy(actualWidth = image.width, actualHeight = image.height)
+                    }
+                }
+                val nowUs = (System.nanoTime() - originNs) / 1_000L
+                video.encode(image, nowUs)
+                // 没有 MJPEG 观看者时跳过 JPEG 压缩，避免 1080p 下白白占用 CPU。
+                if (publisher.isMjpegWanted()) jpeg.onFrame(image)
+            },
+            errorCallback = { error -> fail(error.code, error.message, error.hint) },
+            cameraStateCallback = { available -> onCameraAvailability(available) },
+        )
+        video.requestKeyFrame()
+        return micDenied
+    }
+
+    private fun stopMediaPipeline() {
+        audioEncoder?.let { runCatching { it.stop() } }
+        audioEncoder = null
+        videoEncoder?.let { runCatching { it.close() } }
+        videoEncoder = null
+        jpegEncoder?.let { runCatching { it.close() } }
+        jpegEncoder = null
+        runCatching { CameraHost.current()?.stopStreaming() }
+    }
+
+    /**
+     * 画质自适应：保持 LanServer/播放地址不变，仅以新分辨率重启相机与编码器。
+     * 用于“帧率优先”策略（用户要求 ≥30fps）。
+     */
+    fun updateMediaConfig(settings: StreamSettingsUi, facing: CameraFacingUi) {
+        if (phase != EnginePhase.STREAMING) return
+        val publisher = publisherRef ?: return
+        pipelineSettings = settings
+        pipelineFacing = facing
+        pipelineJob?.cancel()
+        pipelineJob = scope.launch {
+            withContext(Dispatchers.Default) {
+                stopMediaPipeline()
+                startMediaPipeline(settings, facing, publisher)
+            }
+            lastActualWidth = 0
+            lastActualHeight = 0
+            StreamingBridge.update { it.copy(actualWidth = 0, actualHeight = 0) }
+            Log.i(TAG, "media pipeline restarted at ${settings.width}x${settings.height}@${settings.fps}")
+        }
+    }
 
     private fun startStatsLoop() {
         statsJob?.cancel()
@@ -402,13 +452,10 @@ class LanStreamEngine(
         statsJob?.cancel()
         statsJob = null
         runCatching { networkMonitor.stop() }
-        audioEncoder?.let { runCatching { it.stop() } }
-        audioEncoder = null
-        videoEncoder?.let { runCatching { it.close() } }
-        videoEncoder = null
-        jpegEncoder?.let { runCatching { it.close() } }
-        jpegEncoder = null
-        runCatching { CameraHost.current()?.stopStreaming() }
+        pipelineJob?.cancel()
+        pipelineJob = null
+        stopMediaPipeline()
+        publisherRef = null
         val lanServer = server
         server = null
         if (lanServer != null) {

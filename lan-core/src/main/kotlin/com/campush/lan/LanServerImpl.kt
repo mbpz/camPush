@@ -373,6 +373,15 @@ internal class LanServerImpl(
     }
 
     private fun streamMjpeg(out: OutputStream, socket: Socket) {
+        mediaHub.mjpegClientOpened()
+        try {
+            streamMjpegLoop(out, socket)
+        } finally {
+            mediaHub.mjpegClientClosed()
+        }
+    }
+
+    private fun streamMjpegLoop(out: OutputStream, socket: Socket) {
         var lastVersion = -1L
         var lastPeerCheck = System.currentTimeMillis()
         while (!stopRequested && !socket.isClosed) {
