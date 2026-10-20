@@ -58,6 +58,9 @@ data class P1UiState(
 interface P1Controller {
     val state: StateFlow<P1UiState>
 
+    /** 推流中 App 内预览 JPEG（CameraX Preview 已释放，避免与分析并发限帧）。 */
+    val previewJpeg: StateFlow<ByteArray?>
+
     fun start()
     fun stop()
     fun switchCamera()

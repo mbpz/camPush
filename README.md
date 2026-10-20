@@ -210,7 +210,7 @@ python3 scripts/check_docs.py --strict
 | 09 task-plan | 960 | 3 | 基线 v1.1（P1/P2/P3） |
 | 10 observability | 876 | 2 | 基线 v1.1（阶段启用） |
 | 11 risk-adr | 512 | 2 | 基线 v1.2（ADR-013） |
-| 12 p1-implementation | 313 | 0 | 实现基线 v1.0 |
+| 12 p1-implementation | 336 | 0 | 实现基线 v1.0 |
 | PRD v1.0 | 643 | 0 | 需求基线（原文） |
 
 > 子文档中 “00 v1.1/v1.2” 的引用为其写作时点；以 00 当前版本 v1.5 为准。
@@ -285,3 +285,4 @@ camPush/
 | v1.6 | 2026-10-20 | Team Lead | 30fps 优先：MJPEG 按需编码、推流屏幕常亮、异常低帧率才降分辨率且播放地址不变、10–29fps 仅提示不降画质；设置页与文档同步 |
 | v1.7 | 2026-10-20 | Team Lead | 局域网 14fps 修复：强制 AE 30fps 范围（不支持自动回退）、诊断日志增加 inFps/outFps |
 | v1.8 | 2026-10-20 | Team Lead | 画质优先：移除低帧率自动降档、AVC High Profile、码率上限 8 Mbps/新增 6000 档、帧率不足仅提示不降画质 |
+| v1.9 | 2026-10-20 | Team Lead | **30fps 关键修复**：推流时释放 CameraX Preview、仅保留 ImageAnalysis，App 预览改由编码管线 JPEG 渲染；实测 720p 30fps/1080p 29–30fps |

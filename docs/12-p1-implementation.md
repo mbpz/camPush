@@ -239,7 +239,30 @@ ANDROID_HOME="$PWD/.android-sdk" GRADLE_USER_HOME="$PWD/.gradle-home" \
 
 > 30fps 上限取决于设备相机 HAL/编码器/散热；App 侧不再为了帧率牺牲画质，由用户按需在 720p/1080p 之间选择。
 
-### 5.6 真实浏览器播放（宿主 Chrome headless）
+### 5.6 推流时释放 Preview：1080p 30fps 的关键修复
+
+**对比 UU 远程等成熟产品后定位**：CameraX 同时跑 `Preview + ImageAnalysis` 时，部分机型/ROM 会把分析流压到 **~15fps**（正是用户看到的 14fps）。成熟串流产品不会在推流时保留独立的预览管线。
+
+**修复**
+
+| 状态 | 相机管线 | App 内预览 |
+|---|---|---|
+| 空闲 | 仅 CameraX `Preview`（全质量预览） | `PreviewView` |
+| 推流中 | **仅 `ImageAnalysis`**（释放 Preview，避免并发限帧） | 由编码管线的 JPEG（≤960 宽、每 3 帧一次，约 10fps）在 Compose 中渲染 |
+
+**实测（模拟器）**
+
+| 场景 | 实际编码 | fps（in/out） | 浏览器 |
+|---|---|---|---|
+| 后摄 1280×720（设定 1080p） | 1280×720 · 4 Mbps | **30 / 30**，0 drops | HUD 30fps，`readyState=4` |
+| 前摄 1920×1080 | **1920×1080 · High Profile** | **29 / 29**，0 drops | 同上 |
+
+- 修复前同样场景约 22–27fps；释放 Preview 后稳定 29–30fps；
+- 推流中 App 内预览为 960 宽 / ~10fps（流本身仍是 1080p/720p 全质量）；停止推流后自动切回 CameraX 全质量预览。
+
+> 取舍说明：推流期间降低“本机预览”的开销来换采集/编码 30fps，这是局域网推流更合理的产品选择；若后续要做到“App 内预览也 1080p30”，需要 Camera2 + Surface 零拷贝管线。
+
+### 5.7 真实浏览器播放（宿主 Chrome headless）
 
 - 打开唯一地址 → **FLV→MSE 成功**：`video.readyState=4`、`currentTime≈0.8s`、`buffered≈2.1s`、`videoWidth=1920`；
 - 无控制台错误；HUD 显示「直播中 / 0/3 人观看 / 871 kbps · 20 fps」；

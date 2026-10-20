@@ -42,6 +42,7 @@ class P1ControllerImpl(context: Context) : P1Controller {
     private var fpsWarningShown: Boolean = false
 
     private val _state = MutableStateFlow(restoreState())
+    override val previewJpeg = StreamingBridge.previewJpeg
     override val state: StateFlow<P1UiState> = _state.asStateFlow()
 
     init {

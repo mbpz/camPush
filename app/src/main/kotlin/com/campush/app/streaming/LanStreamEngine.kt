@@ -263,7 +263,7 @@ class LanStreamEngine(
             fail(error.code, error.message, error.hint)
         }
         videoEncoder = video
-        val jpeg = JpegEncoder(publisher)
+        val jpeg = JpegEncoder(publisher) { bytes -> StreamingBridge.publishPreviewJpeg(bytes) }
         jpegEncoder = jpeg
 
         var micDenied = false
@@ -294,8 +294,8 @@ class LanStreamEngine(
                 }
                 val nowUs = (System.nanoTime() - originNs) / 1_000L
                 video.encode(image, nowUs)
-                // 没有 MJPEG 观看者时跳过 JPEG 压缩，避免 1080p 下白白占用 CPU。
-                if (publisher.isMjpegWanted()) jpeg.onFrame(image)
+                // 低频小尺寸 JPEG：同时用于 MJPEG 降级与推流期间的 App 内预览。
+                jpeg.onFrame(image)
             },
             errorCallback = { error -> fail(error.code, error.message, error.hint) },
             cameraStateCallback = { available -> onCameraAvailability(available) },
@@ -452,6 +452,7 @@ class LanStreamEngine(
         statsJob?.cancel()
         statsJob = null
         runCatching { networkMonitor.stop() }
+        StreamingBridge.publishPreviewJpeg(null)
         pipelineJob?.cancel()
         pipelineJob = null
         stopMediaPipeline()

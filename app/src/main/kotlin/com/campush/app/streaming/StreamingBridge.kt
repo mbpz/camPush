@@ -42,6 +42,14 @@ object StreamingBridge {
     private val _warnings = MutableSharedFlow<String>(extraBufferCapacity = 16)
     val warnings: SharedFlow<String> = _warnings.asSharedFlow()
 
+    /** 推流期间 App 内预览用的 JPEG 帧（约 7.5fps、≤640 宽）。 */
+    private val _previewJpeg = MutableStateFlow<ByteArray?>(null)
+    val previewJpeg: StateFlow<ByteArray?> = _previewJpeg.asStateFlow()
+
+    fun publishPreviewJpeg(bytes: ByteArray?) {
+        _previewJpeg.value = bytes
+    }
+
     @Volatile
     var engine: LanStreamEngine? = null
         internal set

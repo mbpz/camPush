@@ -219,7 +219,7 @@ class CameraController internal constructor(context: Context) {
         val owner = if (streaming) streamingOwner else previewOwner
         if (owner == null) return
         if (owner.lifecycle.currentState == Lifecycle.State.DESTROYED) return
-        val tryBind: (ProcessCameraProvider) -> Unit = { cameraProvider ->
+        val tryBind: (ProcessCameraProvider) -> Unit = bind@{ cameraProvider ->
             try {
                 cameraProvider.unbindAll()
                 val selector = CameraSelector.Builder()
@@ -229,12 +229,18 @@ class CameraController internal constructor(context: Context) {
                     )
                     .build()
 
-                val preview = Preview.Builder().build()
-                previewView?.let { view ->
-                    runCatching { preview.setSurfaceProvider(view.surfaceProvider) }
-                        .onFailure { Log.w(TAG, "set preview surfaceProvider failed", it) }
+                var preview: Preview? = null
+                val useCases = mutableListOf<UseCase>()
+                // 推流时释放 Preview，只用 ImageAnalysis：避免部分机型 Preview+Analysis 并发被限到 15fps。
+                // 推流期间的 App 内预览改由编码管线产出的 JPEG 帧渲染（见 CameraPreview）。
+                if (!includeAnalysis) {
+                    preview = Preview.Builder().build()
+                    previewView?.let { view ->
+                        runCatching { preview!!.setSurfaceProvider(view.surfaceProvider) }
+                            .onFailure { Log.w(TAG, "set preview surfaceProvider failed", it) }
+                    }
+                    useCases.add(preview)
                 }
-                val useCases = mutableListOf<UseCase>(preview)
 
                 var analysis: ImageAnalysis? = null
                 if (includeAnalysis && onFrame != null) {
@@ -267,6 +273,7 @@ class CameraController internal constructor(context: Context) {
                     useCases.add(analysis)
                 }
 
+                if (useCases.isEmpty()) return@bind
                 val bound = cameraProvider.bindToLifecycle(owner, selector, *useCases.toTypedArray())
                 observeCameraState(bound, owner)
                 analysis?.let {
@@ -278,7 +285,7 @@ class CameraController internal constructor(context: Context) {
                 camera = bound
                 previewUseCase = preview
                 analysisUseCase = analysis
-                if (paused) preview.setSurfaceProvider(null)
+                if (paused) preview?.setSurfaceProvider(null)
                 if (torchOn && bound.cameraInfo.hasFlashUnit()) {
                     runCatching { bound.cameraControl.enableTorch(true) }
                 }

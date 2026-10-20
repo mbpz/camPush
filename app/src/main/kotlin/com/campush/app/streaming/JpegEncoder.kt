@@ -15,6 +15,7 @@ import java.io.ByteArrayOutputStream
 class JpegEncoder(
     private val publisher: LanMediaPublisher,
     private val quality: Int = 65,
+    private val onJpeg: ((ByteArray) -> Unit)? = null,
 ) {
 
     private var frameIndex: Int = 0
@@ -34,7 +35,9 @@ class JpegEncoder(
             val output = ByteArrayOutputStream(nv21.size / 4)
             val ok = yuvImage.compressToJpeg(Rect(0, 0, scaleW, scaleH), quality, output)
             if (ok) {
-                publisher.publishJpeg(output.toByteArray())
+                val jpeg = output.toByteArray()
+                publisher.publishJpeg(jpeg)
+                onJpeg?.invoke(jpeg)
             }
         } catch (t: Throwable) {
             Log.w(TAG, "jpeg encode failed", t)
