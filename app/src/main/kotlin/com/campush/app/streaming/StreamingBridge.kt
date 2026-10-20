@@ -23,6 +23,7 @@ data class EngineSnapshot(
     val maxViewers: Int = 3,
     val bitrateKbps: Int = 0,
     val fps: Int = 0,
+    val cameraAvailable: Boolean = true,
     val networkLabel: String = "未知",
 )
 

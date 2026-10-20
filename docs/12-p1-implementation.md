@@ -191,7 +191,34 @@ ANDROID_HOME="$PWD/.android-sdk" GRADLE_USER_HOME="$PWD/.gradle-home" \
 
 > 说明：用户报告的 93 kbps/1 fps 未在同一模拟器上复现（模拟器修复前为 ≈900 kbps/29 fps）；上述 Level、分辨率、ABR、JPEG 四项是 1080p 下最可能的真实设备诱因，需在真机复测确认。
 
-### 5.4 真实浏览器播放（宿主 Chrome headless）
+### 5.4 相机被抢占 / 黑屏自动恢复（真机问题复现）
+
+**用户现象**：推流中打开系统相机后，App 预览黑屏、浏览器地址也连不上；停止再开始才恢复。
+
+**根因**
+
+1. 相机被其他应用抢占时，部分 ROM 只回调 `CLOSED(error=null)`，不报错也不重建，预览黑屏但 UI 仍显示“推流中”；
+2. 原实现把任何相机错误都当作致命错误：`fail()` 会关闭 **LanServer**，所以浏览器地址连不上；
+3. 没有自动重试，只能手动停止/重开。
+
+**修复**
+
+| 机制 | 行为 |
+|---|---|
+| 帧流看门狗 | 推流中超过 **2 s** 没有分析帧 → 判定相机丢失，进入恢复流程 |
+| 保持端侧服务 | 相机丢失期间 **不关闭 LanServer/不换地址**，浏览器仍可访问，画面短暂停顿后自动续播 |
+| 自动重试 | 每秒尝试重新绑定 CameraX，最多 **30 次**；成功即重新出帧、请求 IDR，并提示“摄像头已恢复，画面继续” |
+| 超时兜底 | 30 s 仍无法恢复 → 明确停止推流（`1003`）并提示“摄像头被其他应用占用”，地址失效，用户可重新开始 |
+| 预览恢复 | 恢复时重新绑定 Preview surface，黑屏消失 |
+
+**实测（模拟器杀掉 cameraserver 模拟相机丢失）**
+
+- 丢失期间：`healthz` 始终 **200**，播放地址与 token 不变；
+- 日志：`no camera frames for 2320 ms, try recovery` → `camera unavailable, keep LAN server alive and retry` → `camera recovery attempt 1/30` → `camera recovered`（约 1 s）；
+- 恢复后：状态 `fps=26 / bitrate=2515kbps`，FLV 标签继续，UI 提示“摄像头已恢复，画面继续”；
+- 截图：[相机恢复后的预览](./assets/p1-camera-recovered.png)。
+
+### 5.5 真实浏览器播放（宿主 Chrome headless）
 
 - 打开唯一地址 → **FLV→MSE 成功**：`video.readyState=4`、`currentTime≈0.8s`、`buffered≈2.1s`、`videoWidth=1920`；
 - 无控制台错误；HUD 显示「直播中 / 0/3 人观看 / 871 kbps · 20 fps」；

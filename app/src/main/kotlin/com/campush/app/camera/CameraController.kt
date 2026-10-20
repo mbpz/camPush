@@ -8,6 +8,7 @@ import android.util.Log
 import android.util.Size
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.CameraState
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
@@ -62,6 +63,20 @@ class CameraController internal constructor(context: Context) {
 
     private var onFrame: ((Image, Long) -> Unit)? = null
     private var onCameraError: ((P1Error) -> Unit)? = null
+    private var onCameraState: ((Boolean) -> Unit)? = null
+
+    /** 摄像头被其他应用占用时的自动恢复：每秒重试绑定，最多 30 次。 */
+    private var recoveryScheduled: Boolean = false
+    private var recoveryAttempts: Int = 0
+    private var cameraLost: Boolean = false
+    private var lastFrameAtMs: Long = 0L
+    private val recoveryRunnable = Runnable { attemptRecovery() }
+    private val watchdogRunnable = object : Runnable {
+        override fun run() {
+            onFrameWatchdog()
+            if (streaming) mainHandler.postDelayed(this, WATCHDOG_INTERVAL_MS)
+        }
+    }
 
     fun isStreaming(): Boolean = streaming
 
@@ -133,6 +148,7 @@ class CameraController internal constructor(context: Context) {
         fps: Int,
         frameCallback: (Image, Long) -> Unit,
         errorCallback: (P1Error) -> Unit,
+        cameraStateCallback: ((Boolean) -> Unit)? = null,
     ) {
         runOnMain {
             this.streamingOwner = lifecycleOwner
@@ -142,8 +158,13 @@ class CameraController internal constructor(context: Context) {
             this.targetFps = fps
             this.onFrame = frameCallback
             this.onCameraError = errorCallback
+            this.onCameraState = cameraStateCallback
+            this.recoveryAttempts = 0
+            this.cameraLost = false
+            this.lastFrameAtMs = System.currentTimeMillis()
             this.streaming = true
             ensureExecutor()
+            startWatchdog()
             bindInternal(includeAnalysis = true)
         }
     }
@@ -155,6 +176,9 @@ class CameraController internal constructor(context: Context) {
             streaming = false
             onFrame = null
             onCameraError = null
+            onCameraState = null
+            cancelRecovery()
+            stopWatchdog()
             unbindAll()
             shutdownExecutor()
             if (previewView != null && previewOwner != null) {
@@ -230,6 +254,7 @@ class CameraController internal constructor(context: Context) {
                 }
 
                 val bound = cameraProvider.bindToLifecycle(owner, selector, *useCases.toTypedArray())
+                observeCameraState(bound, owner)
                 analysis?.let {
                     runCatching {
                         val res = it.resolutionInfo?.resolution
@@ -248,7 +273,12 @@ class CameraController internal constructor(context: Context) {
                 previewUseCase = null
                 analysisUseCase = null
                 camera = null
-                reportError(t)
+                if (streaming && recoveryAttempts > 0) {
+                    // 其他应用仍占用摄像头：继续等待，不把端侧服务打掉。
+                    scheduleRecovery()
+                } else {
+                    reportError(t)
+                }
             }
         }
 
@@ -271,6 +301,12 @@ class CameraController internal constructor(context: Context) {
     }
 
     private fun deliverFrame(proxy: ImageProxy) {
+        lastFrameAtMs = System.currentTimeMillis()
+        if (cameraLost) {
+            cameraLost = false
+            cancelRecovery()
+            onCameraState?.invoke(true)
+        }
         try {
             val callback = onFrame ?: return
             val image = proxy.image ?: return
@@ -281,6 +317,83 @@ class CameraController internal constructor(context: Context) {
         } finally {
             runCatching { proxy.close() }
         }
+    }
+
+    private fun startWatchdog() {
+        mainHandler.removeCallbacks(watchdogRunnable)
+        mainHandler.postDelayed(watchdogRunnable, WATCHDOG_INTERVAL_MS)
+    }
+
+    private fun stopWatchdog() {
+        mainHandler.removeCallbacks(watchdogRunnable)
+    }
+
+    /**
+     * 帧流看门狗：部分 ROM 在相机被抢占时只发 CLOSED(error=null)，不报错也不回调，
+     * 表现为“预览黑屏但仍显示推流中”。超过 2s 没有分析帧即视为相机丢失并进入恢复重试。
+     */
+    private fun onFrameWatchdog() {
+        if (!streaming || cameraLost) return
+        val now = System.currentTimeMillis()
+        if (lastFrameAtMs > 0L && now - lastFrameAtMs > FRAME_STALL_MS) {
+            Log.w(TAG, "no camera frames for ${now - lastFrameAtMs} ms, try recovery")
+            cameraLost = true
+            onCameraState?.invoke(false)
+            scheduleRecovery()
+        }
+    }
+
+    /** 监听 CameraX 相机状态：被其他应用抢占时保持端侧服务并自动重试恢复。 */
+    private fun observeCameraState(camera: Camera, owner: LifecycleOwner) {
+        runCatching {
+            camera.cameraInfo.cameraState.observe(owner) { state ->
+                when (state?.type) {
+                    CameraState.Type.OPEN -> {
+                        recoveryAttempts = 0
+                        cancelRecovery()
+                        onCameraState?.invoke(true)
+                    }
+                    CameraState.Type.CLOSED -> {
+                        val error = state.error
+                        if (streaming && error != null) {
+                            Log.w(TAG, "camera closed by system: ${error.code}", error.cause)
+                            onCameraState?.invoke(false)
+                            scheduleRecovery()
+                        }
+                    }
+                    else -> Unit
+                }
+            }
+        }.onFailure { Log.w(TAG, "observe camera state failed", it) }
+    }
+
+    private fun scheduleRecovery() {
+        if (recoveryScheduled || !streaming) return
+        recoveryScheduled = true
+        mainHandler.removeCallbacks(recoveryRunnable)
+        mainHandler.postDelayed(recoveryRunnable, RECOVERY_INTERVAL_MS)
+    }
+
+    private fun cancelRecovery() {
+        recoveryScheduled = false
+        recoveryAttempts = 0
+        mainHandler.removeCallbacks(recoveryRunnable)
+    }
+
+    private fun attemptRecovery() {
+        recoveryScheduled = false
+        if (!streaming) return
+        recoveryAttempts++
+        if (recoveryAttempts > MAX_RECOVERY_ATTEMPTS) {
+            Log.w(TAG, "camera recovery failed after $MAX_RECOVERY_ATTEMPTS attempts")
+            onCameraError?.invoke(
+                P1Error(1003, "摄像头被其他应用占用，推流已停止", "请关闭其他使用摄像头的应用后重新开始推流")
+            )
+            return
+        }
+        Log.i(TAG, "camera recovery attempt $recoveryAttempts/$MAX_RECOVERY_ATTEMPTS")
+        bindInternal(includeAnalysis = true)
+        scheduleRecovery()
     }
 
     private fun reportError(t: Throwable) {
@@ -333,6 +446,10 @@ class CameraController internal constructor(context: Context) {
 
     private companion object {
         const val TAG = "CameraController"
+        const val RECOVERY_INTERVAL_MS = 1_000L
+        const val MAX_RECOVERY_ATTEMPTS = 30
+        const val WATCHDOG_INTERVAL_MS = 1_000L
+        const val FRAME_STALL_MS = 2_000L
     }
 }
 

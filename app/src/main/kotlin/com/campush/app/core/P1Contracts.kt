@@ -46,6 +46,7 @@ data class P1UiState(
     val maxViewers: Int = 3,
     val bitrateKbps: Int = 0,
     val fps: Int = 0,
+    val cameraAvailable: Boolean = true,
     val networkLabel: String = "未知",
     val torchOn: Boolean = false,
     val muted: Boolean = false,

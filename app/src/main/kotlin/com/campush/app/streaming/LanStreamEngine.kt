@@ -52,6 +52,7 @@ class LanStreamEngine(
     private var lastActualHeight: Int = 0
     private var lowFpsStreak: Int = 0
     private var lowFpsWarned: Boolean = false
+    private var cameraAvailable: Boolean = true
 
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -205,6 +206,7 @@ class LanStreamEngine(
                 jpeg.onFrame(image)
             },
             errorCallback = { error -> fail(error.code, error.message, error.hint) },
+            cameraStateCallback = { available -> onCameraAvailability(available) },
         )
 
         // 5) 启动即强制 IDR（首帧预算）。
@@ -229,6 +231,23 @@ class LanStreamEngine(
         startStatsLoop()
     }
 
+    /** 摄像头被系统回收/被其他应用占用时的恢复状态回调。 */
+    private fun onCameraAvailability(available: Boolean) {
+        val wasUnavailable = !cameraAvailable
+        cameraAvailable = available
+        if (phase != EnginePhase.STREAMING) return
+        StreamingBridge.update { it.copy(cameraAvailable = available) }
+        if (available) {
+            if (!wasUnavailable) return
+            videoEncoder?.requestKeyFrame()
+            StreamingBridge.emitWarning("摄像头已恢复，画面继续")
+            Log.i(TAG, "camera recovered")
+        } else {
+            StreamingBridge.emitWarning("摄像头被其他应用占用，端侧服务保持运行，正在等待摄像头恢复…")
+            Log.w(TAG, "camera unavailable, keep LAN server alive and retry")
+        }
+    }
+
     fun stop() {
         if (phase == EnginePhase.IDLE) {
             StreamingBridge.engine = null
@@ -240,7 +259,14 @@ class LanStreamEngine(
         phase = EnginePhase.IDLE
         StreamingBridge.engine = null
         StreamingBridge.update {
-            it.copy(phase = EnginePhase.IDLE, playUrl = null, viewers = 0, bitrateKbps = 0, fps = 0)
+            it.copy(
+                phase = EnginePhase.IDLE,
+                playUrl = null,
+                viewers = 0,
+                bitrateKbps = 0,
+                fps = 0,
+                cameraAvailable = true,
+            )
         }
     }
 
@@ -269,12 +295,12 @@ class LanStreamEngine(
                 val status = withContext(Dispatchers.Default) {
                     runCatching { lanServer.status() }.getOrNull()
                 } ?: continue
-                if (status.fps in 1..4 && status.bitrateBps < 300_000L) {
+                if (cameraAvailable && status.fps in 1..4 && status.bitrateBps < 300_000L) {
                     lowFpsStreak++
                 } else {
                     lowFpsStreak = 0
                 }
-                if (lowFpsStreak >= 5 && !lowFpsWarned && phase == EnginePhase.STREAMING) {
+                if (lowFpsStreak >= 5 && !lowFpsWarned && phase == EnginePhase.STREAMING && cameraAvailable) {
                     lowFpsWarned = true
                     Log.w(TAG, "low fps detected: fps=${status.fps} bitrate=${status.bitrateBps}")
                     StreamingBridge.emitWarning("编码帧率过低（<5 fps）：建议切换到 720p 或检查相机是否被其他应用占用")
@@ -348,7 +374,14 @@ class LanStreamEngine(
             phase = EnginePhase.IDLE
             StreamingBridge.engine = null
             StreamingBridge.update {
-                it.copy(phase = EnginePhase.IDLE, playUrl = null, viewers = 0, bitrateKbps = 0, fps = 0)
+                it.copy(
+                phase = EnginePhase.IDLE,
+                playUrl = null,
+                viewers = 0,
+                bitrateKbps = 0,
+                fps = 0,
+                cameraAvailable = true,
+            )
             }
         }
     }

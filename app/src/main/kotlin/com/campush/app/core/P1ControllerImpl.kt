@@ -305,7 +305,9 @@ class P1ControllerImpl(context: Context) : P1Controller {
                 lowFpsSamples = 0
             }
             val currentSettings = _state.value.settings
-            if (lowFpsSamples >= 5 && !autoFallbackDone && currentSettings.height > 720) {
+            if (lowFpsSamples >= 5 && !autoFallbackDone && currentSettings.height > 720 &&
+                _state.value.cameraAvailable
+            ) {
                 autoFallbackDone = true
                 lowFpsSamples = 0
                 val reduced = currentSettings.copy(
@@ -352,6 +354,7 @@ class P1ControllerImpl(context: Context) : P1Controller {
                     maxViewers = snapshot.maxViewers,
                     bitrateKbps = snapshot.bitrateKbps,
                     fps = snapshot.fps,
+                    cameraAvailable = snapshot.cameraAvailable,
                     networkLabel = snapshot.networkLabel,
                 )
                 EnginePhase.STOPPING,
@@ -364,6 +367,7 @@ class P1ControllerImpl(context: Context) : P1Controller {
                     viewers = 0,
                     bitrateKbps = 0,
                     fps = 0,
+                    cameraAvailable = true,
                 )
             }
         }
