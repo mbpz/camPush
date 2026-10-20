@@ -5,10 +5,11 @@
 
 | 项目 | 值 |
 |---|---|
-| 文档集状态 | 基线（Baseline v1.0） |
-| 契约基线版本 | [00-conventions.md](./docs/00-conventions.md) **v1.4** |
+| 文档集状态 | 基线（Baseline v1.1，LAN-first 交付分期） |
+| 交付顺序 | **P1 局域网 → P2 公网 → P3 专业化/商业化** |
+| 契约基线版本 | [00-conventions.md](./docs/00-conventions.md) **v1.5** |
 | 需求基线 | [PRD v1.0](./docs/PRD-v1.0.md) |
-| 文档规模 | 13 份，约 1.42 万行，69 张 Mermaid 图，600+ 张表格 |
+| 文档规模 | 13 份（00–11 + PRD），约 1.5 万行，70 张 Mermaid 图，650+ 张表格 |
 | 质量门禁 | `python3 scripts/check_docs.py --strict`（当前：通过） |
 | 维护人 | Team Lead |
 | 最后更新 | 2026-10-20 |
@@ -23,60 +24,99 @@ PRD 定义 **What / Why**；本集定义 **How / 边界 / 验收 / 排期 / 风�
 2. **标准模式只输出一个播放地址**：复制、二维码、分享、本机预览全部指向同一个 `playUrl`，且协议热切换时字符串不变。
 3. **服务端能力按访问范围拆分**：`仅局域网` 由端侧服务承担；`公网可访问` 依赖云端媒体服务，客户端场景开关二选一。
 
-文档之间不是“并列文章”，而是**同一套契约的不同切面**：所有枚举、URL、token、错误码、性能数字只允许在 00 定义一次，子文档只能细化。
+**v1.1 交付顺序调整**：先把 Android 客户端在局域网内做通（P1，零云端依赖），再把公网能力与专业化作为 P2/P3；`Top5` 决策项固化为 P2 的启动门禁。
 
 ---
 
-## 2. 文档地图
+## 2. 交付路线图（LAN-first）
+
+### 2.1 三阶段
+
+| 阶段 | 周期 | 时间窗 | 目标 | 工作量 | 门禁 |
+|---|---|---|---|---|---|
+| **P1 局域网可用闭环** | 8 周 | 2026-10-26 → 12-18 | 手机起服务，同网浏览器打开唯一地址即可看；停止即失效 | 138 pd（+24 pd P2 前置） | M0-LAN（E6 必过、E7 伴随项）+ P1 验收 |
+| **P2 公网可访问 + 专业化起步** | 12 周 | 2026-12-21 → 2027-03-12 | 云端接入 + WAN 播放页 + 切源/失效 + 双摄 PiP + SRT/RTMP | 235 pd | **Top5 全关** + M0-WAN（E2/E4/E5）+ P1 验收 + 云环境就绪 |
+| **P3 专业化与商业化** | 8 周 | 2027-03-15 → 05-07 | 双路独立、多地址、BYO、录制、套餐、观众端 | 205 pd | P2 GA + 商业化方案定稿 |
+
+> 全期 28 周 / 净产能 931 pd / 计划 578 pd（62.1%）/ 缓冲 353 pd（37.9%）；118 Task / 31 Feature / 4 Epic 编号全部保留，仅重排阶段归属。排期与产能明细见 [09 §2](./docs/09-task-plan.md)。
+
+### 2.2 阶段范围
+
+**P1（只做客户端 + 局域网，不接云端）**
+
+- 客户端：权限、单摄预览/前后热切、H.264/AAC 编码、分辨率/码率/帧率、静音/闪光灯、前台服务 + 通知栏、访问范围控件（LAN 可选、WAN 置灰“阶段二开放”）、LAN 设置分组、地址卡（复制/二维码/本机预览）、网络检测/IP 变化/AP 隔离提示、省电模式基础。
+- 端侧服务：HTTP server、内联播放页、HTTP-FLV + MJPEG、pageToken/mediaToken、PIN、并发 1–3、≤1 s 停止失效、端口 8089→顺延。
+- 播放页：LAN 降级链 `flv → mjpeg`，移动浏览器兼容（iOS Safari / Android Chrome / 微信内置）。
+- **不做**：WAN/云端、HLS、TURN、SRT/RTMP 推流、双摄合成、录制/水印/多地址、账号套餐。
+
+**P2（公网闭环）**：WHIP/SRT/RTMP 接入、SFU、FLV/HLS、TURN、房间/token/额度、WAN 播放页降级、协议热切换地址不变、双摄 PiP/分屏、WAN 指标与 SLO。
+
+**P3（专业化/商业化）**：双路独立推流、多地址、BYO 自定义地址、录制/水印、套餐与账号体系、观众端。
+
+### 2.3 Top5 决策门禁（P2 启动前必须关闭）
+
+| ID | 决策项 | 推荐结论 | 决策人 | 最晚时点 | 阻塞的 P2 工作 | 不决策后果 |
+|---|---|---|---|---|---|---|
+| D-1 | 默认访问范围：长期“公网”还是按网络自动推荐 | 保持公网 + 首次引导 | 产品 | 2026-12-18 | WAN 默认值、首启引导、AC-09 | 无法定义首启体验 |
+| D-2 | 公网托管：自建媒体面 vs 第三方媒体云 | v1 自建（Mediasoup + SRS 终结）+ D2 评估混合 | 技术 + 产品 | 2026-12-18（延期时 M0-WAN 按“自建”先行） | 接入/SFU 选型、成本模型、E2 环境 | 云端工作无法开工 |
+| D-3 | 双摄白名单门槛与灰度 | 支持率 ≥40% 才作 v1 卖点，否则实验性 | 产品 + Android | 2026-12-11（输入来自 M0-LAN E1） | 双摄 PiP、白名单、AC-05 | 双摄范围无法冻结 |
+| D-4 | 局域网端侧是否支持 RTMP | P1 仅本地直出 FLV/MJPEG；RTMP 进 P2 评估 | 架构 | 2026-12-11 | P1 协议锁定、P2 LAN 增强 | P1 范围摇摆 |
+| D-5 | RTMPS 是否进入 P2 | 进入 P2 评估；v1 明文 + UI 明示 | 安全 + 产品 | 2026-12-18 | RTMP 安全方案、合规评估 | 安全遗留项无归属 |
+
+> **P2-GATE = 2026-12-25**：Top5 全关 + M0-WAN（E2/E4/E5 必过、E3 条件项）+ P1 验收通过 + 云环境就绪，缺一不启动 P2 开发。阶段与功能版本 M0–M3 的映射见 [00 §20.5](./docs/00-conventions.md)，决策台账见 [11 §2.6](./docs/11-risk-adr.md)。
+
+---
+
+## 3. 文档地图
 
 | 编号 | 文档 | 内容 | 主要读者 |
 |---|---|---|---|
-| 00 | [conventions](./docs/00-conventions.md) | 契约基线：枚举、地址、token、REST/媒体/端侧 API、错误码、状态机、性能预算、埋点、写作规范、v1.1–v1.4 裁定 | 全员（先读） |
-| 01 | [architecture](./docs/01-architecture.md) | 双模式拓扑与部署、组件职责、端到端数据流、选型结论、容量成本、SLO 与故障域 | 架构 / 技术负责人 |
-| 02 | [client-modules](./docs/02-client-modules.md) | Android 14 模块拆分、UDF 状态模型、四线程模型、CameraX 双摄、MediaCodec/ABR、OpenGL 合成、保活与降级、测试矩阵 | Android |
-| 03 | [cloud-service](./docs/03-cloud-service.md) | 推流接入（WHIP/SRT/RTMP）、SFU 选型、切源机制、FLV/HLS、TURN、房间生命周期、配额、部署与容量成本 | 服务端 / SRE |
-| 04 | [interface-contracts](./docs/04-interface-contracts.md) | 逐端点 REST 契约、SSE 事件、媒体面协议、LAN/WAN 对照、状态机映射、时序图、OpenAPI 片段、契约测试 | 服务端 / 客户端 / Web / QA |
-| 05 | [lan-service](./docs/05-lan-service.md) | 端侧 HTTP 服务、MJPEG/FLV 分发与背压、PIN、并发 1–3、端口与网络检测、AP 隔离、≤1 s 停止 | Android / 测试 |
-| 06 | [playback-page](./docs/06-playback-page.md) | 播放页状态机、WAN/LAN 降级阶梯、鉴权与 token 续期、切源处理、兼容矩阵、CSP、22 条 E2E | Web / QA |
-| 07 | [security-privacy](./docs/07-security-privacy.md) | STRIDE、token 撤销矩阵、PIN 防爆破、隐私清单、权限话术、日志脱敏、合规、渗透清单、Go/No-Go | 安全 / 法务 / 后端 |
-| 08 | [m0-verification](./docs/08-m0-verification.md) | M0 六项实验：假设、方法、设备矩阵、阈值、样本量、结论模板、回退；双摄支持率调研 | 测试 / 架构 / 产品 |
-| 09 | [task-plan](./docs/09-task-plan.md) | 4 Epic / 31 Feature / 118 Task、依赖 DAG、关键路径、23 周排期、DoR/DoD、验收映射 | 项目管理 / 全员 |
-| 10 | [observability](./docs/10-observability.md) | 11 项核心指标定义与公式、18 事件埋点 schema、漏斗、SLO/错误预算、23 条告警、埋点 QA | 数据 / QA / 服务端 |
-| 11 | [risk-adr](./docs/11-risk-adr.md) | 18 条风险登记册、PRD §18.2 五问结论、ADR-001～012、风险降级路径 | 产品 / 技术负责人 |
+| 00 | [conventions](./docs/00-conventions.md) | 契约基线：枚举、地址、token、错误码、状态机、性能预算、埋点，**§20 交付分期与契约启用矩阵**，v1.1–v1.5 裁定 | 全员（先读） |
+| 01 | [architecture](./docs/01-architecture.md) | 双模式拓扑与部署、组件职责、端到端数据流、选型结论、容量成本、SLO | 架构 / 技术负责人 |
+| 02 | [client-modules](./docs/02-client-modules.md) | Android 14 模块、UDF 状态模型、四线程模型、CameraX 双摄、MediaCodec/ABR、OpenGL 合成、保活与降级 | Android |
+| 03 | [cloud-service](./docs/03-cloud-service.md) | P2 云端：WHIP/SRT/RTMP 接入、SFU、切源、FLV/HLS、TURN、房间与额度、容量成本 | 服务端 / SRE |
+| 04 | [interface-contracts](./docs/04-interface-contracts.md) | REST/SSE/媒体面契约、LAN/WAN 对照、状态机映射、时序图、OpenAPI 片段、契约测试 | 服务端 / 客户端 / Web / QA |
+| 05 | [lan-service](./docs/05-lan-service.md) | **P1 核心**：端侧 HTTP 服务、MJPEG/FLV 分发与背压、PIN、并发 1–3、AP 隔离、≤1 s 停止 | Android / 测试 |
+| 06 | [playback-page](./docs/06-playback-page.md) | 播放页状态机、WAN/LAN 降级阶梯、token 续期、切源处理、兼容矩阵、E2E | Web / QA |
+| 07 | [security-privacy](./docs/07-security-privacy.md) | STRIDE、token 撤销、PIN 防爆破、隐私清单、日志脱敏、合规、渗透清单、Go/No-Go | 安全 / 法务 |
+| 08 | [m0-verification](./docs/08-m0-verification.md) | **两段式验证**：M0-LAN（E6/E7 必过，E1 可选）与 M0-WAN（E2/E4/E5 必过，E3 条件项），设备矩阵、阈值、回退 | 测试 / 架构 |
+| 09 | [task-plan](./docs/09-task-plan.md) | **P1/P2/P3 排期**：WBS 118 Task、依赖 DAG、关键路径、DoR/DoD、AC 映射、缓冲与裁剪 | 项目管理 / 全员 |
+| 10 | [observability](./docs/10-observability.md) | 指标分阶段启用（P1 LAN / P2 WAN）、24 事件埋点、漏斗、SLO、23 条告警、埋点 QA | 数据 / QA |
+| 11 | [risk-adr](./docs/11-risk-adr.md) | 20 条风险、Top5 决策门禁、ADR-001～013（含 LAN-first 分期）、降级路径 | 产品 / 技术负责人 |
 | — | [PRD v1.0](./docs/PRD-v1.0.md) | 用户提供的需求原文（不改写，仅引用） | 全员 |
-| — | [scripts/check_docs.py](./scripts/check_docs.py) | 文档一致性 CI：行数、章节、Mermaid、坏链、PRD 引用、错误码、占位域名、密钥泄漏 | 全员 |
+| — | [scripts/check_docs.py](./scripts/check_docs.py) | 8 类文档一致性 CI 门禁 | 全员 |
 
 ---
 
-## 3. 推荐阅读路径
+## 4. 推荐阅读路径
 
-| 角色 | 顺序 | 预计 |
+| 角色 | 顺序 | 重点 |
 |---|---|---|
-| 产品 / 负责人 | README → 00 §1–4 → PRD → 09 → 11 → 10 §2 | 60 min |
-| Android | 00 → 02 → 01 §4–5 → 05 → 06 §2 | 120 min |
-| 服务端 | 00 §4–9 → 03 → 04 → 01 §6–8 | 120 min |
-| Web / 播放页 | 00 §4/5/10 → 06 → 04 §3–4 → 05 §8 | 60 min |
-| 安全 / 合规 | 07 → 00 §5/§9/§11 → 04 → 11 | 60 min |
-| QA / 交付 | 08 → 10 → 09 §2 → 06 §12 | 90 min |
+| 产品 / 负责人 | README §2 → 09 §2.1 → 11 §2.6 → 10 §2.1 | 三阶段、Top5 门禁、指标启用 |
+| Android（P1 主力） | 00 → 02 → 05 → 06 LAN 章 → 08 M0-LAN → 09 P1 任务 | 采集/编码/端侧服务/停止失效 |
+| 服务端（P2 启动前） | 00 §4–9 → 03 → 04 → 11 ADR-005/013 | 契约冻结、选择托管形态 |
+| Web / 播放页 | 00 §4/5/10 → 06 → 04 §3–4 → 05 §8 | LAN 页优先，WAN 页 P2 实现 |
+| 安全 / 合规 | 07 → 00 §5/§9/§11 → 04 → 11 | P1 无 HTTPS 风险接受、P2 RTMPS |
+| QA / 交付 | 08 → 10 → 09 §2.9 → 06 §12 | 两段门禁与验收映射 |
 
 ---
 
-## 4. 关键不变量（可测试，不可谈判）
+## 5. 关键不变量（可测试，不可谈判）
 
 | ID | 不变量 | 验证方式 |
 |---|---|---|
 | INV-1 | 标准模式同一会话内 `playUrl` 字符串恒定（含协议热切换） | 04 §3.4 断言 SW-1～SW-10；E2E 比对字符串 |
 | INV-2 | 切源不重建播放会话：`playSessionId` 不变，地址栏不变 | 03 §6 时序；06 E2E-12 |
-| INV-3 | 停止推流后地址失效：LAN `connection refused` ≤1 s，WAN 媒体端点 `410` ≤2 s | 05 §3.3；04 §3.3；09 AC-05 |
+| INV-3 | 停止推流后地址失效：LAN `connection refused` ≤1 s，WAN 媒体端点 `410` ≤2 s | 05 §3.3；04 §3.3；09 AC-04/07 |
 | INV-4 | 推流协议枚举只有 `whip/srt/rtmp`；HLS/FLV 不出现在推流设置 | 00 §3；文档 CI 枚举扫描 |
-| INV-5 | 双摄不支持设备不出现不可用选项（`1004` 降级并解释原因） | 02 §7；08 E1；09 AC-04 |
+| INV-5 | 双摄不支持设备不出现不可用选项（`1004` 降级并解释原因） | 02 §7；08 E1；09 AC-05 |
 | INV-6 | 专业模式（双路/多地址/BYO）必须显式提示多地址，且不影响 INV-1 | 11 ADR-008；02 §11 |
 
 ---
 
-## 5. 契约基线速查（详见 00）
+## 6. 契约基线速查（详见 00）
 
-### 5.1 枚举
+### 6.1 枚举
 
 `accessScope`: `lan` / `wan`（推流中锁定）
 `captureMode`: `single_back` / `single_front` / `dual`
@@ -84,44 +124,42 @@ PRD 定义 **What / Why**；本集定义 **How / 边界 / 验收 / 排期 / 风�
 `playProtocol`: `webrtc` / `flv` / `hls` / `mjpeg`（用户不可见）
 `roomState`: `created` / `live` / `switching` / `stopping` / `closed` / `failed`
 
-### 5.2 地址
+### 6.2 地址
 
 | 用途 | 模板 |
 |---|---|
-| 公网唯一播放地址 | `{playHost}/s/{roomId}?token={pageToken}` |
-| 局域网唯一播放地址 | `http://{lanIp}:{port}/s/{pageToken}` |
-| 云端 API | `{apiHost}/api/v1/...` |
+| 公网唯一播放地址（P2） | `{playHost}/s/{roomId}?token={pageToken}` |
+| 局域网唯一播放地址（P1） | `http://{lanIp}:{port}/s/{pageToken}` |
+| 云端 API（P2） | `{apiHost}/api/v1/...` |
 | HTTP-FLV / HLS | `{playHost}/live/{roomId}.flv?mt=` / `{playHost}/hls/{roomId}/index.m3u8?mt=` |
 
-### 5.3 token
+### 6.3 token
 
 | token | 位置 | TTL | 撤销 |
 |---|---|---|---|
 | `pageToken` | 播放地址 query / LAN 路径段 | 60 min | 房间关闭即失效 |
 | `mediaToken` | 媒体面 `?mt=` / WHEP Bearer | 300 s，可续期 | 房间关闭 / 并发上限 |
-| `ingestToken` | WHIP/SRT/RTMP 接入 | ≤12 h | 切源后 5 s grace |
+| `ingestToken` | WHIP/SRT/RTMP 接入（P2） | ≤12 h | 切源后 5 s grace |
 
-### 5.4 降级阶梯与预算
+### 6.4 降级阶梯与预算
 
-- WAN 播放：`webrtc(2.5s) → flv(2.0s) → hls(5.0s)`；LAN：`flv(2.0s) → mjpeg(2.0s)`（M2 加 WebRTC）。
-- 首帧 < 2 s（目标 ≤1.85 s）；端到端延迟 p50 ≈250 ms / p95 ≈630 ms。
-- 点击→地址 ≤3 s；停止→失效 ≤1 s（LAN）/≤2 s（WAN）；切源中断 ≤3 s（p95 ≤5 s）。
+- WAN（P2）：`webrtc(2.5s) → flv(2.0s) → hls(5.0s)`；LAN（P1）：`flv(2.0s) → mjpeg(2.0s)`。
+- 首帧 < 2 s；端到端延迟 p50 ≈250 ms / p95 ≈630 ms；点击→地址 ≤3 s；停止→失效 ≤1 s（LAN）/≤2 s（WAN）；切源中断 ≤3 s（p95 ≤5 s）。
 - 错误码号段：1xxx 客户端、2xxx 房间、3xxx 鉴权、4xxx 推流、5xxx 播放、6xxx 端侧、7xxx 网络性能。
 
-### 5.5 两种访问范围一页对比
+### 6.5 契约启用顺序
 
-| 维度 | 仅局域网（LAN） | 公网可访问（WAN） |
-|---|---|---|
-| 服务端 | APK 内端侧服务 | 云端 SFU + 转封装 + HLS + TURN |
-| 观看条件 | 同一 Wi-Fi/热点，未被 AP 隔离 | 任意公网设备 |
-| 播放兜底 | FLV → MJPEG，无 HLS | WebRTC → FLV → HLS |
-| 并发 | 1–3（`6005`） | 按套餐（`2004`/`2008`） |
-| 失效 | 服务关闭 + 密钥销毁 | 房间销毁 + `410` |
-| 成本 | 0（手机上行承担） | 带宽/计算为主，出流量约占 88% |
+| 契约面 | P1 | P2 | P3 |
+|---|---|---|---|
+| LAN API（00 §8） | ✅ | ✅ | ✅ |
+| WAN REST/媒体面（00 §6/§7） | —（WAN 置灰） | ✅ | ✅ |
+| HLS / TURN | — | ✅ | ✅ |
+| 埋点（00 §11） | LAN 子集 | 全量 | 全量 |
+| 错误码（00 §9） | LAN 相关 | 全量 | 全量 |
 
 ---
 
-## 6. 质量门禁
+## 7. 质量门禁
 
 ```bash
 python3 scripts/check_docs.py --strict
@@ -142,53 +180,52 @@ python3 scripts/check_docs.py --strict
 
 ---
 
-## 7. 文档规模与版本
+## 8. 文档规模与版本
 
 | 文档 | 行数 | 图 | 状态 |
 |---|---|---|---|
-| 00 conventions | 711 | 2 | 基线 v1.4 |
-| 01 architecture | 1421 | 11 | 基线 v1.2 |
-| 02 client-modules | 1713 | 12 | 基线 v1.0 |
-| 03 cloud-service | 1370 | 7 | 基线 v1.0 |
-| 04 interface-contracts | 2109 | 6 | 基线 v1.1 |
-| 05 lan-service | 1180 | 9 | 基线 v1.1 |
-| 06 playback-page | 990 | 6 | 基线 v1.1 |
-| 07 security-privacy | 1047 | 6 | 基线 v1.0 |
-| 08 m0-verification | 925 | 3 | 基线 v1.0 |
-| 09 task-plan | 795 | 3 | 基线 v1.0 |
-| 10 observability | 826 | 2 | 基线 v1.0 |
-| 11 risk-adr | 461 | 2 | 基线 v1.0 |
+| 00 conventions | 777 | 2 | 基线 v1.5 |
+| 01 architecture | 1422 | 11 | 基线 v1.2 |
+| 02 client-modules | 1714 | 12 | 基线 v1.0 |
+| 03 cloud-service | 1371 | 7 | 基线 v1.0 |
+| 04 interface-contracts | 2111 | 6 | 基线 v1.1 |
+| 05 lan-service | 1181 | 9 | 基线 v1.1 |
+| 06 playback-page | 991 | 6 | 基线 v1.1 |
+| 07 security-privacy | 1048 | 6 | 基线 v1.0 |
+| 08 m0-verification | 1287 | 4 | 基线 v1.1（两段式） |
+| 09 task-plan | 960 | 3 | 基线 v1.1（P1/P2/P3） |
+| 10 observability | 876 | 2 | 基线 v1.1（阶段启用） |
+| 11 risk-adr | 512 | 2 | 基线 v1.2（ADR-013） |
 | PRD v1.0 | 643 | 0 | 需求基线（原文） |
 
-> 子文档中 “00 v1.1/v1.2” 的引用为其写作时点；以 00 当前版本 v1.4 为准，v1.1–v1.4 的裁定见 [00 §17–§19](./docs/00-conventions.md)。
+> 子文档中 “00 v1.1/v1.2” 的引用为其写作时点；以 00 当前版本 v1.5 为准。
 
 ---
 
-## 8. 待决策事项（进入评审）
+## 9. 待决策事项
 
-| # | 决策项 | 推荐 | 决策人 | 截止 | 依据 |
-|---|---|---|---|---|---|
-| D-1 | 默认访问范围是否长期保持“公网”，还是按网络自动推荐 | 保持公网 + 首次引导 | 产品 | M1 前 | PRD §4.2；11 OQ |
-| D-2 | 公网托管：自建媒体面 vs 第三方媒体云 | v1 自建（Mediasoup + SRS 终结）+ D2 评估混合 | 技术 + 产品 | M0 结束 | 11 ADR-005 |
-| D-3 | 双摄白名单门槛与灰度策略 | 支持率 ≥40% 才作为 v1 卖点，否则降级实验性 | 产品 + Android | M0 结束 | 08 E1；11 R-001 |
-| D-4 | 局域网 M1 是否支持端侧 RTMP | M1 仅本地直出 FLV/MJPEG，RTMP 进 M2 | 架构 | M1 启动前 | PRD §18.2 |
-| D-5 | 麦克风拒绝是否允许静音推流 | 允许（已按 v1.1 §17.3 执行） | 产品 | 已定 | 00 §17.3 |
-| D-6 | RTMPS 是否进入 M2 | 进入 M2 评估，v1 明文 + UI 明示 | 安全 + 产品 | 2027-01-15 | 11 ADR-009 |
-| D-7 | 双路独立推流入口是否进专业模式二级页 | 是，且强提示多地址 | 产品 + 设计 | M2 设计前 | 11 ADR-008 |
-| D-8 | 埋点是否接第三方 | 自建上报 + 数仓，不接 SDK | 数据 + 安全 | M1 前 | 11 ADR-011 |
-| D-9 | HLS 兜底容器 | v1 fMP4，TS 作兼容开关 | 播放页 + 服务端 | 已定 | 00 §19；04 Q11 |
-| D-10 | 盈利模式 | 流量/时长套餐 + BYO 免费工具双轨 | 产品 | M3 前 | PRD §18.2 |
+**P2 启动门禁（Top5，必须关闭）**：D-1～D-5，见 §2.3 与 [11 §2.6](./docs/11-risk-adr.md)。
+
+**P3 及后续（不阻塞 P1/P2）**
+
+| # | 决策项 | 推荐 | 决策人 | 时点 |
+|---|---|---|---|---|
+| D-6 | 双路独立推流入口是否收在专业模式二级页 | 是，且强提示多地址 | 产品 + 设计 | P3 设计前 |
+| D-7 | 埋点数据面自建 vs 第三方 | 自建上报 + 数仓 | 数据 + 安全 | P2 中期 |
+| D-8 | HLS 容器 fMP4 vs TS | v1 fMP4，TS 作兼容开关 | 播放页 + 服务端 | 已定（00 §19） |
+| D-9 | 盈利模式 | 流量/时长套餐 + BYO 免费工具双轨 | 产品 | P3 前 |
+| D-10 | 是否建设观众端 App | P3 评估，先 H5 | 产品 | P3 末 |
 
 ---
 
-## 9. 目录结构
+## 10. 目录结构
 
 ```text
 camPush/
 ├── README.md                 # 本导航
 ├── docs/
 │   ├── PRD-v1.0.md           # 需求原文基线（不改写）
-│   ├── 00-conventions.md     # 契约基线 + v1.1–v1.4 裁定
+│   ├── 00-conventions.md     # 契约基线 + 交付分期 + v1.1–v1.5 裁定
 │   ├── 01-architecture.md
 │   ├── 02-client-modules.md
 │   ├── 03-cloud-service.md
@@ -206,18 +243,19 @@ camPush/
 
 ---
 
-## 10. 使用与维护
+## 11. 使用与维护
 
-1. **契约优先**：任何字段/路径/枚举/错误码变更，先改 [00](./docs/00-conventions.md) 并升次版本，再由子文档引用；破坏性变更升主版本。
-2. **变更流程**：提交 CR（影响文档、兼容性、迁移成本）→ Lead 2 个工作日内裁定 → 更新 00 与受影响文档 → 跑门禁 → 记入各文档变更记录。
+1. **契约优先**：字段/路径/枚举/错误码变更先改 [00](./docs/00-conventions.md) 并升次版本；破坏性变更升主版本。
+2. **交付顺序以 P 为准**：功能何时存在可用“M1/M2 起”；何时交付、验收、门禁必须写 P1/P2/P3（映射见 00 §20.5）。
 3. **门禁强制**：合并前 `python3 scripts/check_docs.py --strict` 必须通过；CI 非零退出即阻断。
-4. **不修改 PRD 原文**：PRD 是需求基线，产品口径变更须由产品更新 PRD 并同步本集。
-5. **开放问题闭环**：每份文档的“开放问题”必须带候选方案/推荐/决策人/截止时间；决策后回写 00 与本 README 的 §8。
+4. **Top5 决策闭环**：每项有决策人/最晚时点/阻塞项；未关闭则 P2 不启动（D-2 可按推荐值先行）。
+5. **不修改 PRD 原文**：产品口径变更须由产品更新 PRD 并同步本集。
 
 ---
 
-## 11. 变更记录
+## 12. 变更记录
 
 | 版本 | 日期 | 变更人 | 内容 |
 |---|---|---|---|
-| v1.0 | 2026-10-20 | Team Lead | 首次交付：13 份文档 + 一致性校验脚本；契约基线 v1.4；文档 CI 通过 |
+| v1.0 | 2026-10-20 | Team Lead | 首次交付：13 份文档 + 一致性门禁；契约基线 v1.4 |
+| v1.1 | 2026-10-20 | Team Lead | 交付顺序改为 LAN-first：新增 P1/P2/P3 路线图与 Top5 决策门禁；09/10/11/08 阶段化重排；00 升 v1.5（§20 契约启用矩阵）；PRD 引用与门禁同步 |
