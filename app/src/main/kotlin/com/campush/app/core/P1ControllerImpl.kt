@@ -98,6 +98,17 @@ class P1ControllerImpl(context: Context) : P1Controller {
             }
         }
 
+        // 省电模式强制后置单摄（docs/02 §12.3），同步 UI 状态避免“前置”误导。
+        if (_state.value.settings.powerSave && _state.value.cameraFacing == CameraFacingUi.FRONT) {
+            _state.update {
+                it.copy(
+                    cameraFacing = CameraFacingUi.BACK,
+                    cameraMode = CameraModeUi.SINGLE_BACK,
+                    torchOn = false,
+                )
+            }
+        }
+
         val currentAfterUpdate = _state.value
         val options = StreamStartOptions(
             settings = currentAfterUpdate.settings,

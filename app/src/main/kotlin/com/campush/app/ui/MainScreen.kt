@@ -105,6 +105,12 @@ fun MainScreen(controller: P1Controller) {
             showPreview = false
         }
     }
+    // 有警告时收起地址卡，避免与指标区/警告条重叠（截图与真机均验证）。
+    LaunchedEffect(state.warning) {
+        if (!state.warning.isNullOrBlank()) {
+            addressExpanded = false
+        }
+    }
 
     val copyAddress: () -> Unit = {
         val url = state.playUrl
@@ -295,7 +301,7 @@ private fun TopStatusBar(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             MetricCard("模式", cameraModeLabel(state.cameraMode, state.cameraFacing))
-            MetricCard("画质", "${state.settings.height}p · ${state.settings.fps}fps")
+            MetricCard("画质", if (state.settings.powerSave) "480p · 24fps（省电）" else "${state.settings.height}p · ${state.settings.fps}fps")
             MetricCard(
                 "码率",
                 if (state.bitrateKbps > 0) "${state.bitrateKbps} kbps" else "${state.settings.bitrateKbps} kbps",

@@ -158,6 +158,9 @@ ANDROID_HOME="$PWD/.android-sdk" GRADLE_USER_HOME="$PWD/.gradle-home" \
 | PIN | 开 PIN 后 status `pinRequired=true`；无口令 **401/3004**、错误口令 **401/3005**、正确口令 200 |
 | 端口 | 改 8090 → 重启推流后地址 `:8090`，状态接口 `port=8090` |
 | 分享/刷新/埋点 | 复制、二维码、WebView 预览可用；`page-token:refresh` 200（Authorization Bearer 与 X-Page-Token 均可）；`favicon.ico` 204；`telemetry/batch` 202 |
+| 省电模式 | 开启后重启：UI 显示「后置 · 480p · 24fps（省电）」+ 警告条；服务端码率稳定 ≈900 kbps（上限 1 Mbps）、fps ≈22 |
+| 通知栏停止 | 展开通知点击「停止推流」：服务数 0、通知消失、UI「未推流」 |
+| 复制/分享 | 复制后提示「播放地址已复制」；分享面板标题「Sharing text」并携带唯一地址 |
 | 停止失效 | 服务数 0、服务端 LISTEN 0、`/healthz` 连接失败；UI 回到「未推流」 |
 
 ### 5.3 真实浏览器播放（宿主 Chrome headless）
@@ -172,6 +175,7 @@ ANDROID_HOME="$PWD/.android-sdk" GRADLE_USER_HOME="$PWD/.gradle-home" \
 - [主界面（深色 UI / 状态栏 / 开始按钮）](./assets/p1-main.png)
 - [浏览器 FLV→MSE 实播画面](./assets/p1-player-flv.png)
 - [二维码分享弹窗](./assets/p1-qr.png)
+- [省电模式（480p · 24fps · ≤1 Mbps）](./assets/p1-powersave.png)
 
 ---
 

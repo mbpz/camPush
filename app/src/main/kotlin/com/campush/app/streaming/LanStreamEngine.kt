@@ -145,8 +145,22 @@ class LanStreamEngine(
 
         originNs = System.nanoTime()
 
+        // 省电模式：强制后置单摄 + 854×480 + 24 fps + 码率上限 1 Mbps（docs/02 §12.3）。
+        val baseSettings = options.settings
+        val activeSettings = if (baseSettings.powerSave) {
+            baseSettings.copy(
+                width = 854,
+                height = 480,
+                fps = 24,
+                bitrateKbps = minOf(baseSettings.bitrateKbps, 1000),
+            )
+        } else {
+            baseSettings
+        }
+        val activeFacing = if (baseSettings.powerSave) CameraFacingUi.BACK else options.facing
+
         // 3) 编码器：仅在拿到 publisher 后创建。
-        val video = VideoEncoder(publisher, options.settings) { error ->
+        val video = VideoEncoder(publisher, activeSettings) { error ->
             fail(error.code, error.message, error.hint)
         }
         videoEncoder = video
@@ -154,7 +168,7 @@ class LanStreamEngine(
         jpegEncoder = jpeg
 
         var micDenied = false
-        if (options.settings.audioEnabled) {
+        if (baseSettings.audioEnabled) {
             val audio = AudioEncoder(
                 context.applicationContext,
                 publisher,
@@ -169,10 +183,10 @@ class LanStreamEngine(
         val camera = CameraHost.get(context)
         camera.startStreaming(
             lifecycleOwner = cameraLifecycleOwner,
-            facing = options.facing,
-            width = options.settings.width,
-            height = options.settings.height,
-            fps = options.settings.fps,
+            facing = activeFacing,
+            width = activeSettings.width,
+            height = activeSettings.height,
+            fps = activeSettings.fps,
             frameCallback = { image, _ ->
                 val nowUs = (System.nanoTime() - originNs) / 1_000L
                 video.encode(image, nowUs)
@@ -196,6 +210,9 @@ class LanStreamEngine(
         }
         if (micDenied) {
             StreamingBridge.emitWarning("未授予麦克风权限，将静音推流")
+        }
+        if (baseSettings.powerSave) {
+            StreamingBridge.emitWarning("省电模式已开启：后置单摄 · 854×480 · 24 fps · ≤1 Mbps")
         }
         startStatsLoop()
     }
