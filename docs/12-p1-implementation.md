@@ -369,7 +369,30 @@ grep -n "CameraHost\|Camera2SurfacePipeline\|VideoEncoder\|JpegEncoder"   app/sr
 - lan-core 47/47、assembleDebug、文档门禁通过；
 - 后续新增管线只需实现 `MediaPipeline` 并在工厂装配，UI/引擎无需改动。
 
-### 5.11 真实浏览器播放（宿主 Chrome headless）
+### 5.11 1080p 清晰度与停止崩溃修复（HUAWEI LRT-W30 日志）
+
+**日志结论**（用户提供 `campush-log-20261021-075156.txt`）
+
+- 设备 HUAWEI LRT-W30 / Android 12，Surface 管线正常：`1920x1080@30fps`、`serverFps=30`；
+- 但码率只有 **3.15 Mbps**（设置 4000 kbps），1080p30 在复杂画面下明显发糊；
+- 每次停止推流出现 `CameraAccessException: deleteStream ... Invalid argument (-22)`，
+  来自 `recreateSession` 在相机已关闭后仍尝试重建会话 → 未捕获异常导致进程崩溃。
+
+**修复**
+
+| 问题 | 修复 |
+|---|---|
+| 1080p 发糊 | 码率档位提升到 **1500–10000 kbps**；选择 1080p 时自动至少 6000；**启动时 1080p 低于 8000 自动抬到 8000**；编码器上限 12 Mbps |
+| 编码效率 | MediaRecorder 优先 **AVC High Profile / Level 4**（失败自动忽略，不影响兼容） |
+| 停止崩溃 | `recreateSession` 增加 `running` 二次检查 + try/catch；`createSession` 同样捕获 `CameraAccessException`，不再逃逸到相机线程 |
+
+**实测（模拟器）**
+
+- 设置 8000 kbps：`recorder ready 1280x720@30 8000kbps`，`serverFps=30`、状态码率 **8234 kbps**；
+- 开始/停止多次：无 `FATAL`，进程存活，停止后回到「未推流」；
+- 真机 1080p 将自动使用 ≥8 Mbps，画质应明显提升；若仍模糊需检查 Wi-Fi 实际吞吐/路由器 2.4G 干扰。
+
+### 5.12 真实浏览器播放（宿主 Chrome headless）
 
 - 打开唯一地址 → **FLV→MSE 成功**：`video.readyState=4`、`currentTime≈0.8s`、`buffered≈2.1s`、`videoWidth=1920`；
 - 无控制台错误；HUD 显示「直播中 / 0/3 人观看 / 871 kbps · 20 fps」；

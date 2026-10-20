@@ -84,6 +84,13 @@ class P1ControllerImpl(context: Context) : P1Controller {
             return
         }
         _state.update { it.copy(networkLabel = network.label, lanIp = network.lanIp) }
+        // 1080p 低于 8 Mbps 会明显发糊：启动时自动抬高到 8 Mbps（用户可在设置中调更高）。
+        val rawSettings = _state.value.settings
+        if (rawSettings.height >= 1080 && rawSettings.bitrateKbps < 8000) {
+            val sharper = rawSettings.copy(bitrateKbps = 8000)
+            _state.update { it.copy(settings = sharper) }
+            persistSettings(sharper)
+        }
 
         // 麦克风权限缺失：1002 提示后静音继续，不阻断。
         val micGranted = hasPermission(Manifest.permission.RECORD_AUDIO)
@@ -209,7 +216,7 @@ class P1ControllerImpl(context: Context) : P1Controller {
             width = settings.width.coerceIn(320, 1920) and 1.inv(),
             height = settings.height.coerceIn(240, 1080) and 1.inv(),
             fps = settings.fps.coerceIn(15, 30),
-            bitrateKbps = settings.bitrateKbps.coerceIn(800, 8000),
+            bitrateKbps = settings.bitrateKbps.coerceIn(800, 12000),
         )
         _state.update { it.copy(settings = sanitized) }
         persistSettings(sanitized)

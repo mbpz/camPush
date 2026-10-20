@@ -168,12 +168,20 @@ private fun SettingsContent(
             ChoiceChip(
                 label = "1080p",
                 selected = settings.width == 1920 && settings.height == 1080,
-                onClick = { applySettings(settings.copy(width = 1920, height = 1080)) },
+                onClick = {
+                    applySettings(
+                        settings.copy(
+                            width = 1920,
+                            height = 1080,
+                            bitrateKbps = maxOf(settings.bitrateKbps, 6000),
+                        )
+                    )
+                },
             )
         }
         Spacer(Modifier.height(6.dp))
         Text(
-            text = "需要稳定 30fps 建议选 720p；1080p 对设备性能要求较高，实际编码分辨率显示在主界面。",
+            text = "1080p 建议码率 6000–10000 kbps（越高越清晰）；需要稳定 30fps 可选 720p。实际编码分辨率显示在主界面。",
             style = MaterialTheme.typography.bodySmall,
             color = CamPushColors.TextTertiary,
         )
@@ -184,13 +192,17 @@ private fun SettingsContent(
             color = CamPushColors.TextPrimary,
         )
         Spacer(Modifier.height(8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(1500, 2500, 4000, 6000).forEach { kbps ->
-                ChoiceChip(
-                    label = "$kbps kbps",
-                    selected = settings.bitrateKbps == kbps,
-                    onClick = { applySettings(settings.copy(bitrateKbps = kbps)) },
-                )
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(listOf(1500, 2500, 4000), listOf(6000, 8000, 10000)).forEach { rowKbps ->
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    rowKbps.forEach { kbps ->
+                        ChoiceChip(
+                            label = "$kbps kbps",
+                            selected = settings.bitrateKbps == kbps,
+                            onClick = { applySettings(settings.copy(bitrateKbps = kbps)) },
+                        )
+                    }
+                }
             }
         }
         Spacer(Modifier.height(14.dp))

@@ -606,7 +606,7 @@ class VideoEncoder(
         const val MAX_PIPELINE_LAG_US = 2_500_000L
         const val LATENCY_RESET_COOLDOWN_MS = 3_000L
         const val RESTART_DEBOUNCE_FRAMES = 60
-        const val MAX_BITRATE = 8_000_000
+        const val MAX_BITRATE = 12_000_000
         const val ABR_WINDOW_MS = 1_000L
         const val DOWN_COOLDOWN_MS = 5_000L
         const val UP_COOLDOWN_MS = 10_000L

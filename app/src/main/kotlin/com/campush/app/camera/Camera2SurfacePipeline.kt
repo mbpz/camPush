@@ -165,6 +165,13 @@ class Camera2SurfacePipeline(
         rec.setVideoSize(actualWidth, actualHeight)
         rec.setVideoFrameRate(fps)
         rec.setVideoEncodingBitRate((bitrateKbps.coerceIn(500, 20_000)) * 1000)
+        // 1080p 清晰度：优先 High Profile（同码率压缩效率更高）；设备不支持时保持默认。
+        runCatching {
+            rec.setVideoEncodingProfileLevel(
+                android.media.MediaCodecInfo.CodecProfileLevel.AVCProfileHigh,
+                android.media.MediaCodecInfo.CodecProfileLevel.AVCLevel4,
+            )
+        }
         runCatching { rec.setOrientationHint(90) }
         rec.setOutputFile(pipeWrite!!.fileDescriptor)
         rec.prepare()
@@ -182,34 +189,39 @@ class Camera2SurfacePipeline(
         val targets = ArrayList<Surface>(2)
         targets.add(recSurface)
         previewSurface?.let { targets.add(it) }
-        dev.createCaptureSession(targets, object : CameraCaptureSession.StateCallback() {
-            override fun onConfigured(session: CameraCaptureSession) {
-                if (!running) return
-                this@Camera2SurfacePipeline.session = session
-                try {
-                    recorder?.start()
-                    started = true
-                } catch (t: Throwable) {
-                    reportError("编码器启动失败：${t.message}")
-                    return
+        try {
+            dev.createCaptureSession(targets, object : CameraCaptureSession.StateCallback() {
+                override fun onConfigured(session: CameraCaptureSession) {
+                    if (!running) return
+                    this@Camera2SurfacePipeline.session = session
+                    try {
+                        recorder?.start()
+                        started = true
+                    } catch (t: Throwable) {
+                        reportError("编码器启动失败：${t.message}")
+                        return
+                    }
+                    runCatching { session.setRepeatingRequest(buildRequest(), null, handler) }
+                        .onFailure { reportError("启动相机会话失败：${it.message}") }
+                    startReader()
+                    onStarted()
+                    Log.i(TAG, "surface pipeline started")
+                    DiagLog.i("Surface", "pipeline started facing=$facing ${actualWidth}x$actualHeight")
                 }
-                runCatching { session.setRepeatingRequest(buildRequest(), null, handler) }
-                    .onFailure { reportError("启动相机会话失败：${it.message}") }
-                startReader()
-                onStarted()
-                Log.i(TAG, "surface pipeline started")
-                DiagLog.i("Surface", "pipeline started facing=$facing ${actualWidth}x$actualHeight")
-            }
 
-            override fun onConfigureFailed(session: CameraCaptureSession) {
-                reportError("相机会话配置失败")
-            }
-        }, handler)
+                override fun onConfigureFailed(session: CameraCaptureSession) {
+                    reportError("相机会话配置失败")
+                }
+            }, handler)
+        } catch (t: Throwable) {
+            if (running) reportError("创建相机会话失败：${t.message}")
+        }
     }
 
     private fun recreateSession() {
         if (!running) return
         handler.post {
+            if (!running) return@post
             runCatching { session?.close() }
             session = null
             val dev = device ?: return@post
@@ -217,22 +229,26 @@ class Camera2SurfacePipeline(
             val targets = ArrayList<Surface>(2)
             targets.add(recSurface)
             previewSurface?.let { targets.add(it) }
-            @Suppress("DEPRECATION")
-            dev.createCaptureSession(targets, object : CameraCaptureSession.StateCallback() {
-                override fun onConfigured(session: CameraCaptureSession) {
-                    if (!running) return
-                    this@Camera2SurfacePipeline.session = session
-                    if (!started) {
-                        runCatching { recorder?.start() }
-                        started = true
+            try {
+                @Suppress("DEPRECATION")
+                dev.createCaptureSession(targets, object : CameraCaptureSession.StateCallback() {
+                    override fun onConfigured(session: CameraCaptureSession) {
+                        if (!running) return
+                        this@Camera2SurfacePipeline.session = session
+                        if (!started) {
+                            runCatching { recorder?.start() }
+                            started = true
+                        }
+                        runCatching { session.setRepeatingRequest(buildRequest(), null, handler) }
                     }
-                    runCatching { session.setRepeatingRequest(buildRequest(), null, handler) }
-                }
 
-                override fun onConfigureFailed(session: CameraCaptureSession) {
-                    Log.w(TAG, "recreate preview session failed")
-                }
-            }, handler)
+                    override fun onConfigureFailed(session: CameraCaptureSession) {
+                        if (running) Log.w(TAG, "recreate preview session failed")
+                    }
+                }, handler)
+            } catch (t: Throwable) {
+                if (running) Log.w(TAG, "recreate preview session failed", t)
+            }
         }
     }
 
