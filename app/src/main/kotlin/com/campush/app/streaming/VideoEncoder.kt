@@ -42,6 +42,13 @@ class VideoEncoder(
     private var averageEncodeMs: Double = 0.0
     private var lastFedAtUs: Long = 0L
     private var lastOutputPtsUs: Long = 0L
+    private var pendingW: Int = 0
+    private var pendingH: Int = 0
+    private var pendingCount: Int = 0
+    private var restartCount: Int = 0
+    private var inputFrames: Long = 0L
+    private var outputFrames: Long = 0L
+    private var lastDiagAtMs: Long = 0L
     private var lastLatencyResetMs: Long = 0L
     private var closed: Boolean = false
 
@@ -54,17 +61,45 @@ class VideoEncoder(
         val frameHeight = image.height and 1.inv()
         if (frameWidth <= 0 || frameHeight <= 0) return
 
-        if (codec == null || frameWidth != width || frameHeight != height) {
+        inputFrames++
+        val current = codec
+        if (current == null) {
             restartCodec(frameWidth, frameHeight)
-            val current = codec ?: return
+            val created = codec ?: return
             if (!shouldFeed(ptsUs)) return
-            feedFrame(current, image, ptsUs)
+            feedFrame(created, image, ptsUs)
             return
         }
-        val current = codec ?: return
+        if (frameWidth != width || frameHeight != height) {
+            // 相机输出尺寸偶尔抖动（1080/1088 对齐等）：先缩放喂入现有编码器，持续 2s 才重建，
+            // 避免每帧 restart 导致 1 fps / 极低码率。
+            if (frameWidth == pendingW && frameHeight == pendingH) {
+                pendingCount++
+            } else {
+                pendingW = frameWidth
+                pendingH = frameHeight
+                pendingCount = 1
+            }
+            if (pendingCount >= RESTART_DEBOUNCE_FRAMES) {
+                Log.w(TAG, "camera size changed ${width}x$height -> ${frameWidth}x$frameHeight, restarting encoder")
+                restartCount++
+                restartCodec(frameWidth, frameHeight)
+                pendingCount = 0
+                val recreated = codec ?: return
+                if (!shouldFeed(ptsUs)) return
+                feedFrame(recreated, image, ptsUs)
+                return
+            }
+            if (handleLatency(current, ptsUs)) return
+            if (!shouldFeed(ptsUs)) return
+            feedFrameScaled(current, image, ptsUs)
+            diagnose()
+            return
+        }
         if (handleLatency(current, ptsUs)) return
         if (!shouldFeed(ptsUs)) return
         feedFrame(current, image, ptsUs)
+        diagnose()
     }
 
     /** 请求编码器立刻输出 IDR（播放端加入 / 网络恢复 / 启动首帧）。 */
@@ -151,6 +186,39 @@ class VideoEncoder(
         }
     }
 
+    private fun feedFrameScaled(codec: MediaCodec, image: Image, ptsUs: Long) {
+        val inputIndex = runCatching { codec.dequeueInputBuffer(0L) }.getOrDefault(-1)
+        if (inputIndex < 0) {
+            droppedInWindow++
+            drain(codec)
+            return
+        }
+        val dstImage = codec.getInputImage(inputIndex)
+        if (dstImage == null) {
+            codec.queueInputBuffer(inputIndex, 0, 0, ptsUs, 0)
+            droppedInWindow++
+            drain(codec)
+            return
+        }
+        YuvUtils.copyImageToImageScaled(image, dstImage, width, height)
+        codec.queueInputBuffer(inputIndex, 0, width * height * 3 / 2, ptsUs, 0)
+        framesInWindow++
+        lastFedAtUs = ptsUs
+        drain(codec)
+    }
+
+    /** 每 5s 输出一次编码诊断，便于真机远程定位低帧率/低码率。 */
+    private fun diagnose() {
+        val now = System.currentTimeMillis()
+        if (now - lastDiagAtMs < 5_000) return
+        lastDiagAtMs = now
+        Log.i(
+            TAG,
+            "diag: in=$inputFrames out=$outputFrames drops=$droppedInWindow restarts=$restartCount " +
+                "size=${width}x$height target=${targetBitrate} avgEncodeMs=${"%.1f".format(averageEncodeMs)}",
+        )
+    }
+
     /** 按 settings.fps 做简单抽帧，避免相机输出帧率高于编码目标。 */
     private fun shouldFeed(ptsUs: Long): Boolean {
         val frameIntervalUs = 1_000_000L / settings.fps.coerceIn(10, 60)
@@ -208,7 +276,9 @@ class VideoEncoder(
             }
         }
         if (!containsVcl) return
+        outputFrames++
         lastOutputPtsUs = info.presentationTimeUs
+        diagnose()
         runCatching {
             publisher.publishH264(
                 H264AccessUnit(
@@ -389,6 +459,7 @@ class VideoEncoder(
         const val MIN_BITRATE = 800_000
         const val MAX_PIPELINE_LAG_US = 2_500_000L
         const val LATENCY_RESET_COOLDOWN_MS = 3_000L
+        const val RESTART_DEBOUNCE_FRAMES = 60
         const val MAX_BITRATE = 4_000_000
         const val ABR_WINDOW_MS = 1_000L
         const val DOWN_COOLDOWN_MS = 5_000L

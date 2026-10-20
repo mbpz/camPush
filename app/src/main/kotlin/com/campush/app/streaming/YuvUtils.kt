@@ -20,6 +20,46 @@ internal object YuvUtils {
         copyPlane(srcPlanes[2], dstPlanes[2], chromaWidth, chromaHeight)
     }
 
+    /**
+     * 源图缩放到目标尺寸后拷入 MediaCodec 输入 Image。
+     * 用于相机输出尺寸偶发变化（例如 1080/1088 对齐）时避免反复重建编码器。
+     */
+    fun copyImageToImageScaled(src: Image, dst: Image, dstWidth: Int, dstHeight: Int) {
+        val sw = src.width
+        val sh = src.height
+        if (sw <= 0 || sh <= 0 || dstWidth <= 0 || dstHeight <= 0) return
+        val srcPlanes = src.planes
+        val dstPlanes = dst.planes
+        if (srcPlanes.size < 3 || dstPlanes.size < 3) return
+        copyPlaneScaled(srcPlanes[0], dstPlanes[0], sw, sh, dstWidth, dstHeight)
+        val cw = dstWidth / 2
+        val ch = dstHeight / 2
+        copyPlaneScaled(srcPlanes[1], dstPlanes[1], sw / 2, sh / 2, cw, ch)
+        copyPlaneScaled(srcPlanes[2], dstPlanes[2], sw / 2, sh / 2, cw, ch)
+    }
+
+    private fun copyPlaneScaled(
+        src: Image.Plane,
+        dst: Image.Plane,
+        srcWidth: Int,
+        srcHeight: Int,
+        dstWidth: Int,
+        dstHeight: Int,
+    ) {
+        if (srcWidth <= 0 || srcHeight <= 0 || dstWidth <= 0 || dstHeight <= 0) return
+        val srcBuf = src.buffer
+        val dstBuf = dst.buffer
+        for (row in 0 until dstHeight) {
+            val srcRow = (row.toLong() * srcHeight / dstHeight).toInt()
+            val srcBase = srcRow * src.rowStride
+            val dstBase = row * dst.rowStride
+            for (col in 0 until dstWidth) {
+                val srcCol = (col.toLong() * srcWidth / dstWidth).toInt()
+                dstBuf.put(dstBase + col * dst.pixelStride, srcBuf.get(srcBase + srcCol * src.pixelStride))
+            }
+        }
+    }
+
     /** YUV_420_888 -> NV21（Y 平面 + VU 交错），供 YuvImage JPEG 压缩。 */
     fun imageToNv21(src: Image, width: Int, height: Int): ByteArray {
         val frameWidth = width and 1.inv()

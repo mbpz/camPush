@@ -50,6 +50,8 @@ class LanStreamEngine(
 
     private var lastActualWidth: Int = 0
     private var lastActualHeight: Int = 0
+    private var lowFpsStreak: Int = 0
+    private var lowFpsWarned: Boolean = false
 
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -267,6 +269,16 @@ class LanStreamEngine(
                 val status = withContext(Dispatchers.Default) {
                     runCatching { lanServer.status() }.getOrNull()
                 } ?: continue
+                if (status.fps in 1..4 && status.bitrateBps < 300_000L) {
+                    lowFpsStreak++
+                } else {
+                    lowFpsStreak = 0
+                }
+                if (lowFpsStreak >= 5 && !lowFpsWarned && phase == EnginePhase.STREAMING) {
+                    lowFpsWarned = true
+                    Log.w(TAG, "low fps detected: fps=${status.fps} bitrate=${status.bitrateBps}")
+                    StreamingBridge.emitWarning("编码帧率过低（<5 fps）：建议切换到 720p 或检查相机是否被其他应用占用")
+                }
                 StreamingBridge.update { snapshot ->
                     snapshot.copy(
                         viewers = status.viewers,

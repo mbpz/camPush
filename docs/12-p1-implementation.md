@@ -175,6 +175,7 @@ ANDROID_HOME="$PWD/.android-sdk" GRADLE_USER_HOME="$PWD/.gradle-home" \
 | MJPEG 拖慢主线程 | 1080p 每 2 帧做全尺寸 NV21 转换 + JPEG 压缩 | MJPEG 缩到 ≤960 宽、每 3 帧一次，仅作降级通道 |
 | 延迟累积 | 慢编码设备上编码队列越积越长；播放器追帧阈值 2.5 s | 编码器输出落后采集 >2.5 s 时 flush 重建流水线（3 s 冷却）；播放端追帧阈值 2.5 s→1.2 s |
 | 码率数值误解 | VBR 下静态画面实际码率远低于目标值 | 日志与 UI 区分「目标码率/实际码率」，并新增「实际编码分辨率」显示 |
+| 真机仍报 1 fps / 79 kbps（待真机日志确认） | 可能：相机输出尺寸抖动导致每帧重建编码器；或设备 1080p 分析输出本身只有 ~1 fps | ① 尺寸变化去抖 60 帧并缩放喂入现有编码器，避免 restart 循环；② 连续 5 s fps<5 且码率<300 kbps 时自动降至 720p 并提示；③ 每 5 s 输出编码诊断日志（in/out/drops/restarts/size/target/avgEncodeMs）；④ 记录 CameraX 实际分析分辨率 |
 
 **修复后实测（模拟器，1080p 设定）**
 
@@ -184,7 +185,9 @@ ANDROID_HOME="$PWD/.android-sdk" GRADLE_USER_HOME="$PWD/.gradle-home" \
 | 后摄（模拟器仅支持 1280×720） | 1280×720（UI 显示「设定 1080p」） | 22–27 | ≈3.5 Mbps | 复杂虚拟场景；证明 UI 不再虚标分辨率 |
 
 - 播放端：`FLV→MSE` `readyState=4`，缓冲约 0.2–2.4 s，`currentTime` 与墙钟 1:1 前进，无 7 s 级累积延迟；
-- 日志：`VideoEncoder: encoder started: 1920x1080 ... level=2048 ... mode=VBR`（模拟器软编码不支持 CBR；真机硬编码通常支持 CBR，实际码率更接近目标值）。
+- 日志：`VideoEncoder: encoder started: 1920x1080 ... level=2048 ... mode=VBR`（模拟器软编码不支持 CBR；真机硬编码通常支持 CBR，实际码率更接近目标值）；
+- 诊断日志（每 5 s）：`diag: in=281 out=251 drops=0 restarts=0 size=1280x720 target=4000000 avgEncodeMs=4.0`；若真机出现 `restarts` 持续增长或 `out` 远小于 `in`，即为 1 fps 的直接证据；
+- 相机实际分析分辨率：`CameraController: analysis resolution=1280x720 target=1920x1080`（设备不支持 1080p 分析输出时可见）。
 
 > 说明：用户报告的 93 kbps/1 fps 未在同一模拟器上复现（模拟器修复前为 ≈900 kbps/29 fps）；上述 Level、分辨率、ABR、JPEG 四项是 1080p 下最可能的真实设备诱因，需在真机复测确认。
 

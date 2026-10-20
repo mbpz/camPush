@@ -230,6 +230,12 @@ class CameraController internal constructor(context: Context) {
                 }
 
                 val bound = cameraProvider.bindToLifecycle(owner, selector, *useCases.toTypedArray())
+                analysis?.let {
+                    runCatching {
+                        val res = it.resolutionInfo?.resolution
+                        Log.i(TAG, "analysis resolution=$res target=${targetWidth}x$targetHeight")
+                    }
+                }
                 camera = bound
                 previewUseCase = preview
                 analysisUseCase = analysis

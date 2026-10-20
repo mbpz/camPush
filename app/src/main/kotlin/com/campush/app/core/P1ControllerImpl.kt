@@ -37,6 +37,10 @@ class P1ControllerImpl(context: Context) : P1Controller {
     private val prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val networkMonitor = NetworkMonitor(appContext)
 
+    /** 连续低帧率采样与自动降级标记（PRD §8.4 性能保护）。 */
+    private var lowFpsSamples: Int = 0
+    private var autoFallbackDone: Boolean = false
+
     private val _state = MutableStateFlow(restoreState())
     override val state: StateFlow<P1UiState> = _state.asStateFlow()
 
@@ -294,6 +298,36 @@ class P1ControllerImpl(context: Context) : P1Controller {
     }
 
     private fun applySnapshot(snapshot: EngineSnapshot) {
+        if (snapshot.phase == EnginePhase.STREAMING) {
+            if (snapshot.fps in 1..4 && snapshot.bitrateKbps < 300) {
+                lowFpsSamples++
+            } else {
+                lowFpsSamples = 0
+            }
+            val currentSettings = _state.value.settings
+            if (lowFpsSamples >= 5 && !autoFallbackDone && currentSettings.height > 720) {
+                autoFallbackDone = true
+                lowFpsSamples = 0
+                val reduced = currentSettings.copy(
+                    width = 1280,
+                    height = 720,
+                    bitrateKbps = minOf(currentSettings.bitrateKbps, 2500),
+                )
+                _state.update {
+                    it.copy(
+                        settings = reduced,
+                        warning = "检测到编码帧率过低，已自动降至 720p 保证流畅；可在设置中改回 1080p",
+                    )
+                }
+                persistSettings(reduced)
+                stop()
+                scope.launch {
+                    delay(1_200)
+                    start()
+                }
+                return
+            }
+        }
         _state.update { current ->
             when (snapshot.phase) {
                 EnginePhase.STARTING -> current.copy(
