@@ -40,6 +40,7 @@ class P1ControllerImpl(context: Context) : P1Controller {
     /** 帧率优先自适应：连续低帧率采样、降档级别（PRD §8.4 性能保护）。 */
     private var lowFpsSamples: Int = 0
     private var fpsWarningShown: Boolean = false
+    private var fpsFallbackDone: Boolean = false
 
     private val _state = MutableStateFlow(restoreState())
     override val previewJpeg = StreamingBridge.previewJpeg
@@ -302,16 +303,36 @@ class P1ControllerImpl(context: Context) : P1Controller {
         if (snapshot.phase == EnginePhase.STREAMING) {
             val fps = snapshot.fps
             // 画质优先：不再自动降分辨率（避免“画质漂移”）；仅在持续低于 30fps 时提示。
-            if (snapshot.cameraAvailable && fps in 1..29) {
+            if (snapshot.cameraAvailable && fps in 1..4) {
                 lowFpsSamples++
             } else {
                 lowFpsSamples = 0
             }
-            if (lowFpsSamples >= 5 && !fpsWarningShown) {
-                fpsWarningShown = true
-                StreamingBridge.emitWarning(
-                    "当前约 ${snapshot.fps} fps，低于 30fps；最高画质受设备性能限制，可在设置中选 720p 提升帧率"
+            // 1080p 只有个位数帧率时先救可用性：自动切 720p，但只重启媒体子管线，播放地址不变。
+            if (lowFpsSamples >= 3 && !fpsFallbackDone && _state.value.settings.height > 720 &&
+                snapshot.cameraAvailable
+            ) {
+                fpsFallbackDone = true
+                lowFpsSamples = 0
+                val fallback = _state.value.settings.copy(
+                    width = 1280,
+                    height = 720,
+                    bitrateKbps = minOf(_state.value.settings.bitrateKbps, 2500),
                 )
+                StreamingBridge.emitWarning("1080p 编码帧率过低，已自动切换到 720p（播放地址不变）；可在设置中改回")
+                StreamingBridge.engine?.updateMediaConfig(fallback, _state.value.cameraFacing)
+            } else if (snapshot.cameraAvailable && fps in 5..29) {
+                if (!fpsWarningShown) {
+                    lowFpsSamples++
+                    if (lowFpsSamples >= 5) {
+                        fpsWarningShown = true
+                        StreamingBridge.emitWarning(
+                            "当前约 ${snapshot.fps} fps，低于 30fps；最高画质受设备性能限制，可在设置中选 720p"
+                        )
+                    }
+                }
+            } else if (fps >= 30) {
+                lowFpsSamples = 0
             }
         }
         _state.update { current ->

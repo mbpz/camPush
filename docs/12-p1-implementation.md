@@ -280,6 +280,7 @@ ANDROID_HOME="$PWD/.android-sdk" GRADLE_USER_HOME="$PWD/.gradle-home" \
 | YUV 转换 | 新增 `imageToNv12Into` / `imageToI420Into`，复用 ByteArray 缓冲，避免 30fps 下每帧数 MB 的 GC 压力 |
 | 可诊断 | 日志输出 `encoder choice=<codec> hardware=true/false color=<fmt>`，可直接确认是否选到硬件编码器 |
 | 兜底 | 硬件配置失败自动回退 Baseline/默认；全部失败走原 Flexible 软件路径并报 `1005` |
+| 极低帧率救援 | 1080p 连续 3s 只有 1–4fps 时，自动切到 720p（只重启媒体子管线，**播放地址不变**），提示“已自动切换到 720p”；720p 仍低则只提示不再降档 |
 
 **实测（模拟器只有软件编码器）**
 
