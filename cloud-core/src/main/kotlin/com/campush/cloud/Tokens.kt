@@ -50,5 +50,12 @@ internal class Tokens(private val secret: ByteArray) {
     companion object {
         fun sha256(data: ByteArray): String =
             MessageDigest.getInstance("SHA-256").digest(data).joinToString("") { "%02x".format(it) }
+
+        /** TURN REST 凭证：base64(HMAC-SHA1(secret, username))。 */
+        fun turnCredential(secret: String, username: String): String {
+            val mac = Mac.getInstance("HmacSHA1")
+            mac.init(SecretKeySpec(secret.toByteArray(), "HmacSHA1"))
+            return Base64.getEncoder().encodeToString(mac.doFinal(username.toByteArray()))
+        }
     }
 }

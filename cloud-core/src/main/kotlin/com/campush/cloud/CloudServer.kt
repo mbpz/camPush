@@ -247,13 +247,13 @@ class CloudServer(
 
     private fun turnJson(room: Room): String {
         val turnUser = "${(clock() + 3600_000) / 1000}:${room.id}"
-        val credential = Tokens.sha256("${config.turnSecret}$turnUser".toByteArray())
+        val credential = Tokens.turnCredential(config.turnSecret, turnUser)
         return """{"urls":${config.turnUrls.joinToString(",", "[", "]") { "\"$it\"" }},"username":"$turnUser","credential":"$credential"}"""
     }
 
     private fun roomJson(room: Room): String {
         val turnUser = "${(clock() + 3600_000) / 1000}:${room.id}"
-        val credential = Tokens.sha256("${config.turnSecret}$turnUser".toByteArray())
+        val credential = Tokens.turnCredential(config.turnSecret, turnUser)
         return """{"roomId":"${room.id}","state":"${room.state}","createdAt":"${Instant.ofEpochMilli(room.createdAt)}","expireAt":"${Instant.ofEpochMilli(room.expireAt)}","playUrl":"${config.playHost}/s/${room.id}?token=${room.pageToken}","ingest":{"protocol":"whip","whipUrl":"${config.whipHost}:${config.whipApiPort}/rtc/v1/whip/?app=live&stream=${room.id}","rtmpUrl":"rtmp://localhost:1935/live/${room.id}","srtUrl":"srt://localhost:10080?streamid=#!::r=${room.id}","token":"${room.ingestToken}"},"turn":{"urls":${config.turnUrls.joinToString(",", "[", "]") { "\"$it\"" }},"username":"$turnUser","credential":"$credential"},"limits":{"maxViewers":${config.maxViewers},"maxDurationSec":${config.maxDurationSec}}}"""
     }
 

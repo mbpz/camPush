@@ -123,7 +123,7 @@
   `play-session` 校验 `pin`（错误/缺失 401/3005），播放页 3005 时弹窗输入重试；
 - 播放页 HUD：WHEP 显示分辨率/fps/kbps（getStats），FLV/HLS 显示分辨率/丢帧；
 - TURN：`play-session` 返回 `turn.urls/username/credential`，播放页 WebRTC 使用该 TURN；
-  本地 coturn 已启动并通过 `turnutils_stunclient/uclient` 验证；
+  本地 coturn 已启动（TURN REST secret=`dev-turn-secret`），并通过 `turnutils_stunclient/uclient` 验证；
 - HLS 同源代理：`/hls/{roomId}.m3u8?token=` 与 `/hls/{seg}.ts?token=`，playlist 内 `.ts` 自动改写带 token；
   播放页不再直连 SRS，避免跨域/混合内容；
 - 待补：MJPEG 兜底、真实媒体 E2E、首帧量化指标。

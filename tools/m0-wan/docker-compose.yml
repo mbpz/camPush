@@ -26,11 +26,12 @@ services:
     container_name: campush-turn
     environment:
       CANDIDATE: ${CANDIDATE:-127.0.0.1}
+      TURN_SECRET: ${TURN_SECRET:-dev-turn-secret}
     command:
       - "-n"
       - "--log-file=stdout"
-      - "--lt-cred-mech"
-      - "--user=campush:campush"
+      - "--use-auth-secret"
+      - "--static-auth-secret=${TURN_SECRET:-dev-turn-secret}"
       - "--realm=campush.local"
       - "--fingerprint"
       - "--no-cli"
