@@ -67,6 +67,8 @@ ALLOWED_HOSTS = {
     "example.com",
     "localhost",
     "127.0.0.1",
+    # 仓库自身的 GitHub 发布/CI 链接（非产品运行时域名）
+    "github.com",
 }
 
 DOC_NETWORKS = [

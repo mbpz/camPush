@@ -63,7 +63,8 @@ jobs:
             NAME="$(git describe --tags --always --dirty 2>/dev/null || echo 0.0.0-dev)"
           fi
           NAME="${NAME#v}"
-          SAFE="$(echo "$NAME" | tr -c 'A-Za-z0-9._-' '-')"
+          SAFE="$(printf '%s' "$NAME" | tr -c 'A-Za-z0-9._-' '-')"
+          SAFE="${SAFE%-}"
           echo "code=$CODE" >> "$GITHUB_OUTPUT"
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
           echo "file=campush-${SAFE}-${CODE}.apk" >> "$GITHUB_OUTPUT"

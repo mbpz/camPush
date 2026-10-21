@@ -32,6 +32,7 @@ Gradle 通过 `-PappVersionCode` / `-PappVersionName` / `-PgitSha` 注入，定�
 
 ## 3. 下载 APK
 
+- **最新 P1 预发布**：<https://github.com/mbpz/camPush/releases/tag/v1.0.0-p1>（APK + SHA256SUMS）
 - **每次提交**：GitHub → Actions → 对应 run → Artifacts → `campush-apk-<versionName>-<versionCode>`；
 - **正式/预发布**：GitHub → Releases → 下载 `.apk` 与 `SHA256SUMS.txt`；
 - 同一 run 会同时上传 `SHA256SUMS.txt` 便于校验。
