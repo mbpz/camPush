@@ -27,6 +27,7 @@
   <div id="err"></div>
 </div>
 <script src="/assets/hls.min.js"></script>
+<script src="/assets/mpegts.min.js"></script>
 <script>
 (() => {
   const roomId = location.pathname.split('/').filter(Boolean).pop();
@@ -37,7 +38,7 @@
   const dot = document.getElementById('dot');
   const protoEl = document.getElementById('proto');
   const errEl = document.getElementById('err');
-  let pc = null, hls = null, current = null;
+  let pc = null, hls = null, flv = null, current = null;
 
   const setStatus = (t, kind = '') => {
     statusEl.textContent = t;
@@ -50,6 +51,7 @@
   };
   const stop = () => {
     if (hls) { try { hls.destroy(); } catch (_) {} hls = null; }
+    if (flv) { try { flv.destroy(); } catch (_) {} flv = null; }
     if (pc) { try { pc.close(); } catch (_) {} pc = null; }
     v.srcObject = null; v.removeAttribute('src'); v.load();
   };
@@ -96,6 +98,15 @@
     });
   }
 
+  async function tryFlv(url) {
+    if (!(window.mpegts && window.mpegts.isSupported())) throw new Error('FLV 不支持');
+    flv = window.mpegts.createPlayer({ type: 'flv', isLive: true, url });
+    flv.attachMediaElement(v);
+    flv.load();
+    v.play().catch(() => {});
+    await waitPlaying(6000);
+  }
+
   function startHls(url) {
     if (window.Hls && window.Hls.isSupported()) {
       hls = new window.Hls({ liveSyncDurationCount: 2, lowLatencyMode: false });
@@ -125,6 +136,16 @@
           return;
         } catch (e) {
           console.warn('WHEP failed, fallback', e);
+        }
+      }
+      if (protocols.flv && protocols.flv.url) {
+        protoEl.textContent = 'FLV';
+        try {
+          await tryFlv(protocols.flv.url);
+          setStatus('FLV 播放中', 'ok');
+          return;
+        } catch (e) {
+          console.warn('FLV failed, fallback', e);
         }
       }
       if (protocols.hls && protocols.hls.url) {

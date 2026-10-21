@@ -11,6 +11,8 @@ data class CloudConfig(
     val playHost: String = "http://127.0.0.1:18090",
     val whipHost: String = "http://srs.m0-wan.orb.local",
     val whipApiPort: Int = 1985,
+    val playbackHost: String = "http://srs.m0-wan.orb.local",
+    val playbackPort: Int = 8080,
     val turnUrls: List<String> = listOf("turn:srs.m0-wan.orb.local:3478?transport=udp"),
     val turnSecret: String = "dev-turn-secret",
     val accountToken: String = "acct_dev",
@@ -29,6 +31,8 @@ data class CloudConfig(
                 playHost = env["CAMPUSH_PLAY_HOST"] ?: base.playHost,
                 whipHost = env["CAMPUSH_WHIP_HOST"] ?: base.whipHost,
                 whipApiPort = env["CAMPUSH_WHIP_API_PORT"]?.toIntOrNull() ?: base.whipApiPort,
+                playbackHost = env["CAMPUSH_PLAYBACK_HOST"] ?: base.playbackHost,
+                playbackPort = env["CAMPUSH_PLAYBACK_PORT"]?.toIntOrNull() ?: base.playbackPort,
                 turnUrls = env["CAMPUSH_TURN_URLS"]?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() }
                     ?: base.turnUrls,
             )

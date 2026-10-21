@@ -89,7 +89,9 @@ class CloudServerTest {
         assertEquals(200, page.statusCode())
         assertTrue(page.body().contains("CamPush 云端观看"))
         assertTrue(get(base, "/assets/hls.min.js").body().length > 100_000)
+        assertTrue(get(base, "/assets/mpegts.min.js").body().length > 100_000)
         assertEquals(401, get(base, "/s/$roomId?token=bad").statusCode())
+        assertEquals(401, get(base, "/live/$roomId.flv?token=bad").statusCode())
     }
 
     @Test
