@@ -63,6 +63,14 @@ http://127.0.0.1:1985/api/v1/versions
 - WHEP 页面可打开；无头浏览器自动化在拉流断言阶段不稳定（CDP 挂起），
   实际首帧由桌面 Chrome/App 验证。
 
+## 3.1 已知限制
+
+- SRS 的 RTC publish 只接受 **H.264**。Android 模拟器没有硬件 H.264 编码器，WebRTC SDK 的
+  offer 只有 VP8/VP9 → SRS 返回 `5018 no found valid H.264 payload type`；
+  App WHIP 需在真机验证，模拟器可用 RTMP→FLV/HLS 替代验证。
+- `srs.m0-wan.orb.local` 在 macOS 浏览器可用；手机/模拟器访问时用 Mac 局域网 IP 或模拟器
+  `10.0.2.2`（仅端口映射，不改网络配置）。
+
 ## 4. 规则
 
 1. **不要**修改宿主/OrbStack 网络、域名解析、端口映射；只用上表现值。

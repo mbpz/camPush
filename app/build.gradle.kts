@@ -100,6 +100,9 @@ dependencies {
 
     implementation("com.google.zxing:core:3.5.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+
+    // P2 WAN: WHIP 推流（WebRTC）
+    implementation("io.github.webrtc-sdk:android:125.6422.07")
     implementation("androidx.datastore:datastore-preferences:1.1.1")
 
     debugImplementation("androidx.compose.ui:ui-tooling")

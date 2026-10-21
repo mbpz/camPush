@@ -27,6 +27,14 @@ data class StreamSettingsUi(
 
 data class P1Error(val code: Int, val message: String, val hint: String? = null)
 
+/** P2 WAN WHIP 联调状态（原型；正式 WAN 房间流程接入后替换）。 */
+data class WanTestUi(
+    val running: Boolean = false,
+    val status: String = "idle",
+    val sessionUrl: String? = null,
+    val error: String? = null,
+)
+
 data class P1UiState(
     val accessScope: AccessScopeUi = AccessScopeUi.LAN,
     val wanLocked: Boolean = true,
@@ -65,6 +73,11 @@ interface P1Controller {
 
     /** 推流中 App 内预览 JPEG（CameraX Preview 已释放，避免与分析并发限帧）。 */
     val previewJpeg: StateFlow<ByteArray?>
+
+    /** P2 T0-A2：WAN WHIP 联调（设置页开发入口）。 */
+    val wanTest: StateFlow<WanTestUi>
+    fun startWanTest(whipUrl: String)
+    fun stopWanTest()
 
     fun start()
     fun stop()

@@ -100,6 +100,16 @@
   转发到 SRS `${whipHost}:${whipApiPort}`，带 CORS 头；
 - 待补：账号体系、额度/套餐、viewer-count/ended 事件、10 min 回收 clock 注入测试、真实 SDP 代理 E2E。
 
+### 4.3 T0-A2 Android WHIP 客户端（已接入，待真机验证）
+
+- 新增 `io.github.webrtc-sdk:android:125.6422.07`、`WanWhipClient`（Camera2 720p30 + PeerConnection）；
+- 设置页新增「WAN WHIP 联调（P2）」：可填 WHIP URL、开始/停止、查看状态；
+- Controller 扩展 `wanTest/startWanTest/stopWanTest` 契约，UI 不直接依赖 WebRTC 实现；
+- 模拟器实测：WHIP offer 已到达 SRS（日志 `RTC whip publish /live/campush-dev`），
+  但 SRS 返回 `5018 RtcSdpNegotiate: no found valid H.264 payload type`；
+  原因是模拟器没有硬件 H.264 编码器，WebRTC SDK 只提供 VP8/VP9（SRS RTC 只收 H264）；
+- 下一步：在真机（有 H.264 硬编）验证 App→SRS WHIP 30fps；模拟器可用 RTMP/FLV 路径做替代验证。
+
 **地址配置（本轮新增）**
 
 - `CloudConfig` 不再硬编码：`apiHost`/`playHost`/`whipHost`/`whipApiPort`/`turnUrls` 均可配置；

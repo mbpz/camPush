@@ -17,6 +17,7 @@ import com.campush.app.streaming.EnginePhase
 import com.campush.app.streaming.EngineSnapshot
 import com.campush.app.streaming.StreamStartOptions
 import com.campush.app.streaming.StreamingBridge
+import com.campush.app.streaming.wan.WanWhipClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -48,6 +49,9 @@ class P1ControllerImpl(context: Context) : P1Controller {
 
     private val _state = MutableStateFlow(restoreState())
     override val previewJpeg = StreamingBridge.previewJpeg
+    private val wanClient = WanWhipClient(appContext)
+    private val _wanTest = MutableStateFlow(WanTestUi())
+    override val wanTest: StateFlow<WanTestUi> = _wanTest.asStateFlow()
     override val state: StateFlow<P1UiState> = _state.asStateFlow()
 
     private var logServer: DiagnosticLogServer? = null
@@ -57,6 +61,11 @@ class P1ControllerImpl(context: Context) : P1Controller {
         observeBridge()
         observeNetworkLabel()
         startLogServiceLoop()
+        scope.launch {
+            wanClient.state.collect { st ->
+                _wanTest.value = WanTestUi(st.running, st.status, st.sessionUrl, st.error)
+            }
+        }
     }
 
     /**
@@ -326,6 +335,14 @@ class P1ControllerImpl(context: Context) : P1Controller {
 
     override fun dismissWarning() {
         _state.update { it.copy(warning = null) }
+    }
+
+    override fun startWanTest(whipUrl: String) {
+        wanClient.start(whipUrl)
+    }
+
+    override fun stopWanTest() {
+        wanClient.stop()
     }
 
     override fun onAddressCopied() {

@@ -56,6 +56,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.campush.app.BuildConfig
 import com.campush.app.core.P1Controller
 import com.campush.app.core.P1UiState
@@ -103,6 +104,8 @@ private fun SettingsContent(
     var portMenuOpen by remember { mutableStateOf(false) }
     var checklistOpen by remember { mutableStateOf(false) }
     var logCopied by remember { mutableStateOf(false) }
+    var wanUrl by remember { mutableStateOf("http://10.0.2.2:1985/rtc/v1/whip/?app=live&stream=campush-dev") }
+    val wan by controller.wanTest.collectAsStateWithLifecycle()
 
     fun applySettings(updated: StreamSettingsUi) {
         settings = updated
@@ -444,6 +447,41 @@ private fun SettingsContent(
             modifier = Modifier.padding(vertical = 16.dp),
             color = CamPushColors.Border.copy(alpha = 0.6f),
         )
+
+        // ---------- WAN WHIP 联调（P2 T0-A2 原型） ----------
+        SettingsSectionTitle("WAN WHIP 联调（P2）")
+        Text(
+            text = "开发联调入口：App 采集 720p30 → WHIP → SRS。模拟器用 10.0.2.2；手机用 Mac 局域网 IP 或 SRS 域名。正式 WAN 房间流程接入后替换。",
+            style = MaterialTheme.typography.bodySmall,
+            color = CamPushColors.TextSecondary,
+        )
+        Spacer(Modifier.height(8.dp))
+        OutlinedTextField(
+            value = wanUrl,
+            onValueChange = { wanUrl = it },
+            label = { Text("WHIP URL") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(
+                onClick = { controller.startWanTest(wanUrl) },
+                enabled = !wan.running,
+            ) { Text("开始 WHIP") }
+            OutlinedButton(
+                onClick = { controller.stopWanTest() },
+                enabled = wan.running,
+            ) { Text("停止") }
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = if (wan.error != null) "失败：${wan.error}" else "状态：${wan.status}",
+            style = MaterialTheme.typography.bodySmall,
+            color = if (wan.error != null) MaterialTheme.colorScheme.error else CamPushColors.TextSecondary,
+        )
+        Spacer(Modifier.height(14.dp))
+        HorizontalDivider(color = CamPushColors.Border.copy(alpha = 0.6f))
 
         // ---------- 诊断日志服务 ----------
         SettingsSectionTitle("诊断日志")
