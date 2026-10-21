@@ -103,6 +103,7 @@ class P1ControllerImpl(context: Context) : P1Controller {
     // ---------------------------------------------------------------- UI 操作
 
     override fun start() {
+        val requestedAtMs = System.currentTimeMillis()
         val current = _state.value
         if (current.starting || current.streaming) return
         _state.update { it.copy(starting = true, error = null, warning = null) }
@@ -181,6 +182,7 @@ class P1ControllerImpl(context: Context) : P1Controller {
             pin = currentAfterUpdate.pin,
             port = currentAfterUpdate.port,
             muted = currentAfterUpdate.muted,
+            requestedAtMs = requestedAtMs,
         )
         Telemetry.event(
             "push_start_clicked",

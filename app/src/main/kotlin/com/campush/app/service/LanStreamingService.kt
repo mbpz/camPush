@@ -219,6 +219,7 @@ class LanStreamingService : LifecycleService() {
             pin = getStringExtra(EXTRA_PIN),
             port = getIntExtra(EXTRA_PORT, 8089),
             muted = getBooleanExtra(EXTRA_MUTED, false),
+            requestedAtMs = getLongExtra(EXTRA_REQUESTED_AT, System.currentTimeMillis()),
         )
     }
 
@@ -245,6 +246,7 @@ class LanStreamingService : LifecycleService() {
         private const val EXTRA_PIN = "pin"
         private const val EXTRA_PORT = "port"
         private const val EXTRA_MUTED = "muted"
+        private const val EXTRA_REQUESTED_AT = "requestedAtMs"
 
         @Volatile
         private var instanceAlive: Boolean = false
@@ -264,6 +266,7 @@ class LanStreamingService : LifecycleService() {
                 putStringExtraCompat(EXTRA_PIN, options.pin)
                 putExtra(EXTRA_PORT, options.port)
                 putExtra(EXTRA_MUTED, options.muted)
+                putExtra(EXTRA_REQUESTED_AT, options.requestedAtMs)
             }
             ContextCompat.startForegroundService(context, intent)
         }

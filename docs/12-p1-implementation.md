@@ -141,7 +141,7 @@ ANDROID_HOME="$PWD/.android-sdk" GRADLE_USER_HOME="$PWD/.gradle-home" \
 
 | 项 | 结果 |
 |---|---|
-| `:lan-core:test` | **48/48 通过**（Jwt 8、Tokens 5、PinGuard 7、PortAllocator 4、FlvMuxer 6、MediaHub 6、HTTP E2E 12） |
+| `:lan-core:test` | **49/49 通过**（Jwt 8、Tokens 5、PinGuard 7、PortAllocator 4、FlvMuxer 6、MediaHub 6、HTTP E2E 12、日志服务 1） |
 | 播放页 Node 自检 | **26/26 通过**（FLV 解析、avcC、fMP4、体积/外链/CSP/localStorage/eval 门禁） |
 | `:app:assembleDebug` | **BUILD SUCCESSFUL**，APK ≈18 MB，使用 workspace debug.keystore 签名 |
 
@@ -372,7 +372,7 @@ grep -n "CameraHost\|Camera2SurfacePipeline\|VideoEncoder\|JpegEncoder"   app/sr
 ```
 
 - 行为回归：模拟器推流 Surface 管线正常启动（`pipeline started kind=SURFACE`），浏览器 `readyState=4`、28–30fps；
-- lan-core 48/48、assembleDebug、文档门禁通过；
+- lan-core 49/49、assembleDebug、文档门禁通过；
 - 后续新增管线只需实现 `MediaPipeline` 并在工厂装配，UI/引擎无需改动。
 
 ### 5.11 1080p 清晰度与停止崩溃修复（HUAWEI LRT-W30 日志）
@@ -467,7 +467,7 @@ grep -n "CameraHost\|Camera2SurfacePipeline\|VideoEncoder\|JpegEncoder"   app/sr
 
 ## 8. 验收检查点
 
-- [x] `:lan-core:test` 48/48 通过，0 failure；
+- [x] `:lan-core:test` 49/49 通过，0 failure；
 - [x] `tools/player-selftest/run.mjs` 26/26 通过，`node --check` 通过；
 - [x] `:app:assembleDebug` 构建成功，APK 可安装启动；
 - [x] 同网浏览器打开唯一地址可播放（FLV→MSE `readyState=4`；失败可降级 MJPEG）；

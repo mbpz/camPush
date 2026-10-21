@@ -40,6 +40,8 @@ data class StreamStartOptions(
     val pin: String?,
     val port: Int,
     val muted: Boolean,
+    /** 用户点击“开始推流”的时间（AC-01b 计时起点，跨进程传递）。 */
+    val requestedAtMs: Long = System.currentTimeMillis(),
 )
 
 /**
@@ -60,7 +62,6 @@ class LanStreamEngine(
     private var lastActualHeight: Int = 0
     private var publisherRef: LanMediaPublisher? = null
     private var streamMuted: Boolean = false
-    private var startRequestedAtMs: Long = 0L
     private var playUrlBase: String? = null
     private var pipelineSettings: StreamSettingsUi? = null
     private var pipelineFacing: CameraFacingUi = CameraFacingUi.BACK
@@ -199,10 +200,16 @@ class LanStreamEngine(
         val micDenied = startMediaPipeline(activeSettings, activeFacing, publisher)
 
         phase = EnginePhase.STREAMING
+        val startDurationMs = System.currentTimeMillis() - options.requestedAtMs
+        DiagLog.i(
+            "Timing",
+            "push_start_success durationMs=$startDurationMs resolution=${lastActualWidth}x$lastActualHeight " +
+                "pipeline=${mediaPipeline?.kind?.name?.lowercase() ?: "unknown"}",
+        )
         Telemetry.event(
             "push_start_success",
             mapOf(
-                "durationMs" to (System.currentTimeMillis() - startRequestedAtMs),
+                "durationMs" to startDurationMs,
                 "serverConfirmed" to true,
                 "resolution" to "${lastActualWidth}x$lastActualHeight",
                 "fps" to (mediaPipeline?.diagnostics()?.outFps ?: 0),

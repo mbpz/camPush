@@ -222,9 +222,9 @@ python3 scripts/check_docs.py --strict
 | 09 task-plan | 960 | 3 | 基线 v1.1（P1/P2/P3） |
 | 10 observability | 876 | 2 | 基线 v1.1（阶段启用） |
 | 11 risk-adr | 512 | 2 | 基线 v1.2（ADR-013） |
-| 12 p1-implementation |      499 | 0 | 实现基线 v1.0 |
-| 13 p1-acceptance |      169 | 0 | 验收证据 v1.0 |
-| 14 p1-acceptance-kit |      330 | 0 | 执行包 v1.0 |
+| 12 p1-implementation | 499 | 0 | 实现基线 v1.0 |
+| 13 p1-acceptance | 181 | 0 | 验收证据 v1.0 |
+| 14 p1-acceptance-kit | 330 | 0 | 执行包 v1.0 |
 | PRD v1.0 | 643 | 0 | 需求基线（原文） |
 
 > 子文档中 “00 v1.1/v1.2” 的引用为其写作时点；以 00 当前版本 v1.5 为准。
@@ -303,6 +303,7 @@ camPush/
 | v1.10 | 2026-10-20 | Team Lead | 推流瞬间掉 2fps 修复：枚举并优先硬件 H.264 编码器、按能力选择 NV12/I420/ Flexible 输入、YUV 转换复用缓冲、日志输出 encoder choice |
 | v1.11 | 2026-10-20 | Team Lead | 极低帧率救援：1080p 连续 3s 仅 1–4fps 时自动切 720p（播放地址不变），提示语更新；配合硬件编码器选择排查真机 2fps |
 | v1.12 | 2026-10-20 | Team Lead | 低帧率提示携带编码器名称/软硬编与 in/out fps；播放器追帧阈值 1.2s→0.6s 降低观看延迟 |
+| v1.24 | 2026-10-21 | Team Lead | **P1 条件 G1 通过（内测范围）**：AC-01 采样完成（点击 p50 95ms/p95 124ms；冷启动 p50 1.82s/p95 7.20s）、iOS Safari 通过、独立日志服务、简化豁免登记 |
 | v1.23 | 2026-10-21 | Team Lead | 独立诊断日志服务：应用打开即启动（设置入口，18089–18099 + token），累计落盘/轮转、不依赖推流；iOS Safari 确认 VPN 问题已通过；新增 DiagnosticLogServer 测试 |
 | v1.22 | 2026-10-21 | Team Lead | 修复 iOS Safari 5004：Surface 管线增加 640×480 ImageReader→JPEG，恢复 MJPEG 降级；新增单真机简化验收方案（条件 G1） |
 | v1.21 | 2026-10-21 | Team Lead | P1 收尾：埋点离线补报、86 条验收用例、Top12/E7 矩阵与执行包 docs/14；交付物 31/31，G1 待真机证据 |
