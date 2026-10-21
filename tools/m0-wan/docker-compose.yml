@@ -1,0 +1,30 @@
+# CamPush P2 M0-WAN 本地栈（仅开发验证，不是生产部署）
+# 用法：cd tools/m0-wan && docker compose up -d
+# 停止：docker compose down
+services:
+  srs:
+    image: ossrs/srs:6
+    container_name: campush-srs
+    command: ["./objs/srs", "-c", "conf/srs.conf"]
+    ports:
+      - "1935:1935"     # RTMP ingest
+      - "18080:8080"    # HTTP-FLV / HLS / HTTP server
+      - "1985:1985"     # SRS HTTP API
+    volumes:
+      - ./srs.conf:/usr/local/srs/conf/srs.conf:ro
+    restart: unless-stopped
+
+  # TURN（NAT 穿透）。本机 macOS 验证时可先不启，公网/E2 时必需。
+  coturn:
+    image: coturn/coturn:latest
+    container_name: campush-turn
+    network_mode: host
+    command:
+      - "-n"
+      - "--log-file=stdout"
+      - "--lt-cred-mech"
+      - "--user=campush:campush"
+      - "--realm=campush.local"
+      - "--fingerprint"
+      - "--no-cli"
+    restart: unless-stopped

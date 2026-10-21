@@ -28,9 +28,9 @@
 | 门禁 | 要求 | 当前 |
 |---|---|---|
 | P1 条件 G1 | 通过 | ✅ |
-| Top5 决策关闭 | D-1～D-5 有结论/默认生效记录 | ⚠️ 待确认（推荐值见 §3） |
-| M0-WAN E2/E4/E5 | NAT/网络矩阵、成本基线、TURN 验证 | ⚠️ 需云资源 |
-| 云环境 | 域名 + TLS + TURN + 媒体服务器 + 监控 | ❌ 未提供 |
+| Top5 决策关闭 | D-1～D-5 有结论记录 | ✅ 已决（2026-10-21，见 §3） |
+| M0-WAN E2/E4/E5 | NAT/网络矩阵、成本基线、TURN 验证 | ⚠️ 本机 RTMP→FLV/HLS 已通；公网/TURN 待做 |
+| 云环境 | 域名 + TLS + TURN + 媒体服务器 + 监控 | ⚠️ 本机 Docker（SRS）已启动；公网/域名待提供 |
 | 代码边界 | P2 代码不得破坏 P1 LAN 契约 | 约束已写入 AGENTS |
 
 **规则**：Top5 未确认前只做设计与预研；确认后按 §4 顺序开工。
@@ -39,15 +39,15 @@
 
 ## 3. Top5 推荐结论（待确认，可直接“默认生效”）
 
-| ID | 决策 | 推荐值（00 §20.4） | 对 P2 首批工作的影响 |
+| ID | 决策 | 结论（2026-10-21） | 对 P2 工作的影响 |
 |---|---|---|---|
-| D-1 | 默认访问范围 | 公网默认 + 首次引导；LAN 作为弱网/低延迟备选 | Android 首启引导、accessScope 默认 WAN |
-| D-2 | 公网托管形态 | v1 自建：WHIP/SRT/RTMP 接入 + Mediasoup SFU + SRS 转封装 + TURN | 云服务架构、成本模型、部署 |
-| D-3 | 双摄门槛 | 支持率 ≥40% 才作卖点，否则实验性 | 双摄 WBS 是否进入 P2 |
-| D-4 | LAN 端侧 RTMP | P1 仅 FLV/MJPEG；RTMP 进 P2 评估 | LAN 增强范围 |
-| D-5 | RTMPS | 进入 P2 评估；v1 明文 + UI 明示 | 安全文案/传输层 |
+| D-1 | 默认访问范围 | **按网络自动推荐**：Wi-Fi 推荐 LAN、蜂窝/无 LAN 推荐 WAN；首启保留引导 | Android 首启/切换逻辑、AC-09 口径调整 |
+| D-2 | 公网托管形态 | **v1 自建**：WHIP/SRS/Mediasoup + TURN | 云服务架构、成本模型、部署 |
+| D-3 | 双摄门槛 | **支持率 ≥40% 才作卖点，否则实验性** | 先做 T0-A1 探测；P2 末再定 |
+| D-4 | LAN 端侧 RTMP | **P2 实现** LAN RTMP 推流（范围新增） | 新增 Android RTMP 客户端 + 端侧 RTMP ingest，需评估工期 |
+| D-5 | RTMPS | **P2 评估**；v1 明文 + UI 明示 | 安全评审与文案 |
 
-> 若按推荐值执行，需在 §5 记录“默认生效”并同步 [11](../docs/11-risk-adr.md)。
+> 决策已关闭（用户确认，2026-10-21）。D-4 为新增范围，需在 P2 WBS 中补 T2-A4（LAN RTMP ingest）与 Android RTMP 推流任务；D-1 与 00 §20.4 推荐值不同，已在验收/首启设计中记录。
 
 ---
 
@@ -62,6 +62,7 @@
 | 4 | T0-W1 | 播放页 WHEP 最小原型 + 错误态 | T0-S1 | 可打开 URL |
 | 5 | T0-S2 | RTMP→FLV/HLS 兜底验证 | T0-S1 | HLS 可播 + 切片时长 |
 | 6 | T0-A3 | 双摄 PiP OpenGL 合成（D-3 允许时） | T0-A1 | 合成+温升采样 |
+| 7 | T2-A4（新增） | LAN 端侧 RTMP ingest + Android RTMP 推流（D-4 已决） | P1 端侧服务 | 推流器接入 + FLV 播放 |
 
 **开发原则**
 
@@ -71,6 +72,16 @@
 - 每个任务必须有契约测试/首帧数据，禁止“只写通不验证”。
 
 ---
+
+## 4.1 M0-WAN 本机环境进展（2026-10-21）
+
+- Docker（OrbStack）可用；`tools/m0-wan/docker-compose.yml` 已提交；
+- SRS 6 启动：`1935`（RTMP）、`18080`（HTTP-FLV/HLS）、`1985`（API），API 200；
+- 用本地 ffmpeg 测试源推 `rtmp://127.0.0.1:1935/live/campush`：
+  - HTTP-FLV `200`，约 **894 KB / 4s**；
+  - HLS master `200`，切片 `live/campush-*.ts` 正常生成；
+- TURN（coturn）镜像拉取受 macOS Docker 凭据弹窗阻塞，待解决；
+- WHIP/WHEP 需 Mediasoup，下一任务 T0-S1。
 
 ## 5. 需要用户/环境提供
 

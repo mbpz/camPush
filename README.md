@@ -305,6 +305,7 @@ camPush/
 | v1.10 | 2026-10-20 | Team Lead | 推流瞬间掉 2fps 修复：枚举并优先硬件 H.264 编码器、按能力选择 NV12/I420/ Flexible 输入、YUV 转换复用缓冲、日志输出 encoder choice |
 | v1.11 | 2026-10-20 | Team Lead | 极低帧率救援：1080p 连续 3s 仅 1–4fps 时自动切 720p（播放地址不变），提示语更新；配合硬件编码器选择排查真机 2fps |
 | v1.12 | 2026-10-20 | Team Lead | 低帧率提示携带编码器名称/软硬编与 in/out fps；播放器追帧阈值 1.2s→0.6s 降低观看延迟 |
+| v2.1 | 2026-10-21 | Team Lead | P2 启动：Top5 决策记录（D-1 按网络自动推荐、D-2 自建、D-3 ≥40%、D-4 LAN RTMP 纳入 P2、D-5 评估）；M0-WAN 本机 SRS 验证 RTMP→FLV/HLS 通过 |
 | v2.0 | 2026-10-21 | Team Lead | **P1 条件 G1 完成，P2 进入 Gate 周**：新增 docs/15 P2 启动记录；Top5/云资源待确认后开工 WAN |
 | v1.24 | 2026-10-21 | Team Lead | **P1 条件 G1 通过（内测范围）**：AC-01 采样完成（点击 p50 95ms/p95 124ms；冷启动 p50 1.82s/p95 7.20s）、iOS Safari 通过、独立日志服务、简化豁免登记 |
 | v1.23 | 2026-10-21 | Team Lead | 独立诊断日志服务：应用打开即启动（设置入口，18089–18099 + token），累计落盘/轮转、不依赖推流；iOS Safari 确认 VPN 问题已通过；新增 DiagnosticLogServer 测试 |
