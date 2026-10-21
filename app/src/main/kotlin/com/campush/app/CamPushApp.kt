@@ -18,6 +18,7 @@ class CamPushApp : Application() {
     override fun onCreate() {
         super.onCreate()
         DiagLog.init(this)
+        Telemetry.init(this)
         Telemetry.event("app_open", mapOf("appVersion" to BuildConfig.VERSION_NAME))
         if (BuildConfig.DEBUG) {
             android.webkit.WebView.setWebContentsDebuggingEnabled(true)

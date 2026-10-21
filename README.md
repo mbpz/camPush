@@ -98,6 +98,7 @@ PRD 定义 **What / Why**；本集定义 **How / 边界 / 验收 / 排期 / 风�
 | 11 | [risk-adr](./docs/11-risk-adr.md) | 20 条风险、Top5 决策门禁、ADR-001～013（含 LAN-first 分期）、降级路径 | 产品 / 技术负责人 |
 | 12 | [p1-implementation](./docs/12-p1-implementation.md) | **P1 实现说明**：代码结构、构建运行、功能清单、验收证据、已知限制 | 研发 / QA |
 | 13 | [p1-acceptance](./docs/13-p1-acceptance.md) | **P1 验收报告（G1 证据包）**：M0-LAN、AC/N 对照、DoD、未完成项与收尾计划 | 产品 / QA / Lead |
+| 14 | [p1-acceptance-kit](./docs/14-p1-acceptance-kit.md) | **P1 验收执行包**：Top12/E7 矩阵、86 条用例、安全用例、AC-01 计时、M0 评审、UI/埋点/看板/发布模板 | QA / 产品 / 研发 |
 | — | [PRD v1.0](./docs/PRD-v1.0.md) | 用户提供的需求原文（不改写，仅引用） | 全员 |
 | — | [scripts/check_docs.py](./scripts/check_docs.py) | 8 类文档一致性 CI 门禁 | 全员 |
 
@@ -223,6 +224,7 @@ python3 scripts/check_docs.py --strict
 | 11 risk-adr | 512 | 2 | 基线 v1.2（ADR-013） |
 | 12 p1-implementation |      493 | 0 | 实现基线 v1.0 |
 | 13 p1-acceptance |      119 | 0 | 验收证据 v1.0 |
+| 14 p1-acceptance-kit |      265 | 0 | 执行包 v1.0 |
 | PRD v1.0 | 643 | 0 | 需求基线（原文） |
 
 > 子文档中 “00 v1.1/v1.2” 的引用为其写作时点；以 00 当前版本 v1.5 为准。
@@ -301,6 +303,7 @@ camPush/
 | v1.10 | 2026-10-20 | Team Lead | 推流瞬间掉 2fps 修复：枚举并优先硬件 H.264 编码器、按能力选择 NV12/I420/ Flexible 输入、YUV 转换复用缓冲、日志输出 encoder choice |
 | v1.11 | 2026-10-20 | Team Lead | 极低帧率救援：1080p 连续 3s 仅 1–4fps 时自动切 720p（播放地址不变），提示语更新；配合硬件编码器选择排查真机 2fps |
 | v1.12 | 2026-10-20 | Team Lead | 低帧率提示携带编码器名称/软硬编与 in/out fps；播放器追帧阈值 1.2s→0.6s 降低观看延迟 |
+| v1.21 | 2026-10-21 | Team Lead | P1 收尾：埋点离线补报、86 条验收用例、Top12/E7 矩阵与执行包 docs/14；交付物 31/31，G1 待真机证据 |
 | v1.20 | 2026-10-21 | Team Lead | 补齐 P1 埋点与验收：App 队列/批量上报、端侧事件计数、PIN 限速/锁定测试；新增 docs/13 P1 验收报告 |
 | v1.19 | 2026-10-21 | Team Lead | 画面方向修复：按传感器+屏幕旋转生成 `?rot=`，播放页 CSS 旋转并提供「旋转」按钮，解决手机向上/画面向右的 90° 错位 |
 | v1.18 | 2026-10-21 | Team Lead | 1080p 进一步清晰化：自动 12 Mbps + 档位 12000；启动等待 SurfaceView 避免黑屏重建；恢复相机原生预览尺寸 |
