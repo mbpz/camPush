@@ -13,7 +13,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.webrtc.Camera2Enumerator
 import org.webrtc.DefaultVideoDecoderFactory
-import org.webrtc.DefaultVideoEncoderFactory
 import org.webrtc.EglBase
 import org.webrtc.IceCandidate
 import org.webrtc.MediaConstraints
@@ -102,7 +101,7 @@ class WanWhipClient(private val context: Context) {
         eglBase = egl
         val audioModule = JavaAudioDeviceModule.builder(context).createAudioDeviceModule()
         factory = PeerConnectionFactory.builder()
-            .setVideoEncoderFactory(DefaultVideoEncoderFactory(egl.eglBaseContext, true, true))
+            .setVideoEncoderFactory(HybridH264EncoderFactory(egl.eglBaseContext))
             .setVideoDecoderFactory(DefaultVideoDecoderFactory(egl.eglBaseContext))
             .setAudioDeviceModule(audioModule)
             .createPeerConnectionFactory()

@@ -177,6 +177,9 @@
   但 SRS 返回 `5018 RtcSdpNegotiate: no found valid H.264 payload type`；
   原因是模拟器没有硬件 H.264 编码器，WebRTC SDK 只提供 VP8/VP9（SRS RTC 只收 H264）；
 - 设置页已接入 **WAN 房间流程**：填 cloud-core API → 创建房间 → 取 `ingest.whipUrl` → WHIP 推流 → 停止时 DELETE 房间；
+- **软件 H264 编码器**（`MediaCodecH264Encoder` + `HybridH264EncoderFactory`）：真机优先硬件 H264，
+  无硬件时用 MediaCodec 软件编码；模拟器 WHIP offer 已包含 H264（payload 127），SRS 返回
+  `Publisher established`；视频帧同步仍待验证（audio 已 sync）；
 - 模拟器实测：房间创建成功（如 `rV190RZWSB`），拿到 roomId/playUrl，WHIP offer 到达 SRS 后因无 H264 失败；
 - 下一步：在真机（有 H.264 硬编）验证 App→SRS WHIP 30fps；模拟器可用 RTMP/FLV 路径做替代验证；
 - 注意：cloud-core 的 `CAMPUSH_API_HOST` 需设为手机/模拟器可达地址，否则返回的 playUrl 是 127.0.0.1。
