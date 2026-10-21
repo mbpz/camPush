@@ -201,11 +201,30 @@ class CloudServer(
                 out.write("retry: 3000\nevent: $event\ndata: $data\n\n".toByteArray())
                 out.flush()
             }
+            var lastViewers = room.viewers
+            var lastState = room.state
             emit("state", """{"roomId":"${room.id}","state":"${room.state}","viewers":${room.viewers}}""")
+            var lastHeartbeat = System.currentTimeMillis()
             while (server != null) {
-                Thread.sleep(15_000)
-                room.lastActiveAt = clock()
-                emit("heartbeat", "{}")
+                Thread.sleep(1_000)
+                if (room.viewers != lastViewers) {
+                    lastViewers = room.viewers
+                    emit("viewer-count", """{"viewers":$lastViewers}""")
+                }
+                if (room.state != lastState) {
+                    lastState = room.state
+                    emit("state", """{"roomId":"${room.id}","state":"${room.state}","viewers":${room.viewers}}""")
+                    if (lastState == "closed" || lastState == "failed") {
+                        emit("ended", """{"reason":"room_closed"}""")
+                        break
+                    }
+                }
+                val now = System.currentTimeMillis()
+                if (now - lastHeartbeat >= 15_000) {
+                    room.lastActiveAt = clock()
+                    lastHeartbeat = now
+                    emit("heartbeat", "{}")
+                }
             }
         } catch (_: Throwable) {
         } finally {

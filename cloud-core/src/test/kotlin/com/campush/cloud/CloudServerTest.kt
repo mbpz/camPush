@@ -81,6 +81,55 @@ class CloudServerTest {
     }
 
     @Test
+    fun sseEmitsViewerCountAndEnded() {
+        val (_, base) = start()
+        val created = post(base, "/api/v1/rooms", """{"accessScope":"wan","captureMode":"single_back"}""", mapOf("Authorization" to "Bearer acct_test"))
+        val roomId = Regex("\"roomId\":\"([^\"]+)\"").find(created.body())!!.groupValues[1]
+        val pageToken = Regex("\"playUrl\":\"[^\"]*token=([^\"]+)\"").find(created.body())!!.groupValues[1]
+        val ingestToken = Regex("\"ingest\":\\{[^}]*\"token\":\"([^\"]+)\"").find(created.body())!!.groupValues[1]
+
+        val conn = java.net.URL("$base/api/v1/rooms/$roomId/events").openConnection() as java.net.HttpURLConnection
+        conn.setRequestProperty("X-Page-Token", pageToken)
+        conn.connectTimeout = 2000
+        conn.readTimeout = 6000
+        try {
+            assertEquals(200, conn.responseCode)
+            val reader = conn.inputStream.bufferedReader()
+            assertEquals("retry: 3000", reader.readLine())
+            assertEquals("event: state", reader.readLine())
+            assertTrue(reader.readLine()!!.startsWith("data: "))
+            reader.readLine() // blank line
+
+            val ps = post(base, "/api/v1/rooms/$roomId/play-session", "{}", mapOf("X-Page-Token" to pageToken))
+            assertEquals(201, ps.statusCode())
+            val events = mutableListOf<String>()
+            val deadline = System.currentTimeMillis() + 5_000
+            while (System.currentTimeMillis() < deadline && !events.contains("event: viewer-count")) {
+                if (reader.ready()) events.add(reader.readLine() ?: break) else Thread.sleep(50)
+            }
+            assertTrue("events=$events", events.contains("event: viewer-count"))
+
+            // 停止房间应触发 ended（ingest token）
+            val connDel = java.net.URL("$base/api/v1/rooms/$roomId").openConnection() as java.net.HttpURLConnection
+            connDel.requestMethod = "DELETE"
+            connDel.setRequestProperty("Authorization", "Bearer $ingestToken")
+            connDel.connectTimeout = 2000
+            connDel.readTimeout = 3000
+            connDel.responseCode
+            connDel.disconnect()
+
+            val endedEvents = mutableListOf<String>()
+            val deadline2 = System.currentTimeMillis() + 5_000
+            while (System.currentTimeMillis() < deadline2 && !endedEvents.contains("event: ended")) {
+                if (reader.ready()) endedEvents.add(reader.readLine() ?: break) else Thread.sleep(50)
+            }
+            assertTrue("ended=$endedEvents", endedEvents.contains("event: ended"))
+        } finally {
+            conn.disconnect()
+        }
+    }
+
+    @Test
     fun hlsProxyRewritesSegmentsAndServesTs() {
         val mock = com.sun.net.httpserver.HttpServer.create(java.net.InetSocketAddress("127.0.0.1", 0), 0)
         mock.createContext("/live/") { ex ->

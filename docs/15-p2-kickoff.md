@@ -98,7 +98,7 @@
 - 已实现：`POST /api/v1/rooms`（accessScope=wan 校验、幂等键、roomId/pageToken/ingestToken/turn/limits）、
   `GET /rooms/{id}`、`DELETE /rooms/{id}`（ingest token）、`POST /rooms/{id}/play-session`、`GET /rooms/{id}/status`、`/healthz`；
 - 测试：2/2 通过（创建→play-session→status、LAN scope 2007、无/坏 token 3001/3002）；
-- SSE 已补：`GET /api/v1/rooms/{id}/events`（page token，`state` + 15s `heartbeat`，断线重连 `retry:3000`）；
+- SSE 已补：`GET /api/v1/rooms/{id}/events`（page token，`state`、`viewer-count`、`ended`、15s `heartbeat`，`retry:3000`）；
 - WHIP/WHEP 反向代理已补：`POST /whep/{roomId}`、`POST /whip/{roomId}`，校验 media/ingest token，
   转发到 SRS `${whipHost}:${whipApiPort}`，带 CORS 头；
 - 待补：账号体系、额度/套餐、viewer-count/ended 事件、10 min 回收 clock 注入测试、真实 SDP 代理 E2E。
@@ -111,7 +111,7 @@
 - 内置 `hls.min.js`（415 KB）与 `mpegts.js`（273 KB，Apache-2.0），无需外网 CDN；
 - `CloudConfig` 增加 `playbackHost/playbackPort`（默认 `srs.m0-wan.orb.local:8080`），可在 `/config` 页修改；
 - 本地启动：`cloud-core/build/install/cloud-core/bin/cloud-core`（JAVA_HOME 指向 JDK 17+），默认 `:18090`；
-- 测试：`cloud-core` 8/8（播放页/资产、坏 token、PIN 3004/3005、FLV/HLS token 与 playlist 改写）。
+- 测试：`cloud-core` 9/9（播放页/资产、坏 token、PIN 3004/3005、FLV/HLS token/playlist、SSE viewer-count/ended）。
 - PIN：创建房间 `pinRequired=true` 必须提供 4–6 位数字（否则 400/3004）；
   `play-session` 校验 `pin`（错误/缺失 401/3005），播放页 3005 时弹窗输入重试；
 - 播放页 HUD：WHEP 显示分辨率/fps/kbps（getStats），FLV/HLS 显示分辨率/丢帧；
