@@ -502,6 +502,7 @@ private fun SettingsContent(
         // ---------- 关于 ----------
         SettingsSectionTitle("关于")
         AboutRow("版本", BuildConfig.VERSION_NAME)
+        AboutRow("构建", BuildConfig.GIT_SHA)
         AboutRow("契约基线", BuildInfo.CONTRACT_BASELINE)
         AboutRow("运行模式", "P1 · 局域网推流（公网阶段二开放）")
         Spacer(Modifier.height(8.dp))

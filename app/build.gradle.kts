@@ -1,3 +1,7 @@
+val appVersionCode = (project.findProperty("appVersionCode") as? String)?.toIntOrNull() ?: 1
+val appVersionName = (project.findProperty("appVersionName") as? String) ?: "1.0.0-p1"
+val gitSha = (project.findProperty("gitSha") as? String) ?: "dev"
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -11,8 +15,9 @@ android {
         applicationId = "com.campush.app"
         minSdk = 24
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.0-p1"
+        versionCode = appVersionCode
+        versionName = appVersionName
+        buildConfigField("String", "GIT_SHA", "\"$gitSha\"")
     }
 
     signingConfigs {
