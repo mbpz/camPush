@@ -91,8 +91,11 @@
     `192.168.107.2`（`CANDIDATE=192.168.107.2 docker compose up -d --force-recreate srs`）后，
     浏览器 WHIP `RTC: DTLS handshake done / Publisher established`，SRS 收到 H264 Baseline 320x240；
     WHEP 请求 `Subscriber url=/live/... established`；
-  - 云端播放页 headless 截图 WHEP 未出首帧（回退 HLS 也因 headless 限制失败），
-    需桌面 Chrome/真机确认首帧；信令与 SRS 订阅已建立。
+  - **WHEP 首帧已验证（2026-10-21，headless Chrome + CDP）**：
+    SRS `whep.html` 视频 `readyState=4`、`currentTime=7.78s`、`320x240`、`paused=false`；
+    云端播放页 `/s/{room}?token=` 状态「WHEP 已连接」，`readyState=4`、`currentTime=9.38s`、`320x240`；
+  - 结论：**browser WHIP → SRS → cloud WHEP 代理 → 播放页首帧闭环通过**；
+    candidate 使用容器 IP 仅本机浏览器调试，跨设备仍需宿主 IP/TURN。
 - 下一步：T0-S1 用 App/browser 完成 WHIP→WHEP 首帧并记录时延。
 
 ### 4.2 T1-S1 房间 REST 骨架（已启动）
