@@ -34,6 +34,7 @@ class CloudServer(
         val pageToken: String,
         val ingestToken: String,
         val pinRequired: Boolean,
+        val pin: String? = null,
         var state: String = "created",
         var viewers: Int = 0,
         var lastActiveAt: Long = createdAt,
@@ -116,9 +117,13 @@ class CloudServer(
         val id = "r" + (1..9).map { CROCKFORD[Random.nextInt(CROCKFORD.length)] }.joinToString("")
         val maxDuration = field(body, "maxDurationSec")?.toIntOrNull()?.coerceIn(60, config.maxDurationSec) ?: config.maxDurationSec
         val pinRequired = body.contains("\"pinRequired\"") && body.contains("true")
+        val pin = field(body, "pin")
+        if (pinRequired && (pin == null || !Regex("^\\d{4,6}$").matches(pin))) {
+            return send(ex, 400, error(3004, "pin_required", "pin 4-6 digits required"))
+        }
         val pageToken = tokens.issue(id, "page", 3600, listOf("play"), pinRequired, now)
         val ingestToken = tokens.issue(id, "ingest", maxDuration.toLong(), listOf("ingest"), false, now)
-        val room = Room(id, now, now + maxDuration * 1000L, pageToken, ingestToken, pinRequired)
+        val room = Room(id, now, now + maxDuration * 1000L, pageToken, ingestToken, pinRequired, pin)
         rooms[id] = room
         if (idem != null) idempotency[idem] = id
         send(ex, 201, roomJson(room))
@@ -151,6 +156,13 @@ class CloudServer(
         val claims = pageToken?.let { tokens.verify(it) }
         if (claims == null || claims.aud != "page" || claims.sub != id) {
             return send(ex, 401, error(3002, "token_invalid", "page token invalid"))
+        }
+        val body = ex.requestBody.bufferedReader().readText()
+        if (room.pinRequired) {
+            val supplied = field(body, "pin")
+            if (supplied == null || supplied != room.pin) {
+                return send(ex, 401, error(3005, "pin_invalid", "PIN required or incorrect"))
+            }
         }
         if (room.viewers >= config.maxViewers) return send(ex, 429, error(2008, "max_viewers", "viewer limit"))
         room.viewers++

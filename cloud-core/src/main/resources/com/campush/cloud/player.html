@@ -21,6 +21,7 @@
   <div id="bar">
     <span id="dot" class="dot"></span>
     <span id="status">准备中…</span>
+    <span id="stats"></span>
     <span id="proto">—</span>
     <button id="retry" type="button">重试</button>
   </div>
@@ -37,8 +38,9 @@
   const statusEl = document.getElementById('status');
   const dot = document.getElementById('dot');
   const protoEl = document.getElementById('proto');
+  const statsEl = document.getElementById('stats');
   const errEl = document.getElementById('err');
-  let pc = null, hls = null, flv = null, current = null;
+  let pc = null, hls = null, flv = null, current = null, statsTimer = null, lastBytes = 0, lastTs = 0;
 
   const setStatus = (t, kind = '') => {
     statusEl.textContent = t;
@@ -52,18 +54,51 @@
   const stop = () => {
     if (hls) { try { hls.destroy(); } catch (_) {} hls = null; }
     if (flv) { try { flv.destroy(); } catch (_) {} flv = null; }
+    if (statsTimer) { clearInterval(statsTimer); statsTimer = null; }
+    statsEl.textContent = '';
     if (pc) { try { pc.close(); } catch (_) {} pc = null; }
     v.srcObject = null; v.removeAttribute('src'); v.load();
   };
 
-  async function playSession() {
+  async function playSession(pin) {
     const r = await fetch(`/api/v1/rooms/${roomId}/play-session`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Page-Token': pageToken },
-      body: '{}',
+      body: JSON.stringify(pin ? { pin } : {}),
     });
+    if (r.status === 401) {
+      const data = await r.json().catch(() => ({}));
+      if (data.code === 3005) {
+        const entered = prompt('请输入 4-6 位观看 PIN');
+        if (entered) return playSession(entered);
+      }
+    }
     if (!r.ok) throw new Error('play-session HTTP ' + r.status);
     return await r.json();
+  }
+
+  function startStats() {
+    if (statsTimer) clearInterval(statsTimer);
+    lastBytes = 0; lastTs = performance.now();
+    statsTimer = setInterval(async () => {
+      try {
+        if (pc) {
+          const stats = await pc.getStats();
+          stats.forEach((r) => {
+            if (r.type === 'inbound-rtp' && r.kind === 'video') {
+              const now = performance.now();
+              const bytes = r.bytesReceived || 0;
+              const kbps = lastBytes && now > lastTs ? Math.round((bytes - lastBytes) * 8 / (now - lastTs)) : 0;
+              lastBytes = bytes; lastTs = now;
+              statsEl.textContent = `${r.frameWidth || '?'}x${r.frameHeight || '?'} · ${Math.round(r.framesPerSecond || 0)}fps · ${kbps}kbps`;
+            }
+          });
+        } else if (v.videoWidth) {
+          const q = v.getVideoPlaybackQuality ? v.getVideoPlaybackQuality() : {};
+          statsEl.textContent = `${v.videoWidth}x${v.videoHeight} · drop ${q.droppedVideoFrames ?? 0}`;
+        }
+      } catch (_) {}
+    }, 1000);
   }
 
   async function tryWhep(url, mediaToken) {
@@ -86,6 +121,7 @@
     const answer = await res.text();
     await pc.setRemoteDescription({ type: 'answer', sdp: answer });
     await waitPlaying(5000);
+    startStats();
   }
 
   function waitPlaying(ms) {
@@ -112,7 +148,7 @@
       hls = new window.Hls({ liveSyncDurationCount: 2, lowLatencyMode: false });
       hls.loadSource(url);
       hls.attachMedia(v);
-      hls.on(window.Hls.Events.MANIFEST_PARSED, () => { v.play().catch(() => {}); });
+      hls.on(window.Hls.Events.MANIFEST_PARSED, () => { v.play().catch(() => {}); startStats(); });
       hls.on(window.Hls.Events.ERROR, (_, data) => { if (data.fatal) fail(new Error('HLS ' + data.details)); });
     } else {
       v.src = url;

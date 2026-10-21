@@ -79,6 +79,29 @@ class CloudServerTest {
     }
 
     @Test
+    fun pinRequiredRoomEnforcesPin() {
+        val (_, base) = start()
+        val missing = post(base, "/api/v1/rooms", """{"accessScope":"wan","captureMode":"single_back","pinRequired":true}""", mapOf("Authorization" to "Bearer acct_test"))
+        assertEquals(400, missing.statusCode())
+        assertTrue(missing.body().contains("3004"))
+
+        val created = post(base, "/api/v1/rooms", """{"accessScope":"wan","captureMode":"single_back","pinRequired":true,"pin":"1234"}""", mapOf("Authorization" to "Bearer acct_test"))
+        assertEquals(201, created.statusCode())
+        val roomId = Regex("\"roomId\":\"([^\"]+)\"").find(created.body())!!.groupValues[1]
+        val pageToken = Regex("\"playUrl\":\"[^\"]*token=([^\"]+)\"").find(created.body())!!.groupValues[1]
+
+        val noPin = post(base, "/api/v1/rooms/$roomId/play-session", "{}", mapOf("X-Page-Token" to pageToken))
+        assertEquals(401, noPin.statusCode())
+        assertTrue(noPin.body().contains("3005"))
+
+        val wrong = post(base, "/api/v1/rooms/$roomId/play-session", """{"pin":"0000"}""", mapOf("X-Page-Token" to pageToken))
+        assertEquals(401, wrong.statusCode())
+
+        val ok = post(base, "/api/v1/rooms/$roomId/play-session", """{"pin":"1234"}""", mapOf("X-Page-Token" to pageToken))
+        assertEquals(201, ok.statusCode())
+    }
+
+    @Test
     fun cloudPlayerPageServesAndRejectsBadToken() {
         val (_, base) = start()
         val created = post(base, "/api/v1/rooms", """{"accessScope":"wan","captureMode":"single_back"}""", mapOf("Authorization" to "Bearer acct_test"))

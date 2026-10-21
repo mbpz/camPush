@@ -108,8 +108,11 @@
 - 内置 `hls.min.js`（415 KB）与 `mpegts.js`（273 KB，Apache-2.0），无需外网 CDN；
 - `CloudConfig` 增加 `playbackHost/playbackPort`（默认 `srs.m0-wan.orb.local:8080`），可在 `/config` 页修改；
 - 本地启动：`cloud-core/build/install/cloud-core/bin/cloud-core`（JAVA_HOME 指向 JDK 17+），默认 `:18090`；
-- 测试：`cloud-core` 6/6（播放页 200、坏 token 401、hls 资产）。
-- 待补：MJPEG 兜底、PIN 输入、首帧/卡顿指标、真实媒体 E2E、HLS 同源代理/分段 token。
+- 测试：`cloud-core` 7/7（播放页/资产、坏 token、PIN 3004/3005、FLV token）。
+- PIN：创建房间 `pinRequired=true` 必须提供 4–6 位数字（否则 400/3004）；
+  `play-session` 校验 `pin`（错误/缺失 401/3005），播放页 3005 时弹窗输入重试；
+- 播放页 HUD：WHEP 显示分辨率/fps/kbps（getStats），FLV/HLS 显示分辨率/丢帧；
+- 待补：MJPEG 兜底、真实媒体 E2E、HLS 同源代理/分段 token、首帧量化指标。
 
 ### 4.3 T0-A2 Android WHIP 客户端（已接入，待真机验证）
 
