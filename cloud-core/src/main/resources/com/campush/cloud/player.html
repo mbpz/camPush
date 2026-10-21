@@ -23,6 +23,7 @@
     <span id="status">准备中…</span>
     <span id="stats"></span>
     <span id="proto">—</span>
+    <button id="switch" type="button">切换协议</button>
     <button id="retry" type="button">重试</button>
   </div>
   <div id="err"></div>
@@ -33,7 +34,8 @@
 (() => {
   const roomId = location.pathname.split('/').filter(Boolean).pop();
   const params = new URLSearchParams(location.search);
-  const forced = params.get('force') || '';
+  let forced = params.get('force') || '';
+  let currentProtocol = '';
 
   const pageToken = params.get('token') || '';
   const v = document.getElementById('v');
@@ -203,6 +205,7 @@
         try {
           await tryWhep(protocols.webrtc.url, session.mediaToken);
           setStatus('WHEP 已连接', 'ok');
+          currentProtocol = 'whep';
           reportFirstFrame('whep');
           return;
         } catch (e) {
@@ -214,6 +217,7 @@
         try {
           await tryFlv(protocols.flv.url);
           setStatus('FLV 播放中', 'ok');
+          currentProtocol = 'flv';
           reportFirstFrame('flv');
           return;
         } catch (e) {
@@ -224,6 +228,7 @@
         protoEl.textContent = 'HLS';
         await startHls(protocols.hls.url);
         setStatus('HLS 播放中', 'ok');
+        currentProtocol = 'hls';
         reportFirstFrame('hls');
         return;
       }
@@ -234,6 +239,14 @@
   }
 
   document.getElementById('retry').onclick = start;
+  document.getElementById('switch').onclick = () => {
+    const order = ['whep', 'flv', 'hls'];
+    const now = order.indexOf(currentProtocol || forced || 'whep');
+    const next = order[(now + 1) % order.length];
+    report('protocol_switch', { from: currentProtocol || 'none', to: next });
+    forced = next;
+    start();
+  };
   start();
 })();
 </script>

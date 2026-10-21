@@ -137,7 +137,9 @@
   `readyState=4`、320×240、首帧 `231ms`（metrics `hls p50=231`）；
 - 说明：WHIP（RTC）源在 SRS 转 HLS 的 TS 分片出现 H264 decode error（SRS 侧问题），
   云播放页/代理本身已验证；正式 WAN 源仍以 WHEP/FLV 优先、HLS 兜底；
-- 待补：MJPEG 兜底。
+- **页内协议切换（AC-03 播放侧）**：播放页「切换协议」FLV→HLS，页面 URL 完全不变，
+  切换后 `readyState=4`、320×240；上报 `protocol_switch`；
+- 待补：MJPEG 兜底、服务端 ingest 协议切换。
 
 ### 4.3 T0-A1 双摄能力探测（D-3 数据）
 
