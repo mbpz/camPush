@@ -32,7 +32,7 @@ Gradle 通过 `-PappVersionCode` / `-PappVersionName` / `-PgitSha` 注入，定�
 
 ## 3. 下载 APK
 
-- **最新 P1 预发布**：<https://github.com/mbpz/camPush/releases/tag/v1.0.0-p1>（APK + SHA256SUMS）
+- **最新 P1 预发布（正式签名）**：<https://github.com/mbpz/camPush/releases/tag/v1.0.0-p1.1>（APK + SHA256SUMS）
 - **每次提交**：GitHub → Actions → 对应 run → Artifacts → `campush-apk-<versionName>-<versionCode>`；
 - **正式/预发布**：GitHub → Releases → 下载 `.apk` 与 `SHA256SUMS.txt`；
 - 同一 run 会同时上传 `SHA256SUMS.txt` 便于校验。
@@ -79,6 +79,10 @@ release keystore 已在**本地**生成（不提交仓库）：
 | `RELEASE_STORE_PASSWORD` | `GITHUB_SECRETS.txt` |
 | `RELEASE_KEY_ALIAS` | `campush` |
 | `RELEASE_KEY_PASSWORD` | 同 store password |
+
+**已验证（2026-10-21）**：tag `v1.0.0-p1.1` 构建通过，CI `apksigner` 输出证书
+`CN=CamPush …`、SHA-256 `ace6137c4f91cb916e451169110750ceb70a2948e9d564623cbcab4abc781214`，
+产物 `campush-1.0.0-p1.1-33.apk` 已上传 Release。
 
 配置后：push `v*` tag 的 workflow 会：
 1. base64 解码 keystore 到 runner 临时目录（不落仓库）；
