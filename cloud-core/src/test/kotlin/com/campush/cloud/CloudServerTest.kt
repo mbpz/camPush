@@ -81,6 +81,44 @@ class CloudServerTest {
     }
 
     @Test
+    fun hlsProxyRewritesSegmentsAndServesTs() {
+        val mock = com.sun.net.httpserver.HttpServer.create(java.net.InetSocketAddress("127.0.0.1", 0), 0)
+        mock.createContext("/live/") { ex ->
+            val bytes = if (ex.requestURI.path.endsWith(".m3u8")) {
+                "#EXTM3U\n#EXT-X-TARGETDURATION:2\nseg1.ts\n".toByteArray()
+            } else {
+                byteArrayOf(0x47, 0x40, 0x00, 0x10)
+            }
+            ex.responseHeaders.add("Content-Type", if (ex.requestURI.path.endsWith(".m3u8")) "application/vnd.apple.mpegurl" else "video/mp2t")
+            ex.sendResponseHeaders(200, bytes.size.toLong())
+            ex.responseBody.use { it.write(bytes) }
+        }
+        mock.start()
+        val config = CloudConfig(accountToken = "acct_test", playbackHost = "http://127.0.0.1", playbackPort = mock.address.port)
+        val s = CloudServer(config)
+        val port = s.start(0)
+        server = s
+        val base = "http://127.0.0.1:$port"
+        try {
+            val created = post(base, "/api/v1/rooms", """{"accessScope":"wan","captureMode":"single_back"}""", mapOf("Authorization" to "Bearer acct_test"))
+            val roomId = Regex("\"roomId\":\"([^\"]+)\"").find(created.body())!!.groupValues[1]
+            val pageToken = Regex("\"playUrl\":\"[^\"]*token=([^\"]+)\"").find(created.body())!!.groupValues[1]
+            val session = post(base, "/api/v1/rooms/$roomId/play-session", "{}", mapOf("X-Page-Token" to pageToken))
+            val hlsPath = Regex("/hls/[^\"]+").find(session.body())!!.value
+            val playlist = get(base, hlsPath)
+            assertEquals(200, playlist.statusCode())
+            assertTrue(playlist.body().contains("/hls/seg1.ts?token="))
+
+            val mediaToken = Regex("token=([^&\"]+)").find(hlsPath)!!.groupValues[1]
+            val ts = get(base, "/hls/seg1.ts?token=$mediaToken")
+            assertEquals(200, ts.statusCode())
+            assertTrue(ts.body().isNotEmpty())
+        } finally {
+            mock.stop(0)
+        }
+    }
+
+    @Test
     fun pinRequiredRoomEnforcesPin() {
         val (_, base) = start()
         val missing = post(base, "/api/v1/rooms", """{"accessScope":"wan","captureMode":"single_back","pinRequired":true}""", mapOf("Authorization" to "Bearer acct_test"))

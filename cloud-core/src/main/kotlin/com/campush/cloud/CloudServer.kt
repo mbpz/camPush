@@ -77,6 +77,7 @@ class CloudServer(
                 method == "GET" && path == "/assets/hls.min.js" -> staticAsset(ex, "hls.min.js", "application/javascript; charset=utf-8")
                 method == "GET" && path == "/assets/mpegts.min.js" -> staticAsset(ex, "mpegts.min.js", "application/javascript; charset=utf-8")
                 method == "GET" && Regex("^/live/[^/]+$").matches(path) -> proxyLive(ex, path.removePrefix("/live/"))
+                method == "GET" && Regex("^/hls/[^/]+$").matches(path) -> proxyHls(ex, path.removePrefix("/hls/"))
                 method == "GET" && Regex("^/s/[^/]+$").matches(path) -> cloudPlayer(ex, path.removePrefix("/s/"))
                 method == "POST" && Regex("^/(whep|whip)/[^/]+$").matches(path) ->
                     proxyMedia(ex, path)
@@ -172,7 +173,7 @@ class CloudServer(
         send(
             ex,
             201,
-            """{"playSessionId":"$session","pageToken":"${room.pageToken}","mediaToken":"$media","protocols":{"webrtc":{"url":"${config.apiHost}/whep/$id"},"flv":{"url":"${config.apiHost}/live/$id.flv?token=$media"},"hls":{"url":"${config.playbackHost}:${config.playbackPort}/live/$id.m3u8"}},"turn":${turnJson(room)},"maxViewers":${config.maxViewers}}""",
+            """{"playSessionId":"$session","pageToken":"${room.pageToken}","mediaToken":"$media","protocols":{"webrtc":{"url":"${config.apiHost}/whep/$id"},"flv":{"url":"${config.apiHost}/live/$id.flv?token=$media"},"hls":{"url":"${config.apiHost}/hls/$id.m3u8?token=$media"}},"turn":${turnJson(room)},"maxViewers":${config.maxViewers}}""",
         )
     }
 
@@ -304,7 +305,9 @@ class CloudServer(
             if (kv.size == 2 && kv[0] == "token") URLDecoder.decode(kv[1], "UTF-8") else null
         }.firstOrNull()
         val claims = token?.let { tokens.verify(it) }
-        if (claims == null || claims.aud != "media" || claims.sub != roomId) {
+        val valid = claims != null && claims.aud == "media" &&
+            (if (file.endsWith(".m3u8")) claims.sub == roomId else true)
+        if (!valid) {
             return send(ex, 401, error(3002, "token_invalid", "media token required"))
         }
         val target = "${config.playbackHost}:${config.playbackPort}/live/$file"
@@ -324,6 +327,56 @@ class CloudServer(
         } catch (t: Throwable) {
             send(ex, 502, error(7001, "media_unavailable", t.message ?: "SRS unavailable"))
         }
+    }
+
+    /** HLS 同源代理：playlist 内 .ts 相对地址改写为带 token 的 /hls 路径。 */
+    private fun proxyHls(ex: HttpExchange, file: String) {
+        val roomId = file.substringBefore('.')
+        val query = ex.requestURI.rawQuery ?: ""
+        val token = query.split('&').mapNotNull {
+            val kv = it.split('=', limit = 2)
+            if (kv.size == 2 && kv[0] == "token") URLDecoder.decode(kv[1], "UTF-8") else null
+        }.firstOrNull()
+        val claims = token?.let { tokens.verify(it) }
+        val valid = claims != null && claims.aud == "media" &&
+            (if (file.endsWith(".m3u8")) claims.sub == roomId else true)
+        if (!valid) {
+            return send(ex, 401, error(3002, "token_invalid", "media token required"))
+        }
+        val target = "${config.playbackHost}:${config.playbackPort}/live/$file"
+        try {
+            val upstream = httpClient.send(
+                HttpRequest.newBuilder(URI.create(target)).GET().build(),
+                HttpResponse.BodyHandlers.ofByteArray(),
+            )
+            if (upstream.statusCode() !in 200..299) {
+                return send(ex, upstream.statusCode(), error(7001, "media_unavailable", "upstream ${upstream.statusCode()}"))
+            }
+            val contentType = upstream.headers().firstValue("Content-Type").orElse("application/vnd.apple.mpegurl")
+            val body = String(upstream.body())
+            if (file.endsWith(".m3u8")) {
+                val baseDir = file.substringBeforeLast('/', "")
+                val prefix = if (baseDir.isEmpty()) "" else "$baseDir/"
+                val rewritten = body.lineSequence().joinToString("\n") { line ->
+                    val t = line.trim()
+                    if (t.isEmpty() || t.startsWith("#")) line
+                    else if (t.startsWith("http://") || t.startsWith("https://")) line
+                    else "/hls/$prefix$t?token=$token"
+                }
+                send(ex, 200, rewritten, contentType)
+            } else {
+                sedBytes(ex, upstream.body(), contentType)
+            }
+        } catch (t: Throwable) {
+            send(ex, 502, error(7001, "media_unavailable", t.message ?: "SRS unavailable"))
+        }
+    }
+
+    private fun sedBytes(ex: HttpExchange, bytes: ByteArray, contentType: String) {
+        ex.responseHeaders.add("Content-Type", contentType)
+        ex.responseHeaders.add("Cache-Control", "no-store")
+        ex.sendResponseHeaders(200, bytes.size.toLong())
+        ex.responseBody.use { it.write(bytes) }
     }
 
     private fun configJson(): String =
