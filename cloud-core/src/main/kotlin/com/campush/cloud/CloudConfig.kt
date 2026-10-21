@@ -18,6 +18,9 @@ data class CloudConfig(
     val accountToken: String = "acct_dev",
     val maxViewers: Int = 100,
     val maxRooms: Int = 20,
+    val playSessionPerMinute: Int = 60,
+    val pinFailuresBeforeLock: Int = 10,
+    val pinLockMs: Long = 10 * 60 * 1000L,
     val maxDurationSec: Int = 43_200,
     val idleRoomTtlMs: Long = 10 * 60 * 1000L,
 ) {

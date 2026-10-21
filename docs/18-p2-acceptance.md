@@ -16,7 +16,7 @@
 | T0-S1 WHIP→WHEP | ✅ | `docs/15 §4.1`：WHIP publisher established；SRS WHEP `readyState=4/320x240/currentTime=7.78s`；cloud player `WHEP 已连接/readyState=4/currentTime=9.38s` |
 | T0-S2 RTMP→FLV/HLS | ✅ | SRS 测试源 FLV 200/894KB/4s；HLS master 200+切片 |
 | T0-A2 Android WHIP | ⚠️ 代码完成/待真机 | 模拟器无 H264 硬编，SRS `5018`；真机需验证 |
-| T1-S1 房间 REST | ✅ 骨架 | 创建/查询/停止/play-session/status/SSE/PIN/额度；`cloud-core` 10/10 |
+| T1-S1 房间 REST | ✅ 骨架 | 创建/查询/停止/play-session/status/SSE/PIN 锁定/额度/限流；`cloud-core` 12/12 |
 | T1-W1 播放页 | ✅ | WHEP→FLV→HLS 三级兜底、同源代理、PIN、HUD；cloud 10/10 |
 | T2-A4 LAN RTMP | ✅ 端侧/客户端 | ingest E2E `rtmpFrames=60`；App Tee→SRS `publish.active=true`、FLV 5.9MB |
 | T0-A1 双摄探测 | ✅ 单机 | 设置页「双摄能力」；仅 1 台设备数据 |

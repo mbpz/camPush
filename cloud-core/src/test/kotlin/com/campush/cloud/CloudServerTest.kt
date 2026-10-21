@@ -81,6 +81,41 @@ class CloudServerTest {
     }
 
     @Test
+    fun pinFailuresLockRoomAndRateLimit() {
+        val s = CloudServer(CloudConfig(accountToken = "acct_test", pinFailuresBeforeLock = 3, playSessionPerMinute = 100))
+        val port = s.start(0)
+        server = s
+        val base = "http://127.0.0.1:$port"
+        val created = post(base, "/api/v1/rooms", """{"accessScope":"wan","captureMode":"single_back","pinRequired":true,"pin":"1234"}""", mapOf("Authorization" to "Bearer acct_test"))
+        val roomId = Regex("\"roomId\":\"([^\"]+)\"").find(created.body())!!.groupValues[1]
+        val pageToken = Regex("\"playUrl\":\"[^\"]*token=([^\"]+)\"").find(created.body())!!.groupValues[1]
+        repeat(2) {
+            val r = post(base, "/api/v1/rooms/$roomId/play-session", """{"pin":"0000"}""", mapOf("X-Page-Token" to pageToken))
+            assertEquals(401, r.statusCode())
+        }
+        val locked = post(base, "/api/v1/rooms/$roomId/play-session", """{"pin":"0000"}""", mapOf("X-Page-Token" to pageToken))
+        assertEquals(429, locked.statusCode())
+        assertTrue(locked.body().contains("3006"))
+    }
+
+    @Test
+    fun playSessionRateLimit() {
+        val s = CloudServer(CloudConfig(accountToken = "acct_test", playSessionPerMinute = 2))
+        val port = s.start(0)
+        server = s
+        val base = "http://127.0.0.1:$port"
+        val created = post(base, "/api/v1/rooms", """{"accessScope":"wan","captureMode":"single_back"}""", mapOf("Authorization" to "Bearer acct_test"))
+        val roomId = Regex("\"roomId\":\"([^\"]+)\"").find(created.body())!!.groupValues[1]
+        val pageToken = Regex("\"playUrl\":\"[^\"]*token=([^\"]+)\"").find(created.body())!!.groupValues[1]
+        repeat(2) {
+            assertEquals(201, post(base, "/api/v1/rooms/$roomId/play-session", "{}", mapOf("X-Page-Token" to pageToken)).statusCode())
+        }
+        val limited = post(base, "/api/v1/rooms/$roomId/play-session", "{}", mapOf("X-Page-Token" to pageToken))
+        assertEquals(429, limited.statusCode())
+        assertTrue(limited.body().contains("3008"))
+    }
+
+    @Test
     fun roomQuotaIsEnforced() {
         val s = CloudServer(CloudConfig(accountToken = "acct_test", maxRooms = 1))
         val port = s.start(0)

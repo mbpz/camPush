@@ -35,6 +35,8 @@ class CloudServer(
         val ingestToken: String,
         val pinRequired: Boolean,
         val pin: String? = null,
+        var pinFailures: Int = 0,
+        var pinLockedUntil: Long = 0L,
         var state: String = "created",
         var viewers: Int = 0,
         var lastActiveAt: Long = createdAt,
@@ -44,6 +46,7 @@ class CloudServer(
     private val rooms = ConcurrentHashMap<String, Room>()
     private val httpClient = HttpClient.newHttpClient()
     private val idempotency = ConcurrentHashMap<String, String>()
+    private val playRates = ConcurrentHashMap<String, ArrayDeque<Long>>()
     private var server: HttpServer? = null
     private val cleaner = Executors.newSingleThreadScheduledExecutor { r ->
         Thread(r, "cloud-room-cleaner").apply { isDaemon = true }
@@ -153,6 +156,10 @@ class CloudServer(
     }
 
     private fun playSession(ex: HttpExchange, id: String) {
+        val ip = ex.remoteAddress?.address?.hostAddress ?: "unknown"
+        if (!allowPlay(ip)) {
+            return send(ex, 429, error(3008, "rate_limited", "play-session rate limit"))
+        }
         val room = rooms[id] ?: return send(ex, 404, error(2001, "not_found", "room not found"))
         if (room.state != "created" && room.state != "live") {
             return send(ex, 410, error(2002, "room_closed", "room closed"))
@@ -164,10 +171,19 @@ class CloudServer(
         }
         val body = ex.requestBody.bufferedReader().readText()
         if (room.pinRequired) {
+            if (room.pinLockedUntil > clock()) {
+                return send(ex, 429, error(3006, "pin_locked", "too many PIN failures"))
+            }
             val supplied = field(body, "pin")
             if (supplied == null || supplied != room.pin) {
+                room.pinFailures++
+                if (room.pinFailures >= config.pinFailuresBeforeLock) {
+                    room.pinLockedUntil = clock() + config.pinLockMs
+                    return send(ex, 429, error(3006, "pin_locked", "too many PIN failures"))
+                }
                 return send(ex, 401, error(3005, "pin_invalid", "PIN required or incorrect"))
             }
+            room.pinFailures = 0
         }
         if (room.viewers >= config.maxViewers) return send(ex, 429, error(2008, "max_viewers", "viewer limit"))
         room.viewers++
@@ -233,6 +249,17 @@ class CloudServer(
         } catch (_: Throwable) {
         } finally {
             runCatching { out.close() }
+        }
+    }
+
+    private fun allowPlay(ip: String): Boolean {
+        val now = clock()
+        val dq = playRates.getOrPut(ip) { ArrayDeque() }
+        synchronized(dq) {
+            while (dq.isNotEmpty() && now - dq.first() > 60_000) dq.removeFirst()
+            if (dq.size >= config.playSessionPerMinute) return false
+            dq.addLast(now)
+            return true
         }
     }
 
