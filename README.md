@@ -103,6 +103,7 @@ PRD 定义 **What / Why**；本集定义 **How / 边界 / 验收 / 排期 / 风�
 | 16 | [android-release](./docs/16-android-release.md) | **APK 构建与发布**：GitHub Actions、versionCode/versionName 规则、Artifacts/Release、本地等价构建、签名 | Android / 发布 |
 | 17 | [local-dev-env](./docs/17-local-dev-env.md) | **本地 Docker 环境**：SRS 域名/容器 IP/端口、WHIP/WHEP/FLV/HLS 命令、禁止改网络约束 | 研发 / QA |
 | 18 | [p2-acceptance](./docs/18-p2-acceptance.md) | **P2 滚动验收**：任务状态/证据/阻塞（真机 WHIP、TURN、双摄），可复现命令 | 全员 |
+| 19 | [dual-camera-decision](./docs/19-dual-camera-decision.md) | **D-3 结论**：双摄保持实验性（支持率证据不足），PiP 预览原型，编码延后 | 产品 / 全员 |
 | — | [PRD v1.0](./docs/PRD-v1.0.md) | 用户提供的需求原文（不改写，仅引用） | 全员 |
 | — | [scripts/check_docs.py](./scripts/check_docs.py) | 8 类文档一致性 CI 门禁 | 全员 |
 
@@ -241,6 +242,7 @@ python3 scripts/check_docs.py --strict
 | 16 android-release |       76 | 0 | 发布规范 v1.0 |
 | 17 local-dev-env |       72 | 0 | 环境记录 v1.0 |
 | 18 p2-acceptance |       59 | 0 | P2 验收 v1.0 |
+| 19 dual-camera-decision |       32 | 0 | D-3 结论 v1.0 |
 | PRD v1.0 | 643 | 0 | 需求基线（原文） |
 
 > 子文档中 “00 v1.1/v1.2” 的引用为其写作时点；以 00 当前版本 v1.5 为准。
@@ -319,6 +321,7 @@ camPush/
 | v1.10 | 2026-10-20 | Team Lead | 推流瞬间掉 2fps 修复：枚举并优先硬件 H.264 编码器、按能力选择 NV12/I420/ Flexible 输入、YUV 转换复用缓冲、日志输出 encoder choice |
 | v1.11 | 2026-10-20 | Team Lead | 极低帧率救援：1080p 连续 3s 仅 1–4fps 时自动切 720p（播放地址不变），提示语更新；配合硬件编码器选择排查真机 2fps |
 | v1.12 | 2026-10-20 | Team Lead | 低帧率提示携带编码器名称/软硬编与 in/out fps；播放器追帧阈值 1.2s→0.6s 降低观看延迟 |
+| v2.36 | 2026-10-21 | Team Lead | D-3 决策：双摄保持实验性（缺 Top20 支持率）；PiP 预览原型已验证，编码/推流延后；新增 docs/19 |
 | v2.35 | 2026-10-21 | Team Lead | cloud-core 补 play-session 60/min 限流与 PIN 连续失败锁定（429/3008、3006），测试 12/12 |
 | v2.34 | 2026-10-21 | Team Lead | TURN relay-only E2E：播放页 `&relay=1` WHEP 已连接/readyState=4/320x240；修正 TURN_EXTERNAL_IP=容器 IP |
 | v2.33 | 2026-10-21 | Team Lead | TURN REST 凭证修正（HMAC-SHA1 base64）并启用 coturn `--use-auth-secret`；uclient 分配通过 |
