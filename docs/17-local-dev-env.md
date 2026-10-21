@@ -88,6 +88,20 @@ curl -X POST http://127.0.0.1:18090/api/v1/rooms \
   -d '{"accessScope":"wan","captureMode":"single_back"}'
 ```
 
+## 3.3 端侧 RTMP ingest 本地验证
+
+```bash
+# App 开始局域网推流后，将模拟器 1935 转发到宿主机
+adb forward tcp:19351 tcp:1935
+ffmpeg -re -f lavfi -i testsrc=size=320x180:rate=15 \
+  -c:v libx264 -preset ultrafast -tune zerolatency -pix_fmt yuv420p -g 15 -t 4 \
+  -f flv rtmp://127.0.0.1:19351/live/d4test
+# 查询端侧状态（需要页面 token）：rtmpFrames 应 >0
+curl -H "X-Page-Token: <pageToken>" http://127.0.0.1:<forwardedPort>/api/v1/status
+```
+
+实测 2026-10-21：`rtmpFrames:60`。
+
 ## 4. 规则
 
 1. **不要**修改宿主/OrbStack 网络、域名解析、端口映射；只用上表现值。

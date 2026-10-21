@@ -192,6 +192,7 @@ internal class LanServerImpl(
             bitrateBps = stats.bitrateBps,
             fps = stats.fps,
             startedAtMillis = startedAtMillis,
+            rtmpFrames = rtmpServer?.videoFrames ?: 0,
         )
     }
 
@@ -296,6 +297,7 @@ internal class LanServerImpl(
         payload["uptimeSec"] = snapshot.uptimeSeconds
         payload["bitrateKbps"] = snapshot.bitrateBps / 1000L
         payload["fps"] = snapshot.fps
+        payload["rtmpFrames"] = snapshot.rtmpFrames
         return json(200, payload)
     }
 

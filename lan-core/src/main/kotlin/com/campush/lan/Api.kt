@@ -34,6 +34,8 @@ data class LanStatus(
     val bitrateBps: Long,
     val fps: Int,
     val startedAtMillis: Long,
+    /** P2 D-4：端侧 RTMP ingest 累计视频帧数（0 表示未启用/未推流）。 */
+    val rtmpFrames: Long = 0,
 )
 
 data class H264AccessUnit(

@@ -20,6 +20,10 @@ class RtmpIngestServer(
     private val publisher: LanMediaPublisher,
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
+    @Volatile var videoFrames: Long = 0L
+        internal set
+    @Volatile var audioFrames: Long = 0L
+        internal set
     @Volatile private var server: ServerSocket? = null
     private val clients = ConcurrentHashMap<Socket, Boolean>()
     private var acceptThread: Thread? = null
@@ -34,7 +38,7 @@ class RtmpIngestServer(
                 try {
                     val socket = s.accept()
                     clients[socket] = true
-                    Thread({ RtmpConnection(socket, publisher).run() }, "rtmp-client").apply {
+                    Thread({ RtmpConnection(socket, publisher, this).run() }, "rtmp-client").apply {
                         isDaemon = true
                         start()
                     }
@@ -57,6 +61,7 @@ class RtmpIngestServer(
 private class RtmpConnection(
     private val socket: Socket,
     private val publisher: LanMediaPublisher,
+    private val owner: RtmpIngestServer,
 ) {
     private val input = DataInputStream(socket.getInputStream().buffered())
     private val output = DataOutputStream(socket.getOutputStream().buffered())
@@ -235,6 +240,7 @@ private class RtmpConnection(
             o += len
         }
         if (nals.isEmpty()) return
+        owner.videoFrames++
         publisher.publishH264(
             H264AccessUnit(
                 nalUnits = nals,
@@ -253,6 +259,7 @@ private class RtmpConnection(
         if (codec != 10) return
         val packetType = p[1].toInt() and 0xff
         val frame = p.copyOfRange(2, p.size)
+        owner.audioFrames++
         publisher.publishAac(
             AacAccessUnit(
                 frame = frame,
