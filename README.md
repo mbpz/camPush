@@ -72,7 +72,7 @@ PRD 定义 **What / Why**；本集定义 **How / 边界 / 验收 / 排期 / 风�
 |---|---|
 | 代码 | `app/`（Compose + CameraX 客户端）、`lan-core/`（纯 JVM 端侧服务）、`tools/player-selftest/`（播放页自检） |
 | 构建 | `scripts/setup-toolchain.sh` → `scripts/build.sh :app:assembleDebug`（沙箱内 SDK/Gradle 全部落在 workspace） |
-| 自动化 | `:lan-core:test` **48/48**；播放页 Node 自检 **26/26**；APK 构建通过 |
+| 自动化 | `:lan-core:test` **49/49**；播放页 Node 自检 **26/26**；APK 构建通过 |
 | 端到端 | Android 14 模拟器：播放页 200（43 KB）、MJPEG/FLV 出流、3 观看者上限、PIN 校验、端口 8090、停止即失效；Chrome 实播 FLV→MSE `readyState=4` |
 | 细节 | [docs/12-p1-implementation.md](./docs/12-p1-implementation.md) |
 
@@ -222,9 +222,9 @@ python3 scripts/check_docs.py --strict
 | 09 task-plan | 960 | 3 | 基线 v1.1（P1/P2/P3） |
 | 10 observability | 876 | 2 | 基线 v1.1（阶段启用） |
 | 11 risk-adr | 512 | 2 | 基线 v1.2（ADR-013） |
-| 12 p1-implementation |      493 | 0 | 实现基线 v1.0 |
-| 13 p1-acceptance |      119 | 0 | 验收证据 v1.0 |
-| 14 p1-acceptance-kit |      265 | 0 | 执行包 v1.0 |
+| 12 p1-implementation |      499 | 0 | 实现基线 v1.0 |
+| 13 p1-acceptance |      169 | 0 | 验收证据 v1.0 |
+| 14 p1-acceptance-kit |      330 | 0 | 执行包 v1.0 |
 | PRD v1.0 | 643 | 0 | 需求基线（原文） |
 
 > 子文档中 “00 v1.1/v1.2” 的引用为其写作时点；以 00 当前版本 v1.5 为准。
@@ -303,6 +303,7 @@ camPush/
 | v1.10 | 2026-10-20 | Team Lead | 推流瞬间掉 2fps 修复：枚举并优先硬件 H.264 编码器、按能力选择 NV12/I420/ Flexible 输入、YUV 转换复用缓冲、日志输出 encoder choice |
 | v1.11 | 2026-10-20 | Team Lead | 极低帧率救援：1080p 连续 3s 仅 1–4fps 时自动切 720p（播放地址不变），提示语更新；配合硬件编码器选择排查真机 2fps |
 | v1.12 | 2026-10-20 | Team Lead | 低帧率提示携带编码器名称/软硬编与 in/out fps；播放器追帧阈值 1.2s→0.6s 降低观看延迟 |
+| v1.23 | 2026-10-21 | Team Lead | 独立诊断日志服务：应用打开即启动（设置入口，18089–18099 + token），累计落盘/轮转、不依赖推流；iOS Safari 确认 VPN 问题已通过；新增 DiagnosticLogServer 测试 |
 | v1.22 | 2026-10-21 | Team Lead | 修复 iOS Safari 5004：Surface 管线增加 640×480 ImageReader→JPEG，恢复 MJPEG 降级；新增单真机简化验收方案（条件 G1） |
 | v1.21 | 2026-10-21 | Team Lead | P1 收尾：埋点离线补报、86 条验收用例、Top12/E7 矩阵与执行包 docs/14；交付物 31/31，G1 待真机证据 |
 | v1.20 | 2026-10-21 | Team Lead | 补齐 P1 埋点与验收：App 队列/批量上报、端侧事件计数、PIN 限速/锁定测试；新增 docs/13 P1 验收报告 |

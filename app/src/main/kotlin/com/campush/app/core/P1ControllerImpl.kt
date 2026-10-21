@@ -7,7 +7,10 @@ import android.os.Build
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import com.campush.app.camera.CameraHost
+import com.campush.app.diag.DiagLog
 import com.campush.app.diag.Telemetry
+import com.campush.lan.DiagnosticLogServer
+import java.util.UUID
 import com.campush.app.network.NetworkMonitor
 import com.campush.app.service.LanStreamingService
 import com.campush.app.streaming.EnginePhase
@@ -47,9 +50,54 @@ class P1ControllerImpl(context: Context) : P1Controller {
     override val previewJpeg = StreamingBridge.previewJpeg
     override val state: StateFlow<P1UiState> = _state.asStateFlow()
 
+    private var logServer: DiagnosticLogServer? = null
+    private var logServerIp: String? = null
+
     init {
         observeBridge()
         observeNetworkLabel()
+        startLogServiceLoop()
+    }
+
+    /**
+     * 独立诊断日志服务：应用打开即启动，与推流/LanServer 解耦；Wi-Fi IP 变化时自动重启。
+     * 同一局域网电脑浏览器打开 `http://{ip}:18089/logs/{token}` 即可下载累计日志。
+     */
+    private fun startLogServiceLoop() {
+        scope.launch {
+            while (isActive) {
+                val ip = runCatching { networkMonitor.currentLanIp() }.getOrNull()
+                val current = logServer
+                if (ip != null) {
+                    if (current == null || !current.isRunning() || logServerIp != ip) {
+                        runCatching { current?.stop() }
+                        val server = DiagnosticLogServer(
+                            ipProvider = { runCatching { networkMonitor.currentLanIp() }.getOrNull() },
+                            logProvider = {
+                                val st = _state.value
+                                DiagLog.downloadText(
+                                    "streaming=${st.streaming} surface=${st.surfacePipeline} " +
+                                        "network=${st.networkLabel} settings=${st.settings}",
+                                )
+                            },
+                            token = UUID.randomUUID().toString().replace("-", "").take(20),
+                        )
+                        runCatching { server.start() }
+                            .onSuccess { url ->
+                                logServer = server
+                                logServerIp = ip
+                                _state.update { it.copy(logServiceUrl = url, logServiceRunning = true) }
+                            }
+                            .onFailure {
+                                _state.update { it.copy(logServiceRunning = false) }
+                            }
+                    }
+                } else if (_state.value.logServiceRunning || _state.value.logServiceUrl != null) {
+                    _state.update { it.copy(logServiceUrl = null, logServiceRunning = false) }
+                }
+                delay(10_000)
+            }
+        }
     }
 
     // ---------------------------------------------------------------- UI 操作

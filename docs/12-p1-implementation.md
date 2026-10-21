@@ -330,17 +330,23 @@ Camera2 ──Surface──> MediaRecorder(SURFACE, MPEG_2_TS) ──硬件 H.26
 - 画面方向为相机传感器方向，竖屏观看如需旋转需后续增加旋转元数据/播放器 CSS 处理；
 - 需要 API 26+；低版本自动走兼容管线。
 
-### 5.9 局域网诊断日志下载（无需 adb）
+### 5.9 独立诊断日志服务（应用打开即可下载，不依赖推流）
 
-**目标**：真机出问题时不再依赖 `adb logcat`，在局域网电脑浏览器直接下载 App 内诊断日志。
+**目标**：真机出问题时不再依赖 `adb logcat`；日志服务与推流/LanServer **完全独立**，应用打开即可从设置里拿到地址下载全部日志。
 
 | 项 | 说明 |
 |---|---|
-| 下载地址 | `http://{手机IP}:{端口}/s/{pageToken}/logs`（即播放地址后加 `/logs`） |
-| 入口 | 推流中地址卡新增「日志」按钮：复制日志下载地址，发到电脑浏览器打开即下载 `campush-log-<时间>.txt` |
-| 鉴权 | 复用页面 token；token 错误返回 401/`3002`，停止推流后地址失效 |
-| 内容 | App/设备信息、当前引擎状态（phase/管线/分辨率/fps/码率/设置）、最近 800 行 App 内日志、上一次崩溃栈；不包含 token/PIN |
-| 实现 | `DiagLog` 进程内环形缓冲 + `LanConfig.logProvider` + lan-core `GET /s/{token}/logs`（`Content-Disposition: attachment`） |
+| 服务地址 | 设置 →「诊断日志」：`http://{手机IP}:18089/logs/{token}`（端口 18089–18099 自动顺延） |
+| 生命周期 | App 打开即启动，停止推流/未推流都可用；Wi-Fi IP 变化自动重启并刷新地址 |
+| 鉴权 | 路径带进程级随机 token；错误 token 401；`/` 提供说明页、`/healthz` 探活 |
+| 日志内容 | 累计落盘日志（2×2MB 轮转）+ 崩溃栈 + 当前状态；**不含 token/PIN** |
+| 入口 | 设置面板「诊断日志」：显示地址、复制按钮、运行状态；地址卡原「日志」入口已移除 |
+| 兼容 | 旧 `GET /s/{pageToken}/logs` 保留，返回同一份累计日志 |
+| 实现 | `DiagnosticLogServer`（lan-core 独立 ServerSocket）+ `DiagLog.downloadText()` + 磁盘追加/轮转 |
+
+**实测（模拟器，未推流）**：启动 App → 设置显示 `http://10.0.2.16:18089/logs/<token>` →
+电脑下载 200/`attachment`、604B；开始推流后同地址再次下载 1069B，包含 `streaming started/recorder ready`；
+停止推流后仍 200，包含 `stop requested`；错误 token 401、`/healthz` 200。
 
 **实测（模拟器）**：`GET .../s/<token>/logs` → `200 text/plain`，983 字节，包含
 `phase=STREAMING surface=true actual=1280x720 serverFps=29` 与 `Surface: recorder ready ...` 等日志；

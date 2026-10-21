@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -101,6 +102,7 @@ private fun SettingsContent(
     var pinError by remember { mutableStateOf<String?>(null) }
     var portMenuOpen by remember { mutableStateOf(false) }
     var checklistOpen by remember { mutableStateOf(false) }
+    var logCopied by remember { mutableStateOf(false) }
 
     fun applySettings(updated: StreamSettingsUi) {
         settings = updated
@@ -442,6 +444,60 @@ private fun SettingsContent(
             modifier = Modifier.padding(vertical = 16.dp),
             color = CamPushColors.Border.copy(alpha = 0.6f),
         )
+
+        // ---------- 诊断日志服务 ----------
+        SettingsSectionTitle("诊断日志")
+        Text(
+            text = "应用打开即开始记录，无需开启推流。同一 Wi-Fi 下用电脑浏览器打开下面的地址，即可下载全部日志。",
+            style = MaterialTheme.typography.bodySmall,
+            color = CamPushColors.TextSecondary,
+        )
+        Spacer(Modifier.height(8.dp))
+        val logUrl = state.logServiceUrl
+        if (logUrl != null) {
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = CamPushColors.Surface,
+                border = BorderStroke(1.dp, CamPushColors.Border),
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    SelectionContainer {
+                        Text(
+                            text = logUrl,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontFamily = FontFamily.Monospace,
+                            color = CamPushColors.TextPrimary,
+                        )
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = "日志服务运行中",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = CamPushColors.Primary,
+                            modifier = Modifier.weight(1f),
+                        )
+                        TextButton(onClick = {
+                            context.copyPlayUrlToClipboard(logUrl)
+                            logCopied = true
+                        }) {
+                            Text(if (logCopied) "已复制" else "复制地址")
+                        }
+                    }
+                }
+            }
+        } else {
+            Text(
+                text = if (state.logServiceRunning) "日志服务启动中…" else "连接 Wi-Fi 后自动启动日志服务（无需推流）。",
+                style = MaterialTheme.typography.bodySmall,
+                color = CamPushColors.TextTertiary,
+            )
+        }
+        Spacer(Modifier.height(14.dp))
+        HorizontalDivider(color = CamPushColors.Border.copy(alpha = 0.6f))
 
         // ---------- 关于 ----------
         SettingsSectionTitle("关于")

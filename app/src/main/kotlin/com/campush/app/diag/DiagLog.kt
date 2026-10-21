@@ -6,6 +6,7 @@ import android.util.Log
 import com.campush.app.BuildConfig
 import java.io.File
 import java.text.SimpleDateFormat
+import java.util.concurrent.Executors
 import java.util.ArrayDeque
 import java.util.Date
 import java.util.Locale
@@ -26,6 +27,11 @@ object DiagLog {
 
     @Volatile private var header: String = "Campush 诊断日志（未初始化）"
     @Volatile private var logDir: File? = null
+    @Volatile private var logFile: File? = null
+    private val fileLock = Any()
+    private val ioExecutor = Executors.newSingleThreadExecutor { r ->
+        Thread(r, "campush-log-io").apply { isDaemon = true }
+    }
 
     fun init(context: Context) {
         val app = context.applicationContext
@@ -35,10 +41,11 @@ object DiagLog {
             appendLine("应用: ${BuildConfig.APPLICATION_ID} version=${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE}) debug=${BuildConfig.DEBUG}")
             appendLine("设备: ${Build.MANUFACTURER} ${Build.MODEL} / Android ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT})")
             appendLine("ABI: ${Build.SUPPORTED_ABIS.joinToString()}")
-            appendLine("线程: 日志为 App 内环形缓冲，最多 $MAX_LINES 行；不含 token/PIN")
+            appendLine("日志: 累计落盘（2×2MB 轮转），本文件为全部记录；不含 token/PIN")
             appendLine("========================")
         }
         logDir = File(app.filesDir, "diag").apply { runCatching { mkdirs() } }
+        logFile = File(logDir, "campush.log")
         val previous = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, error ->
             runCatching {
@@ -82,6 +89,7 @@ object DiagLog {
             if (lines.size >= MAX_LINES) lines.removeFirst()
             lines.addLast(line)
         }
+        persist(line)
         when (level) {
             "E" -> Log.e(TAG, message, throwable)
             "W" -> Log.w(TAG, message, throwable)
@@ -89,9 +97,23 @@ object DiagLog {
         }
     }
 
-    /** 供局域网 `/s/{pageToken}/logs` 下载：设备信息 + App 状态 + 最近日志。 */
-    fun snapshot(extra: String? = null): String {
-        val body = synchronized(lines) { lines.joinToString("\n") }
+    /** 供局域网日志服务下载：设备信息 + 崩溃 + 累计落盘日志 + 当前状态。 */
+    fun downloadText(extra: String? = null): String {
+        val history = synchronized(fileLock) {
+            buildString {
+                listOf("campush.log.1", "campush.log").forEach { name ->
+                    val f = logDir?.let { File(it, name) } ?: return@forEach
+                    if (f.exists()) {
+                        runCatching { append(f.readText()) }
+                    }
+                }
+            }
+        }
+        val body = if (history.isNotBlank()) {
+            history
+        } else {
+            synchronized(lines) { lines.joinToString("\n") }
+        }
         val crash = logDir?.let { File(it, "last-crash.txt") }
             ?.takeIf { it.exists() }
             ?.let { runCatching { it.readText() }.getOrNull() }
@@ -106,16 +128,36 @@ object DiagLog {
             appendLine("=== 当前状态 ===")
             appendLine(extra ?: "(no state)")
             appendLine()
-            appendLine("=== 最近日志（${body.lineSequence().count()} 行）===")
+            appendLine("=== 累计日志（落盘，最多 2×2MB）===")
             appendLine(body)
             appendLine()
             appendLine("=== 日志结束 ===")
         }
     }
 
+    /** 兼容旧入口：`/s/{token}/logs` 使用同一份累计日志。 */
+    fun snapshot(extra: String? = null): String = downloadText(extra)
+
+    /** 把单行日志异步追加到文件；超过 2MB 轮转一份历史文件。 */
+    private fun persist(line: String) {
+        val file = logFile ?: return
+        ioExecutor.execute {
+            synchronized(fileLock) {
+                runCatching {
+                    if (file.length() > 2L * 1024 * 1024) {
+                        val old = File(file.parentFile, "campush.log.1")
+                        runCatching { old.delete() }
+                        runCatching { file.renameTo(old) }
+                    }
+                    file.appendText(line + "\n")
+                }
+            }
+        }
+    }
+
     private fun writeCrashSnapshot(error: Throwable) {
         val dir = logDir ?: return
-        val text = snapshot("crash=${error.javaClass.name}: ${error.message}")
+        val text = downloadText("crash=${error.javaClass.name}: ${error.message}")
         runCatching { File(dir, "last-crash.txt").writeText(text) }
     }
 }

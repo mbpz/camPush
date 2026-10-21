@@ -50,6 +50,9 @@ data class P1UiState(
     val cameraAvailable: Boolean = true,
     val surfacePipeline: Boolean = false,
     val networkLabel: String = "未知",
+    /** 独立日志服务地址（应用打开即可用，不依赖推流）。 */
+    val logServiceUrl: String? = null,
+    val logServiceRunning: Boolean = false,
     val torchOn: Boolean = false,
     val muted: Boolean = false,
     val warning: String? = null,
