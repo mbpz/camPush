@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>CamPush 云端观看</title>
+<style>
+  :root{color-scheme:dark}html,body{margin:0;height:100%;background:#0b0f14;color:#e8eef6;font:14px/1.4 system-ui,-apple-system,"PingFang SC",sans-serif}
+  #wrap{display:flex;flex-direction:column;height:100%}
+  video{flex:1;width:100%;min-height:0;object-fit:contain;background:#000}
+  #bar{display:flex;align-items:center;gap:10px;padding:10px 14px;background:#0b0f14;border-top:1px solid #1e2a38;font-size:12px}
+  .dot{width:8px;height:8px;border-radius:50%;background:#f59e0b}.dot.ok{background:#34d399}.dot.bad{background:#ef4444}
+  #status{flex:1;color:#93a4b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  button{background:#182331;color:#e8eef6;border:1px solid #26364a;border-radius:6px;padding:6px 10px}
+  #err{display:none;padding:18px;color:#fca5a5;font-size:13px;white-space:pre-wrap}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <video id="v" autoplay playsinline muted></video>
+  <div id="bar">
+    <span id="dot" class="dot"></span>
+    <span id="status">准备中…</span>
+    <span id="proto">—</span>
+    <button id="retry" type="button">重试</button>
+  </div>
+  <div id="err"></div>
+</div>
+<script src="/assets/hls.min.js"></script>
+<script>
+(() => {
+  const roomId = location.pathname.split('/').filter(Boolean).pop();
+  const params = new URLSearchParams(location.search);
+  const pageToken = params.get('token') || '';
+  const v = document.getElementById('v');
+  const statusEl = document.getElementById('status');
+  const dot = document.getElementById('dot');
+  const protoEl = document.getElementById('proto');
+  const errEl = document.getElementById('err');
+  let pc = null, hls = null, current = null;
+
+  const setStatus = (t, kind = '') => {
+    statusEl.textContent = t;
+    dot.className = 'dot ' + kind;
+  };
+  const fail = (e) => {
+    errEl.style.display = 'block';
+    errEl.textContent = '播放失败：' + (e && e.message ? e.message : e) + '\n可点击重试。';
+    setStatus('失败', 'bad');
+  };
+  const stop = () => {
+    if (hls) { try { hls.destroy(); } catch (_) {} hls = null; }
+    if (pc) { try { pc.close(); } catch (_) {} pc = null; }
+    v.srcObject = null; v.removeAttribute('src'); v.load();
+  };
+
+  async function playSession() {
+    const r = await fetch(`/api/v1/rooms/${roomId}/play-session`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Page-Token': pageToken },
+      body: '{}',
+    });
+    if (!r.ok) throw new Error('play-session HTTP ' + r.status);
+    return await r.json();
+  }
+
+  async function tryWhep(url, mediaToken) {
+    pc = new RTCPeerConnection({ iceServers: [] });
+    pc.addTransceiver('video', { direction: 'recvonly' });
+    pc.addTransceiver('audio', { direction: 'recvonly' });
+    pc.ontrack = (ev) => {
+      const stream = ev.streams[0] || new MediaStream([ev.track]);
+      v.srcObject = stream;
+      v.play().catch(() => {});
+    };
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/sdp', 'Authorization': 'Bearer ' + mediaToken },
+      body: offer.sdp,
+    });
+    if (!res.ok) throw new Error('WHEP HTTP ' + res.status);
+    const answer = await res.text();
+    await pc.setRemoteDescription({ type: 'answer', sdp: answer });
+    await waitPlaying(5000);
+  }
+
+  function waitPlaying(ms) {
+    return new Promise((resolve, reject) => {
+      const t0 = Date.now();
+      const timer = setInterval(() => {
+        if (v.readyState >= 3 || v.currentTime > 0) { clearInterval(timer); resolve(); }
+        else if (Date.now() - t0 > ms) { clearInterval(timer); reject(new Error('WHEP 首帧超时')); }
+      }, 150);
+    });
+  }
+
+  function startHls(url) {
+    if (window.Hls && window.Hls.isSupported()) {
+      hls = new window.Hls({ liveSyncDurationCount: 2, lowLatencyMode: false });
+      hls.loadSource(url);
+      hls.attachMedia(v);
+      hls.on(window.Hls.Events.MANIFEST_PARSED, () => { v.play().catch(() => {}); });
+      hls.on(window.Hls.Events.ERROR, (_, data) => { if (data.fatal) fail(new Error('HLS ' + data.details)); });
+    } else {
+      v.src = url;
+      v.play().catch(() => {});
+    }
+  }
+
+  async function start() {
+    stop();
+    errEl.style.display = 'none';
+    setStatus('连接中…');
+    try {
+      const session = await playSession();
+      const protocols = session.protocols || {};
+      current = session;
+      if (protocols.webrtc && protocols.webrtc.url) {
+        protoEl.textContent = 'WHEP';
+        try {
+          await tryWhep(protocols.webrtc.url, session.mediaToken);
+          setStatus('WHEP 已连接', 'ok');
+          return;
+        } catch (e) {
+          console.warn('WHEP failed, fallback', e);
+        }
+      }
+      if (protocols.hls && protocols.hls.url) {
+        protoEl.textContent = 'HLS';
+        startHls(protocols.hls.url);
+        setStatus('HLS 播放中', 'ok');
+        return;
+      }
+      throw new Error('无可用协议');
+    } catch (e) {
+      fail(e);
+    }
+  }
+
+  document.getElementById('retry').onclick = start;
+  start();
+})();
+</script>
+</body>
+</html>

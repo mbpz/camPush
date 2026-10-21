@@ -317,6 +317,7 @@ camPush/
 | v1.10 | 2026-10-20 | Team Lead | 推流瞬间掉 2fps 修复：枚举并优先硬件 H.264 编码器、按能力选择 NV12/I420/ Flexible 输入、YUV 转换复用缓冲、日志输出 encoder choice |
 | v1.11 | 2026-10-20 | Team Lead | 极低帧率救援：1080p 连续 3s 仅 1–4fps 时自动切 720p（播放地址不变），提示语更新；配合硬件编码器选择排查真机 2fps |
 | v1.12 | 2026-10-20 | Team Lead | 低帧率提示携带编码器名称/软硬编与 in/out fps；播放器追帧阈值 1.2s→0.6s 降低观看延迟 |
+| v2.14 | 2026-10-21 | Team Lead | 新增云端播放页 `/s/{roomId}`（WHEP 优先+HLS 兜底，内置 hls.js）与 CloudServerMain；cloud-core 测试 6/6 |
 | v2.13 | 2026-10-21 | Team Lead | T0-A2：Android WHIP 客户端（WebRTC SDK+Camera2）与设置页联调入口；offer 到达 SRS，模拟器因无 H264 硬编被 5018 拒绝，待真机验证 |
 | v2.12 | 2026-10-21 | Team Lead | cloud-core 增加 WHIP/WHEP 反向代理（token+CORS，后端 SRS），测试 5/5 |
 | v2.11 | 2026-10-21 | Team Lead | cloud-core 补房间 SSE（state+heartbeat+retry），测试 4/4；T1-S1 骨架继续完善 |

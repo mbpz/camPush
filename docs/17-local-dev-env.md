@@ -71,6 +71,18 @@ http://127.0.0.1:1985/api/v1/versions
 - `srs.m0-wan.orb.local` 在 macOS 浏览器可用；手机/模拟器访问时用 Mac 局域网 IP 或模拟器
   `10.0.2.2`（仅端口映射，不改网络配置）。
 
+## 3.2 cloud-core 本地运行
+
+```bash
+scripts/build.sh :cloud-core:installDist
+JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" \
+  cloud-core/build/install/cloud-core/bin/cloud-core
+# 默认 http://127.0.0.1:18090；/config 配置页；创建房间：
+curl -X POST http://127.0.0.1:18090/api/v1/rooms \
+  -H 'Authorization: Bearer acct_dev' -H 'Content-Type: application/json' \
+  -d '{"accessScope":"wan","captureMode":"single_back"}'
+```
+
 ## 4. 规则
 
 1. **不要**修改宿主/OrbStack 网络、域名解析、端口映射；只用上表现值。

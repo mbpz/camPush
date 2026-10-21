@@ -79,6 +79,20 @@ class CloudServerTest {
     }
 
     @Test
+    fun cloudPlayerPageServesAndRejectsBadToken() {
+        val (_, base) = start()
+        val created = post(base, "/api/v1/rooms", """{"accessScope":"wan","captureMode":"single_back"}""", mapOf("Authorization" to "Bearer acct_test"))
+        val roomId = Regex("\"roomId\":\"([^\"]+)\"").find(created.body())!!.groupValues[1]
+        val pageToken = Regex("\"playUrl\":\"[^\"]*token=([^\"]+)\"").find(created.body())!!.groupValues[1]
+
+        val page = get(base, "/s/$roomId?token=$pageToken")
+        assertEquals(200, page.statusCode())
+        assertTrue(page.body().contains("CamPush 云端观看"))
+        assertTrue(get(base, "/assets/hls.min.js").body().length > 100_000)
+        assertEquals(401, get(base, "/s/$roomId?token=bad").statusCode())
+    }
+
+    @Test
     fun mediaProxyRequiresTokenAndAllowsCorsPreflight() {
         val (_, base) = start()
         val created = post(base, "/api/v1/rooms", """{"accessScope":"wan","captureMode":"single_back"}""", mapOf("Authorization" to "Bearer acct_test"))

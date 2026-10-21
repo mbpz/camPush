@@ -13,6 +13,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import kotlin.random.Random
+import java.net.URLDecoder
 
 /**
  * P2 T1-S1 房间 REST 骨架（本地/契约联调用，媒体面 WHIP/WHEP 由 SRS/Mediasoup 承担）。
@@ -72,6 +73,8 @@ class CloudServer(
             when {
                 method == "GET" && path == "/healthz" -> send(ex, 200, """{"ok":true}""")
                 method == "OPTIONS" -> corsOptions(ex)
+                method == "GET" && path == "/assets/hls.min.js" -> staticAsset(ex, "hls.min.js", "application/javascript; charset=utf-8")
+                method == "GET" && Regex("^/s/[^/]+$").matches(path) -> cloudPlayer(ex, path.removePrefix("/s/"))
                 method == "POST" && Regex("^/(whep|whip)/[^/]+$").matches(path) ->
                     proxyMedia(ex, path)
                 method == "GET" && path == "/config" -> send(ex, 200, configPage(), "text/html; charset=utf-8")
@@ -239,6 +242,25 @@ class CloudServer(
         } catch (t: Throwable) {
             sendCors(ex, 502, error(7001, "media_unavailable", t.message ?: "SRS unavailable"))
         }
+    }
+
+    private fun staticAsset(ex: HttpExchange, name: String, contentType: String) {
+        val bytes = javaClass.classLoader.getResourceAsStream("com/campush/cloud/$name")?.readBytes()
+            ?: return send(ex, 404, error(2001, "not_found", "asset missing"))
+        send(ex, 200, String(bytes), contentType)
+    }
+
+    /** 云端播放页：token 在 query，页面内用 X-Page-Token 换 play-session。 */
+    private fun cloudPlayer(ex: HttpExchange, roomId: String) {
+        val room = rooms[roomId] ?: return send(ex, 404, error(2001, "not_found", "room not found"))
+        val query = ex.requestURI.rawQuery ?: ""
+        val token = query.split('&').mapNotNull {
+            val kv = it.split('=', limit = 2)
+            if (kv.size == 2 && kv[0] == "token") URLDecoder.decode(kv[1], "UTF-8") else null
+        }.firstOrNull()
+        val claims = token?.let { tokens.verify(it) }
+        if (claims == null || claims.sub != roomId) return send(ex, 401, error(3002, "token_invalid", "page token invalid"))
+        staticAsset(ex, "player.html", "text/html; charset=utf-8")
     }
 
     private fun corsOptions(ex: HttpExchange) {

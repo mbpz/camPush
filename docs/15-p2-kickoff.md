@@ -100,6 +100,15 @@
   转发到 SRS `${whipHost}:${whipApiPort}`，带 CORS 头；
 - 待补：账号体系、额度/套餐、viewer-count/ended 事件、10 min 回收 clock 注入测试、真实 SDP 代理 E2E。
 
+### 4.4 云端播放页（T0-W2 骨架）
+
+- `GET /s/{roomId}?token=<pageToken>`：CloudPlayer 页面（WHEP 优先，HLS 兜底）；
+- 页面流程：`POST play-session` → 拿 `mediaToken/protocols` → WHEP（`/whep/{roomId}`）首帧 5s 超时 → HLS（`/assets/hls.min.js`）；
+- 已内置 `hls.min.js`（415 KB，Apache-2.0），无需外网 CDN；
+- 本地启动：`cloud-core/build/install/cloud-core/bin/cloud-core`（JAVA_HOME 指向 JDK 17+），默认 `:18090`；
+- 测试：`cloud-core` 6/6（播放页 200、坏 token 401、hls 资产）。
+- 待补：FLV/MJPEG 兜底、PIN 输入、首帧/卡顿指标、真实媒体 E2E。
+
 ### 4.3 T0-A2 Android WHIP 客户端（已接入，待真机验证）
 
 - 新增 `io.github.webrtc-sdk:android:125.6422.07`、`WanWhipClient`（Camera2 720p30 + PeerConnection）；
