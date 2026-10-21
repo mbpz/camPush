@@ -57,6 +57,10 @@ data class P1UiState(
     val bitrateKbps: Int = 0,
     val fps: Int = 0,
     val cameraAvailable: Boolean = true,
+    /** T0-A1 双摄能力探测（D-3 门槛数据）。 */
+    val dualCameraSupported: Boolean = false,
+    val physicalCameraCount: Int = 0,
+    val concurrentCameraPairs: Int = 0,
     val surfacePipeline: Boolean = false,
     val networkLabel: String = "未知",
     /** 独立日志服务地址（应用打开即可用，不依赖推流）。 */

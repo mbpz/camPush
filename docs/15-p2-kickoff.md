@@ -120,7 +120,15 @@
   播放页不再直连 SRS，避免跨域/混合内容；
 - 待补：MJPEG 兜底、真实媒体 E2E、首帧量化指标。
 
-### 4.3 T0-A2 Android WHIP 客户端（已接入，待真机验证）
+### 4.3 T0-A1 双摄能力探测（D-3 数据）
+
+- 启动时通过 CameraManager 探测：逻辑多摄（`LOGICAL_MULTI_CAMERA` + `physicalCameraIds`）、
+  API 30+ 并发相机组合（`getConcurrentCameraIds`）；
+- 结果写入 `P1UiState.dualCameraSupported/physicalCameraCount/concurrentCameraPairs`，
+  设置页「关于 → 双摄能力」显示，并记录 `CameraProbe` 诊断日志；
+- 当前仅采集单机数据，D-3 的 ≥40% 支持率仍需 Top20 机型矩阵统计。
+
+### 4.4 T0-A2 Android WHIP 客户端（已接入，待真机验证）
 
 - 新增 `io.github.webrtc-sdk:android:125.6422.07`、`WanWhipClient`（Camera2 720p30 + PeerConnection）；
 - 设置页新增「WAN WHIP 联调（P2）」：可填 WHIP URL、开始/停止、查看状态；

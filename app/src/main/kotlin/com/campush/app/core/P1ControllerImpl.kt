@@ -61,6 +61,7 @@ class P1ControllerImpl(context: Context) : P1Controller {
         observeBridge()
         observeNetworkLabel()
         startLogServiceLoop()
+        probeCameraCapabilities()
         scope.launch {
             wanClient.state.collect { st ->
                 _wanTest.value = WanTestUi(st.running, st.status, st.roomId, st.playUrl, st.error)
@@ -335,6 +336,33 @@ class P1ControllerImpl(context: Context) : P1Controller {
 
     override fun dismissWarning() {
         _state.update { it.copy(warning = null) }
+    }
+
+    /** T0-A1：探测逻辑多摄 / 并发相机组合，供 D-3 支持率统计。 */
+    private fun probeCameraCapabilities() {
+        runCatching {
+            val manager = appContext.getSystemService(android.content.Context.CAMERA_SERVICE) as android.hardware.camera2.CameraManager
+            val ids = manager.cameraIdList
+            var physical = 0
+            var logicalDual = false
+            ids.forEach { id ->
+                val chars = manager.getCameraCharacteristics(id)
+                val caps = chars.get(android.hardware.camera2.CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES) ?: intArrayOf()
+                if (caps.contains(android.hardware.camera2.CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_LOGICAL_MULTI_CAMERA)) {
+                    logicalDual = true
+                    physical = maxOf(physical, chars.physicalCameraIds.size)
+                }
+            }
+            val concurrentPairs = if (android.os.Build.VERSION.SDK_INT >= 30) {
+                runCatching { manager.concurrentCameraIds.size }.getOrDefault(0)
+            } else 0
+            _state.value = _state.value.copy(
+                dualCameraSupported = logicalDual || concurrentPairs > 0,
+                physicalCameraCount = physical,
+                concurrentCameraPairs = concurrentPairs,
+            )
+            DiagLog.i("CameraProbe", "dual=${logicalDual || concurrentPairs > 0} physical=$physical concurrent=$concurrentPairs ids=${ids.size}")
+        }.onFailure { DiagLog.w("CameraProbe", "probe failed: ${it.message}") }
     }
 
     override fun startWanRoom(apiBase: String) {

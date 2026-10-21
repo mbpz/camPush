@@ -547,6 +547,14 @@ private fun SettingsContent(
         AboutRow("构建", BuildConfig.GIT_SHA)
         AboutRow("契约基线", BuildInfo.CONTRACT_BASELINE)
         AboutRow("运行模式", "P1 · 局域网推流（公网阶段二开放）")
+        AboutRow(
+            "双摄能力",
+            if (state.dualCameraSupported) {
+                "支持（逻辑多摄/并发组合 ${state.concurrentCameraPairs}）"
+            } else {
+                "不支持（物理 ${state.physicalCameraCount}）"
+            },
+        )
         Spacer(Modifier.height(8.dp))
         Text(
             text = "画面只在本机编码，通过局域网端侧服务分发，不上传云端。局域网模式为明文 HTTP，仅限可信网络使用。",
