@@ -96,7 +96,9 @@
   `GET /rooms/{id}`、`DELETE /rooms/{id}`（ingest token）、`POST /rooms/{id}/play-session`、`GET /rooms/{id}/status`、`/healthz`；
 - 测试：2/2 通过（创建→play-session→status、LAN scope 2007、无/坏 token 3001/3002）；
 - SSE 已补：`GET /api/v1/rooms/{id}/events`（page token，`state` + 15s `heartbeat`，断线重连 `retry:3000`）；
-- 待补：账号体系、额度/套餐、viewer-count/ended 事件、10 min 回收 clock 注入测试、WHIP/WHEP 代理接入。
+- WHIP/WHEP 反向代理已补：`POST /whep/{roomId}`、`POST /whip/{roomId}`，校验 media/ingest token，
+  转发到 SRS `${whipHost}:${whipApiPort}`，带 CORS 头；
+- 待补：账号体系、额度/套餐、viewer-count/ended 事件、10 min 回收 clock 注入测试、真实 SDP 代理 E2E。
 
 **地址配置（本轮新增）**
 
@@ -106,7 +108,7 @@
 - 配置页面：`GET /config`（表单保存）与 `GET/POST /api/v1/config`（JSON），保存后新建房间立即生效；
 - 部署时可用环境变量覆盖：`CAMPUSH_API_HOST`、`CAMPUSH_PLAY_HOST`、`CAMPUSH_WHIP_HOST`、
   `CAMPUSH_WHIP_API_PORT`、`CAMPUSH_TURN_URLS`；
-- 测试：`cloud-core` 4/4（默认值、配置页/保存、房间/play-session/status、SSE、错误码）。
+- 测试：`cloud-core` 5/5（默认值、配置页/保存、房间/play-session/status、SSE、媒体代理鉴权/CORS、错误码）。
 
 > 本地 Docker 环境（SRS 域名/容器 IP/端口）已记录在 [17-local-dev-env.md](./17-local-dev-env.md)；
 > 后续本地开发直接使用 `srs.m0-wan.orb.local:8080`（页面）与 `:1985`（API），不修改宿主/OrbStack 网络。

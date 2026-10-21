@@ -79,6 +79,22 @@ class CloudServerTest {
     }
 
     @Test
+    fun mediaProxyRequiresTokenAndAllowsCorsPreflight() {
+        val (_, base) = start()
+        val created = post(base, "/api/v1/rooms", """{"accessScope":"wan","captureMode":"single_back"}""", mapOf("Authorization" to "Bearer acct_test"))
+        val roomId = Regex("\"roomId\":\"([^\"]+)\"").find(created.body())!!.groupValues[1]
+
+        val unauthorized = post(base, "/whep/$roomId", "v=0", mapOf("Content-Type" to "application/sdp"))
+        assertEquals(401, unauthorized.statusCode())
+        assertTrue(unauthorized.body().contains("3002"))
+
+        val options = HttpRequest.newBuilder(URI.create(base + "/whep/$roomId"))
+            .method("OPTIONS", HttpRequest.BodyPublishers.noBody()).build()
+        val preflight = http.send(options, HttpResponse.BodyHandlers.ofString())
+        assertEquals(204, preflight.statusCode())
+    }
+
+    @Test
     fun roomEventsSseStartsAndHeartbeats() {
         val (_, base) = start()
         val created = post(base, "/api/v1/rooms", """{"accessScope":"wan","captureMode":"single_back"}""", mapOf("Authorization" to "Bearer acct_test"))

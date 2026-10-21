@@ -317,6 +317,7 @@ camPush/
 | v1.10 | 2026-10-20 | Team Lead | 推流瞬间掉 2fps 修复：枚举并优先硬件 H.264 编码器、按能力选择 NV12/I420/ Flexible 输入、YUV 转换复用缓冲、日志输出 encoder choice |
 | v1.11 | 2026-10-20 | Team Lead | 极低帧率救援：1080p 连续 3s 仅 1–4fps 时自动切 720p（播放地址不变），提示语更新；配合硬件编码器选择排查真机 2fps |
 | v1.12 | 2026-10-20 | Team Lead | 低帧率提示携带编码器名称/软硬编与 in/out fps；播放器追帧阈值 1.2s→0.6s 降低观看延迟 |
+| v2.12 | 2026-10-21 | Team Lead | cloud-core 增加 WHIP/WHEP 反向代理（token+CORS，后端 SRS），测试 5/5 |
 | v2.11 | 2026-10-21 | Team Lead | cloud-core 补房间 SSE（state+heartbeat+retry），测试 4/4；T1-S1 骨架继续完善 |
 | v2.10 | 2026-10-21 | Team Lead | cloud-core 地址可配置：新增 CloudConfig + `/config` 配置页/API，默认本地 SRS 域名与端口；测试 3/3 |
 | v2.9 | 2026-10-21 | Team Lead | 启动 T1-S1：新增 `cloud-core` 房间 REST 骨架（创建/查询/停止/play-session/status、HS256 token），测试 2/2 通过；CI 加入 cloud-core 测试 |

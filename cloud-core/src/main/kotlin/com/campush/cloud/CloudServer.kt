@@ -3,6 +3,10 @@ package com.campush.cloud
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
 import java.net.InetSocketAddress
+import java.net.URI
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
 import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -36,6 +40,7 @@ class CloudServer(
 
     private val tokens = Tokens(UUID.randomUUID().toString().replace("-", "").toByteArray())
     private val rooms = ConcurrentHashMap<String, Room>()
+    private val httpClient = HttpClient.newHttpClient()
     private val idempotency = ConcurrentHashMap<String, String>()
     private var server: HttpServer? = null
     private val cleaner = Executors.newSingleThreadScheduledExecutor { r ->
@@ -66,6 +71,9 @@ class CloudServer(
             val method = ex.requestMethod
             when {
                 method == "GET" && path == "/healthz" -> send(ex, 200, """{"ok":true}""")
+                method == "OPTIONS" -> corsOptions(ex)
+                method == "POST" && Regex("^/(whep|whip)/[^/]+$").matches(path) ->
+                    proxyMedia(ex, path)
                 method == "GET" && path == "/config" -> send(ex, 200, configPage(), "text/html; charset=utf-8")
                 method == "GET" && path == "/api/v1/config" -> send(ex, 200, configJson())
                 method == "POST" && path == "/api/v1/config" -> updateConfig(ex)
@@ -147,7 +155,7 @@ class CloudServer(
         send(
             ex,
             201,
-            """{"playSessionId":"$session","pageToken":"${room.pageToken}","mediaToken":"$media","protocols":{"webrtc":{"url":"${config.apiHost}/whep/$id"},"flv":{"url":"${config.playHost}/live/$id.flv"},"hls":{"url":"${config.playHost}/live/$id.m3u8"}},"maxViewers":${config.maxViewers}}""",
+            """{"playSessionId":"$session","pageToken":"${room.pageToken}","mediaToken":"$media","protocols":{"webrtc":{"url":"${config.apiHost}/whep/$id"},"flv":{"url":"${config.whipHost}:${config.whipApiPort}/live/$id.flv"},"hls":{"url":"${config.whipHost}:${config.whipApiPort}/live/$id.m3u8"}},"maxViewers":${config.maxViewers}}""",
         )
     }
 
@@ -200,6 +208,50 @@ class CloudServer(
         val turnUser = "${(clock() + 3600_000) / 1000}:${room.id}"
         val credential = Tokens.sha256("${config.turnSecret}$turnUser".toByteArray())
         return """{"roomId":"${room.id}","state":"${room.state}","createdAt":"${Instant.ofEpochMilli(room.createdAt)}","expireAt":"${Instant.ofEpochMilli(room.expireAt)}","playUrl":"${config.playHost}/s/${room.id}?token=${room.pageToken}","ingest":{"protocol":"whip","whipUrl":"${config.whipHost}:${config.whipApiPort}/rtc/v1/whip/?app=live&stream=${room.id}","rtmpUrl":"rtmp://localhost:1935/live/${room.id}","srtUrl":"srt://localhost:10080?streamid=#!::r=${room.id}","token":"${room.ingestToken}"},"turn":{"urls":${config.turnUrls.joinToString(",", "[", "]") { "\"$it\"" }},"username":"$turnUser","credential":"$credential"},"limits":{"maxViewers":${config.maxViewers},"maxDurationSec":${config.maxDurationSec}}}"""
+    }
+
+    /**
+     * WHIP/WHEP 反向代理：云端对外统一 apiHost，媒体后端仍是 SRS。
+     * 客户端只看到 `/whep/{roomId}` / `/whip/{roomId}`，不暴露 SRS 端口。
+     */
+    private fun proxyMedia(ex: HttpExchange, path: String) {
+        val parts = path.trim('/').split('/')
+        if (parts.size != 2) return send(ex, 404, error(2001, "not_found", "bad media path"))
+        val kind = parts[0]
+        val roomId = parts[1]
+        val room = rooms[roomId] ?: return send(ex, 404, error(2001, "not_found", "room not found"))
+        val token = bearer(ex)
+        val claims = token?.let { tokens.verify(it) }
+        val aud = if (kind == "whep") "media" else "ingest"
+        if (claims == null || claims.aud != aud || claims.sub != roomId) {
+            return sendCors(ex, 401, error(3002, "token_invalid", "media token required"))
+        }
+        val body = ex.requestBody.readBytes()
+        val target = "${config.whipHost}:${config.whipApiPort}/rtc/v1/$kind/?app=live&stream=$roomId"
+        val request = HttpRequest.newBuilder(URI.create(target))
+            .header("Content-Type", ex.requestHeaders.getFirst("Content-Type") ?: "application/sdp")
+            .POST(HttpRequest.BodyPublishers.ofByteArray(body))
+            .build()
+        try {
+            val response = httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray())
+            val contentType = response.headers().firstValue("Content-Type").orElse("application/sdp")
+            sendCors(ex, response.statusCode(), String(response.body()), contentType)
+        } catch (t: Throwable) {
+            sendCors(ex, 502, error(7001, "media_unavailable", t.message ?: "SRS unavailable"))
+        }
+    }
+
+    private fun corsOptions(ex: HttpExchange) {
+        ex.responseHeaders.add("Access-Control-Allow-Origin", "*")
+        ex.responseHeaders.add("Access-Control-Allow-Methods", "GET,POST,OPTIONS,PATCH,DELETE")
+        ex.responseHeaders.add("Access-Control-Allow-Headers", "Content-Type,Authorization,X-Page-Token,Idempotency-Key")
+        ex.sendResponseHeaders(204, -1)
+        ex.close()
+    }
+
+    private fun sendCors(ex: HttpExchange, status: Int, body: String, contentType: String = "application/json; charset=utf-8") {
+        ex.responseHeaders.add("Access-Control-Allow-Origin", "*")
+        send(ex, status, body, contentType)
     }
 
     private fun configJson(): String =
