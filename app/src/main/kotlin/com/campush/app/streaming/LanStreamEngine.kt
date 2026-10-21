@@ -88,7 +88,7 @@ class LanStreamEngine(
 
     @Volatile
     private var audioEncoder: AudioEncoder? = null
-    private var rtmpClient: com.campush.lan.RtmpPushClient? = null
+    private var rtmpPublisher: com.campush.app.streaming.rtmp.AsyncRtmpPublisher? = null
 
     private var statsJob: Job? = null
 
@@ -180,31 +180,15 @@ class LanStreamEngine(
             fail(6001)
             return
         }
-        val rtmpClient = options.rtmpUrl.trim().takeIf { it.isNotEmpty() }?.let { url ->
-            runCatching {
-                com.campush.lan.RtmpPushClient(url).also { it.connect() }
-            }.onFailure {
-                Log.w(TAG, "RTMP side-channel connect failed: $url", it)
-                DiagLog.w("Rtmp", "connect failed: ${it.message}")
-            }.getOrNull()
+        val rtmpUrl = options.rtmpUrl.trim().takeIf { it.isNotEmpty() }
+        val rtmp = rtmpUrl?.let {
+            com.campush.app.streaming.rtmp.AsyncRtmpPublisher(it).also { publisher -> publisher.start() }
         }
-        this.rtmpClient = rtmpClient
-        val publisher: LanMediaPublisher = if (rtmpClient == null) {
+        this.rtmpPublisher = rtmp
+        val publisher: LanMediaPublisher = if (rtmp == null) {
             basePublisher
         } else {
-            val rtmpPublisher = object : LanMediaPublisher {
-                override fun publishJpeg(jpeg: ByteArray) = Unit
-                override fun publishH264(unit: com.campush.lan.H264AccessUnit) {
-                    rtmpClient.sendVideo(unit, unit.ptsUs / 1000)
-                }
-                override fun publishAac(unit: com.campush.lan.AacAccessUnit) {
-                    rtmpClient.sendAudio(unit, unit.ptsUs / 1000)
-                }
-                override fun stats(): com.campush.lan.MediaStats = basePublisher.stats()
-                override fun requestKeyFrame() = Unit
-                override fun isMjpegWanted(): Boolean = false
-            }
-            com.campush.lan.TeeLanMediaPublisher(basePublisher, rtmpPublisher)
+            com.campush.lan.TeeLanMediaPublisher(basePublisher, rtmp)
         }
 
         originNs = System.nanoTime()
@@ -292,8 +276,8 @@ class LanStreamEngine(
 
     fun stop() {
         DiagLog.i("Engine", "stop requested phase=$phase")
-        runCatching { rtmpClient?.close() }
-        rtmpClient = null
+        runCatching { rtmpPublisher?.close() }
+        rtmpPublisher = null
         Telemetry.flush()
         if (phase == EnginePhase.IDLE) {
             StreamingBridge.engine = null

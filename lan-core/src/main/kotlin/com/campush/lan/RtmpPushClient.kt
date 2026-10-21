@@ -45,9 +45,12 @@ class RtmpPushClient(
         output = DataOutputStream(socket.getOutputStream().buffered())
         handshake()
         sendAmf(streamId = 0, command("connect", 1.0, objectValue(
-            "app" to app, "type" to "nonprivate", "flashVer" to "FMLE/3.0",
+            "app" to app,
+            "type" to "nonprivate",
+            "flashVer" to "FMLE/3.0",
+            "tcUrl" to "rtmp://$host:$port/$app",
         )))
-        sendAmf(streamId = 0, command("createStream", 2.0))
+        sendAmf(streamId = 0, command("createStream", 2.0, nullValue()))
         sendAmf(streamId = 1, command("publish", 3.0, nullValue(), stringValue(stream)))
         connected = true
     }

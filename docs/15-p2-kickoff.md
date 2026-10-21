@@ -143,6 +143,10 @@
   启动 LAN 推流时引擎创建 `RtmpPushClient` + `TeeLanMediaPublisher`，旁路失败仅记录日志；
 - **端侧 ingest E2E 已通过（2026-10-21）**：模拟器 LAN 推流 + `adb forward tcp:19351 tcp:1935`，
   ffmpeg 推送 H.264 4s → 端侧状态 `/api/v1/status` 返回 `rtmpFrames:60`，证明 RTMP→MediaHub→FLV 链路生效；
+- **App RTMP 旁路 E2E 已通过（2026-10-21）**：模拟器设置 `rtmp://10.0.2.2:1935/live/apptest`
+  并开始 LAN 推流，SRS `/api/v1/streams` 显示 `publish.active=true`、`recv_bytes≈5.3MB`、
+  HTTP-FLV `http://127.0.0.1:18080/live/apptest.flv` 可下载；
+  - 修复：SRS 要求 connect 带 `tcUrl`、`createStream` 带 null command object；
 - 待做：真机 RTMP 旁路/FLV 播放、RTMPS 评估。
 
 ### 4.5 T0-A2 Android WHIP 客户端（已接入，待真机验证）
