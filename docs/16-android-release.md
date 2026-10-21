@@ -14,7 +14,7 @@
 | 字段 | 来源 | 规则 |
 |---|---|---|
 | `versionCode` | `git rev-list --count HEAD`（CI 注入） | 每次提交单调递增；手动构建默认 1 |
-| `versionName` | git tag（`v1.2.3` → `1.2.3`）或 `workflow_dispatch` 输入 | tag 去掉前缀 `v`；无 tag 时为短 SHA |
+| `versionName` | tag 构建：git tag（`v1.2.3` → `1.2.3`）；main/PR：`0.0.0-dev-<短SHA>`；manual 可覆盖 | tag 去掉前缀 `v` |
 | `BuildConfig.GIT_SHA` | CI 注入前 8 位提交 | 设置页「关于 → 构建」可查 |
 | APK 文件名 | `campush-<versionName>-<versionCode>.apk` | Artifact/Release 中下载 |
 
