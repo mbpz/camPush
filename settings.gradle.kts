@@ -21,4 +21,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "CamPush"
 include(":lan-core")
+include(":cloud-core")
 include(":app")

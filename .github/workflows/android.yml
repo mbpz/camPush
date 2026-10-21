@@ -100,7 +100,7 @@ jobs:
             APK="app/build/outputs/apk/debug/app-debug.apk"
           fi
           gradle --no-daemon --console=plain \
-            :lan-core:test "$TASK" \
+            :lan-core:test :cloud-core:test "$TASK" \
             -PappVersionCode=${{ steps.version.outputs.code }} \
             -PappVersionName=${{ steps.version.outputs.name }} \
             -PgitSha=${GITHUB_SHA::8}

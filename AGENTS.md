@@ -65,7 +65,14 @@ lan-core (纯 JVM 端侧服务) ──> 无 Android 依赖
 - 回退：CameraX `Preview + ImageAnalysis` 兼容管线（API < 26 或 Surface 管线初始化失败）；
 - 禁止为了帧率在 UI 层直接操作相机/编码器；所有优化在管线实现内完成，通过 `P1UiState` 汇报实际分辨率/fps/警告。
 
-## 5. 文档与证据
+## 5. 本地 Docker 开发环境（P2 M0-WAN，勿改网络）
+
+- SRS 6 已由用户部署在 Docker：域名 `srs.m0-wan.orb.local`，容器 IP `192.168.107.2`；
+- 端口：页面/FLV/HLS `8080`（宿主 `18080`）、SRS API/WHIP 信令 `1985`、RTMP `1935`、WebRTC `8000/udp,tcp`；
+- 本地开发直接使用上述地址/端口，**禁止修改宿主机、OrbStack 或 Docker 网络配置**（不加反向代理/不改域名解析）；
+- 详细命令与约束见 `docs/17-local-dev-env.md`。
+
+## 6. 文档与证据
 
 - 工程事实以 `docs/` 为唯一来源；实现细节更新 `docs/12-p1-implementation.md`；
 - 性能/兼容性结论必须附可复现步骤或日志字段，不得只写“已优化”；

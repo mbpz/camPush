@@ -101,6 +101,7 @@ PRD 定义 **What / Why**；本集定义 **How / 边界 / 验收 / 排期 / 风�
 | 14 | [p1-acceptance-kit](./docs/14-p1-acceptance-kit.md) | **P1 验收执行包**：Top12/E7 矩阵、86 条用例、安全用例、AC-01 计时、M0 评审、UI/埋点/看板/发布模板 | QA / 产品 / 研发 |
 | 15 | [p2-kickoff](./docs/15-p2-kickoff.md) | **P2 启动记录**：P1 条件 G1、Top5 门禁、WAN Gate 周任务（WHIP/WHEP/房间 REST）、云资源清单与风险 | 全员 |
 | 16 | [android-release](./docs/16-android-release.md) | **APK 构建与发布**：GitHub Actions、versionCode/versionName 规则、Artifacts/Release、本地等价构建、签名 | Android / 发布 |
+| 17 | [local-dev-env](./docs/17-local-dev-env.md) | **本地 Docker 环境**：SRS 域名/容器 IP/端口、WHIP/WHEP/FLV/HLS 命令、禁止改网络约束 | 研发 / QA |
 | — | [PRD v1.0](./docs/PRD-v1.0.md) | 用户提供的需求原文（不改写，仅引用） | 全员 |
 | — | [scripts/check_docs.py](./scripts/check_docs.py) | 8 类文档一致性 CI 门禁 | 全员 |
 
@@ -237,6 +238,7 @@ python3 scripts/check_docs.py --strict
 | 14 p1-acceptance-kit | 330 | 0 | 执行包 v1.0 |
 | 15 p2-kickoff |      118 | 0 | P2 启动 v0.1 |
 | 16 android-release |       76 | 0 | 发布规范 v1.0 |
+| 17 local-dev-env |       72 | 0 | 环境记录 v1.0 |
 | PRD v1.0 | 643 | 0 | 需求基线（原文） |
 
 > 子文档中 “00 v1.1/v1.2” 的引用为其写作时点；以 00 当前版本 v1.5 为准。
@@ -315,6 +317,8 @@ camPush/
 | v1.10 | 2026-10-20 | Team Lead | 推流瞬间掉 2fps 修复：枚举并优先硬件 H.264 编码器、按能力选择 NV12/I420/ Flexible 输入、YUV 转换复用缓冲、日志输出 encoder choice |
 | v1.11 | 2026-10-20 | Team Lead | 极低帧率救援：1080p 连续 3s 仅 1–4fps 时自动切 720p（播放地址不变），提示语更新；配合硬件编码器选择排查真机 2fps |
 | v1.12 | 2026-10-20 | Team Lead | 低帧率提示携带编码器名称/软硬编与 in/out fps；播放器追帧阈值 1.2s→0.6s 降低观看延迟 |
+| v2.9 | 2026-10-21 | Team Lead | 启动 T1-S1：新增 `cloud-core` 房间 REST 骨架（创建/查询/停止/play-session/status、HS256 token），测试 2/2 通过；CI 加入 cloud-core 测试 |
+| v2.8 | 2026-10-21 | Team Lead | 记录本地 SRS 环境（srs.m0-wan.orb.local / 192.168.107.2 / 8080·1985·1935·8000）；新增 docs/17，后续本地开发直接使用 |
 | v2.7 | 2026-10-21 | Team Lead | 明确 M0-WAN 只用宿主机端口，不修改宿主/OrbStack 网络；移除 proxy/域名 label 方案 |
 | v2.6 | 2026-10-21 | Team Lead | M0-WAN：SRS 启用 RTC/WHIP（vhost rtc、8000 udp/tcp），headless Chrome fake media 成功发起 WHIP publish；WHEP 播放待首帧验证 |
 | v2.5 | 2026-10-21 | Team Lead | 首个正式签名 Release：v1.0.0-p1.1 由 release keystore 签名（CI apksigner 校验 SHA-256 ace6137c…），APK `campush-1.0.0-p1.1-33.apk` |

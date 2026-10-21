@@ -57,7 +57,7 @@
 |---|---|---|---|---|
 | 0 | T0-S4 | 验证环境：域名/TLS/TURN/媒体服务器/监控最小集 | 云资源 | 环境清单 + 访问方式 |
 | 1 | T0-S1 | WHIP 接入 + WHEP 播放最小链路 | T0-S4、D-2 | 端到端可播录像 |
-| 2 | T1-S1 | 房间 REST（创建/查询/停止、幂等、额度、10min 回收） | T0-S1 | 接口测试报告 |
+| 2 | T1-S1 | 房间 REST 骨架（创建/查询/停止、token、play-session、status；账号/额度/SSE 待补） | T0-S1 | `cloud-core` + JVM 测试 |
 | 3 | T0-A2 | Android WHIP 推流最小闭环（单摄 720p30） | 接口初稿 | 成功日志 + 首帧时间 |
 | 4 | T0-W1 | 播放页 WHEP 最小原型 + 错误态 | T0-S1 | 可打开 URL |
 | 5 | T0-S2 | RTMP→FLV/HLS 兜底验证 | T0-S1 | HLS 可播 + 切片时长 |
@@ -87,7 +87,18 @@
     说明 WHIP 信令与 ICE candidate 链路已打通；
   - `players/whep.html` 播放页面可打开（200）；headless CDP 自动化在拉流断言阶段不稳定，
     WHEP 实际首帧需用桌面 Chrome 手动/下一轮自动化验证；
-- 下一步：T0-S1 用 App/browser 完成 WHIP→WHEP 首帧并记录时延；随后 T1-S1 房间 REST 骨架。
+- 下一步：T0-S1 用 App/browser 完成 WHIP→WHEP 首帧并记录时延。
+
+### 4.2 T1-S1 房间 REST 骨架（已启动）
+
+- 新模块 `cloud-core/`（纯 JVM，无 Android/云依赖）：`CloudServer` + HS256 token；
+- 已实现：`POST /api/v1/rooms`（accessScope=wan 校验、幂等键、roomId/pageToken/ingestToken/turn/limits）、
+  `GET /rooms/{id}`、`DELETE /rooms/{id}`（ingest token）、`POST /rooms/{id}/play-session`、`GET /rooms/{id}/status`、`/healthz`；
+- 测试：2/2 通过（创建→play-session→status、LAN scope 2007、无/坏 token 3001/3002）；
+- 待补：账号体系、额度/套餐、SSE、10 min 回收（已有定时器，需 clock 注入测试）、WHIP/WHEP 代理接入。
+
+> 本地 Docker 环境（SRS 域名/容器 IP/端口）已记录在 [17-local-dev-env.md](./17-local-dev-env.md)；
+> 后续本地开发直接使用 `srs.m0-wan.orb.local:8080`（页面）与 `:1985`（API），不修改宿主/OrbStack 网络。
 
 ## 5. 需要用户/环境提供
 
