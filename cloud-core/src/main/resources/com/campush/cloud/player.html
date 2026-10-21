@@ -150,16 +150,23 @@
     await waitPlaying(6000);
   }
 
-  function startHls(url) {
+  async function startHls(url) {
     if (window.Hls && window.Hls.isSupported()) {
-      hls = new window.Hls({ liveSyncDurationCount: 2, lowLatencyMode: false });
-      hls.loadSource(url);
-      hls.attachMedia(v);
-      hls.on(window.Hls.Events.MANIFEST_PARSED, () => { v.play().catch(() => {}); startStats(); });
-      hls.on(window.Hls.Events.ERROR, (_, data) => { if (data.fatal) fail(new Error('HLS ' + data.details)); });
+      await new Promise((resolve, reject) => {
+        hls = new window.Hls({ liveSyncDurationCount: 2, lowLatencyMode: false });
+        hls.loadSource(url);
+        hls.attachMedia(v);
+        hls.on(window.Hls.Events.MANIFEST_PARSED, () => {
+          v.play().catch(() => {});
+          startStats();
+          waitPlaying(8000).then(resolve).catch(reject);
+        });
+        hls.on(window.Hls.Events.ERROR, (_, data) => { if (data.fatal) reject(new Error('HLS ' + data.details)); });
+      });
     } else {
       v.src = url;
       v.play().catch(() => {});
+      await waitPlaying(8000);
     }
   }
 
@@ -215,7 +222,7 @@
       }
       if (forced !== 'flv' && protocols.hls && protocols.hls.url) {
         protoEl.textContent = 'HLS';
-        startHls(protocols.hls.url);
+        await startHls(protocols.hls.url);
         setStatus('HLS 播放中', 'ok');
         reportFirstFrame('hls');
         return;

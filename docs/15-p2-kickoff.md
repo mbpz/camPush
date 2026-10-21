@@ -132,8 +132,11 @@
   播放页不再直连 SRS，避免跨域/混合内容；
 - 强制降级验证：`?force=flv` 时播放页 `FLV 播放中`、`readyState=4`、320×240，
   首帧指标 `timeToFirstFrameMs=2561`（`/api/v1/metrics`）；
-- `?force=hls` 仍报 `HLS manifestLoadError`（SRS HLS 主/媒体 playlist 直连 200，cloud 同源链路待修）；
-- 待补：HLS 同源兜底、MJPEG 兜底。
+- **HLS 强制兜底已通过（RTMP H264 源，2026-10-21）**：`?force=hls` → `HLS 播放中`、
+  `readyState=4`、320×240、首帧 `231ms`（metrics `hls p50=231`）；
+- 说明：WHIP（RTC）源在 SRS 转 HLS 的 TS 分片出现 H264 decode error（SRS 侧问题），
+  云播放页/代理本身已验证；正式 WAN 源仍以 WHEP/FLV 优先、HLS 兜底；
+- 待补：MJPEG 兜底。
 
 ### 4.3 T0-A1 双摄能力探测（D-3 数据）
 
