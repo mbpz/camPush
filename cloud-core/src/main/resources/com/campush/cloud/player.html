@@ -33,6 +33,8 @@
 (() => {
   const roomId = location.pathname.split('/').filter(Boolean).pop();
   const params = new URLSearchParams(location.search);
+  const forced = params.get('force') || '';
+
   const pageToken = params.get('token') || '';
   const v = document.getElementById('v');
   const statusEl = document.getElementById('status');
@@ -106,6 +108,7 @@
   async function tryWhep(url, mediaToken) {
     const iceServers = sessionTurn ? [{ urls: sessionTurn.urls, username: sessionTurn.username, credential: sessionTurn.credential }] : [];
     const relayOnly = params.get('relay') === '1';
+
     pc = new RTCPeerConnection({ iceServers, iceTransportPolicy: relayOnly ? 'relay' : 'all' });
     pc.addTransceiver('video', { direction: 'recvonly' });
     pc.addTransceiver('audio', { direction: 'recvonly' });
@@ -188,7 +191,7 @@
       sessionTurn = session.turn || null;
       const protocols = session.protocols || {};
       current = session;
-      if (protocols.webrtc && protocols.webrtc.url) {
+      if (forced !== 'flv' && forced !== 'hls' && protocols.webrtc && protocols.webrtc.url) {
         protoEl.textContent = 'WHEP';
         try {
           await tryWhep(protocols.webrtc.url, session.mediaToken);
@@ -199,7 +202,7 @@
           console.warn('WHEP failed, fallback', e);
         }
       }
-      if (protocols.flv && protocols.flv.url) {
+      if (forced !== 'hls' && protocols.flv && protocols.flv.url) {
         protoEl.textContent = 'FLV';
         try {
           await tryFlv(protocols.flv.url);
@@ -210,7 +213,7 @@
           console.warn('FLV failed, fallback', e);
         }
       }
-      if (protocols.hls && protocols.hls.url) {
+      if (forced !== 'flv' && protocols.hls && protocols.hls.url) {
         protoEl.textContent = 'HLS';
         startHls(protocols.hls.url);
         setStatus('HLS 播放中', 'ok');

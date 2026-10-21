@@ -130,7 +130,10 @@
   并通过 `turnutils_stunclient/uclient` 与播放页 `&relay=1` 强制 relay 验证；
 - HLS 同源代理：`/hls/{roomId}.m3u8?token=` 与 `/hls/{seg}.ts?token=`，playlist 内 `.ts` 自动改写带 token；
   播放页不再直连 SRS，避免跨域/混合内容；
-- 待补：MJPEG 兜底、真实媒体 E2E、首帧量化指标。
+- 强制降级验证：`?force=flv` 时播放页 `FLV 播放中`、`readyState=4`、320×240，
+  首帧指标 `timeToFirstFrameMs=2561`（`/api/v1/metrics`）；
+- `?force=hls` 仍报 `HLS manifestLoadError`（SRS HLS 主/媒体 playlist 直连 200，cloud 同源链路待修）；
+- 待补：HLS 同源兜底、MJPEG 兜底。
 
 ### 4.3 T0-A1 双摄能力探测（D-3 数据）
 

@@ -390,7 +390,11 @@ class CloudServer(
         if (!valid) {
             return send(ex, 401, error(3002, "token_invalid", "media token required"))
         }
-        val target = "${config.playbackHost}:${config.playbackPort}/live/$file"
+        val extraQuery = (ex.requestURI.rawQuery ?: "").split('&')
+            .filter { it.isNotEmpty() && !it.startsWith("token=") }
+            .joinToString("&")
+        val target = "${config.playbackHost}:${config.playbackPort}/live/$file" +
+            if (extraQuery.isNotEmpty()) "?$extraQuery" else ""
         try {
             val upstream = httpClient.send(
                 HttpRequest.newBuilder(URI.create(target)).GET().build(),
@@ -423,7 +427,11 @@ class CloudServer(
         if (!valid) {
             return send(ex, 401, error(3002, "token_invalid", "media token required"))
         }
-        val target = "${config.playbackHost}:${config.playbackPort}/live/$file"
+        val extraQuery = (ex.requestURI.rawQuery ?: "").split('&')
+            .filter { it.isNotEmpty() && !it.startsWith("token=") }
+            .joinToString("&")
+        val target = "${config.playbackHost}:${config.playbackPort}/live/$file" +
+            if (extraQuery.isNotEmpty()) "?$extraQuery" else ""
         try {
             val upstream = httpClient.send(
                 HttpRequest.newBuilder(URI.create(target)).GET().build(),
@@ -439,9 +447,20 @@ class CloudServer(
                 val prefix = if (baseDir.isEmpty()) "" else "$baseDir/"
                 val rewritten = body.lineSequence().joinToString("\n") { line ->
                     val t = line.trim()
-                    if (t.isEmpty() || t.startsWith("#")) line
-                    else if (t.startsWith("http://") || t.startsWith("https://")) line
-                    else "/hls/$prefix$t?token=$token"
+                    when {
+                        t.isEmpty() || t.startsWith("#") -> line
+                        t.startsWith("http://") || t.startsWith("https://") -> line
+                        t.startsWith("/live/") -> {
+                            val rel = t.removePrefix("/live/")
+                            val sep = if (rel.contains('?')) '&' else '?'
+                            "/hls/$rel${sep}token=$token"
+                        }
+                        t.startsWith("/") -> t
+                        else -> {
+                            val sep = if (t.contains('?')) '&' else '?'
+                            "/hls/$prefix$t${sep}token=$token"
+                        }
+                    }
                 }
                 send(ex, 200, rewritten, contentType)
             } else {
