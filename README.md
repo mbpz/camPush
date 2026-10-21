@@ -102,6 +102,7 @@ PRD 定义 **What / Why**；本集定义 **How / 边界 / 验收 / 排期 / 风�
 | 15 | [p2-kickoff](./docs/15-p2-kickoff.md) | **P2 启动记录**：P1 条件 G1、Top5 门禁、WAN Gate 周任务（WHIP/WHEP/房间 REST）、云资源清单与风险 | 全员 |
 | 16 | [android-release](./docs/16-android-release.md) | **APK 构建与发布**：GitHub Actions、versionCode/versionName 规则、Artifacts/Release、本地等价构建、签名 | Android / 发布 |
 | 17 | [local-dev-env](./docs/17-local-dev-env.md) | **本地 Docker 环境**：SRS 域名/容器 IP/端口、WHIP/WHEP/FLV/HLS 命令、禁止改网络约束 | 研发 / QA |
+| 18 | [p2-acceptance](./docs/18-p2-acceptance.md) | **P2 滚动验收**：任务状态/证据/阻塞（真机 WHIP、TURN、双摄），可复现命令 | 全员 |
 | — | [PRD v1.0](./docs/PRD-v1.0.md) | 用户提供的需求原文（不改写，仅引用） | 全员 |
 | — | [scripts/check_docs.py](./scripts/check_docs.py) | 8 类文档一致性 CI 门禁 | 全员 |
 
@@ -239,6 +240,7 @@ python3 scripts/check_docs.py --strict
 | 15 p2-kickoff |      118 | 0 | P2 启动 v0.1 |
 | 16 android-release |       76 | 0 | 发布规范 v1.0 |
 | 17 local-dev-env |       72 | 0 | 环境记录 v1.0 |
+| 18 p2-acceptance |       59 | 0 | P2 验收 v1.0 |
 | PRD v1.0 | 643 | 0 | 需求基线（原文） |
 
 > 子文档中 “00 v1.1/v1.2” 的引用为其写作时点；以 00 当前版本 v1.5 为准。
@@ -317,6 +319,7 @@ camPush/
 | v1.10 | 2026-10-20 | Team Lead | 推流瞬间掉 2fps 修复：枚举并优先硬件 H.264 编码器、按能力选择 NV12/I420/ Flexible 输入、YUV 转换复用缓冲、日志输出 encoder choice |
 | v1.11 | 2026-10-20 | Team Lead | 极低帧率救援：1080p 连续 3s 仅 1–4fps 时自动切 720p（播放地址不变），提示语更新；配合硬件编码器选择排查真机 2fps |
 | v1.12 | 2026-10-20 | Team Lead | 低帧率提示携带编码器名称/软硬编与 in/out fps；播放器追帧阈值 1.2s→0.6s 降低观看延迟 |
+| v2.30 | 2026-10-21 | Team Lead | 新增 P2 滚动验收文档（T0-S1 闭环证据、RTMP E2E、真机/TURN/双摄阻塞）；docs/18 |
 | v2.29 | 2026-10-21 | Team Lead | T0-S1 闭环通过：WHIP 发布→SRS→cloud WHEP 代理→播放页 `readyState=4/320x240` 首帧；CDP 证据 |
 | v2.28 | 2026-10-21 | Team Lead | 本地 WebRTC ICE 打通：SRS CANDIDATE=容器 IP 192.168.107.2，WHIP publisher/WHEP subscriber established；cloud player WHEP 首帧待桌面确认 |
 | v2.27 | 2026-10-21 | Team Lead | App RTMP 旁路 E2E：模拟器 Tee→SRS `publish.active=true`/5.3MB，FLV 可下载；修复 tcUrl/createStream null |
