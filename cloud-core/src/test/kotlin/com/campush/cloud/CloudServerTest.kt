@@ -81,6 +81,19 @@ class CloudServerTest {
     }
 
     @Test
+    fun roomQuotaIsEnforced() {
+        val s = CloudServer(CloudConfig(accountToken = "acct_test", maxRooms = 1))
+        val port = s.start(0)
+        server = s
+        val base = "http://127.0.0.1:$port"
+        val first = post(base, "/api/v1/rooms", """{"accessScope":"wan","captureMode":"single_back"}""", mapOf("Authorization" to "Bearer acct_test"))
+        assertEquals(201, first.statusCode())
+        val second = post(base, "/api/v1/rooms", """{"accessScope":"wan","captureMode":"single_back"}""", mapOf("Authorization" to "Bearer acct_test"))
+        assertEquals(429, second.statusCode())
+        assertTrue(second.body().contains("2004"))
+    }
+
+    @Test
     fun sseEmitsViewerCountAndEnded() {
         val (_, base) = start()
         val created = post(base, "/api/v1/rooms", """{"accessScope":"wan","captureMode":"single_back"}""", mapOf("Authorization" to "Bearer acct_test"))

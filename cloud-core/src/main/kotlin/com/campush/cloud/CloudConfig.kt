@@ -17,6 +17,7 @@ data class CloudConfig(
     val turnSecret: String = "dev-turn-secret",
     val accountToken: String = "acct_dev",
     val maxViewers: Int = 100,
+    val maxRooms: Int = 20,
     val maxDurationSec: Int = 43_200,
     val idleRoomTtlMs: Long = 10 * 60 * 1000L,
 ) {

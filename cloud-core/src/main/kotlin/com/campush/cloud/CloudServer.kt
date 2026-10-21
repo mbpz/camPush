@@ -103,6 +103,10 @@ class CloudServer(
     private fun createRoom(ex: HttpExchange) {
         if (!isAccount(ex)) return send(ex, 401, error(3001, "token_missing", "account bearer required"))
         val body = ex.requestBody.bufferedReader().readText()
+        val activeRooms = rooms.values.count { it.state != "closed" && it.state != "failed" }
+        if (activeRooms >= config.maxRooms) {
+            return send(ex, 429, error(2004, "room_quota_exceeded", "max rooms ${config.maxRooms}"))
+        }
         val scope = field(body, "accessScope")
         if (scope != null && scope != "wan") {
             return send(ex, 400, error(2007, "invalid_argument", "accessScope must be wan"))
