@@ -24,6 +24,7 @@ internal class LanServerImpl(
 ) {
     private val mediaHub = MediaHub(clock)
     val publisher: LanMediaPublisher = mediaHub
+    private var rtmpServer: RtmpIngestServer? = null
     private val telemetryCounts =
         java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.atomic.AtomicLong>()
     private val telemetryAccepted = java.util.concurrent.atomic.AtomicLong()
@@ -99,6 +100,11 @@ internal class LanServerImpl(
             val guard = PinGuard(clock, onLocked = { emit(LanEvent.PIN_LOCKED) })
             http = HttpServer(allocated) { request -> route(request) }
             http.start()
+            if (config.rtmpPort > 0) {
+                rtmpServer = runCatching {
+                    RtmpIngestServer(mediaHub, clock).also { it.start(config.rtmpPort) }
+                }.getOrNull()
+            }
 
             stopRequested = false
             mediaHub.reopen()
@@ -149,6 +155,8 @@ internal class LanServerImpl(
         }
         // 先唤醒媒体订阅者，再关闭连接，保证 stop 总耗时 ≤1 s（05 §3.3）。
         mediaHub.close()
+        runCatching { rtmpServer?.stop() }
+        rtmpServer = null
         runCatching { http?.stop(600L) }
         synchronized(lock) {
             sessionTokens?.destroy()

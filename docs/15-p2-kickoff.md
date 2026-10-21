@@ -62,7 +62,7 @@
 | 4 | T0-W1 | 播放页 WHEP 最小原型 + 错误态 | T0-S1 | 可打开 URL |
 | 5 | T0-S2 | RTMP→FLV/HLS 兜底验证 | T0-S1 | HLS 可播 + 切片时长 |
 | 6 | T0-A3 | 双摄 PiP OpenGL 合成（D-3 允许时） | T0-A1 | 合成+温升采样 |
-| 7 | T2-A4（新增） | LAN 端侧 RTMP ingest + Android RTMP 推流（D-4 已决） | P1 端侧服务 | 推流器接入 + FLV 播放 |
+| 7 | T2-A4（新增） | LAN 端侧 RTMP ingest（✅ 服务端骨架）+ Android RTMP 推流（待做） | P1 端侧服务 | 推流器接入 + FLV 播放 |
 
 **开发原则**
 
@@ -129,7 +129,16 @@
   设置页「关于 → 双摄能力」显示，并记录 `CameraProbe` 诊断日志；
 - 当前仅采集单机数据，D-3 的 ≥40% 支持率仍需 Top20 机型矩阵统计。
 
-### 4.4 T0-A2 Android WHIP 客户端（已接入，待真机验证）
+### 4.4 T2-A4 端侧 RTMP ingest（服务端骨架已完成）
+
+- 新增 `RtmpIngestServer`（纯 JVM，依赖 `LanMediaPublisher` 契约）：
+  - 简单握手、chunk 解析、AMF0 `connect/createStream/publish`；
+  - H.264 AVC sequence header/NALU 与 AAC 帧 → `publishH264/publishAac`；
+  - `LanConfig.rtmpPort`（App 默认 1935，失败不影响 HTTP/FLV 主链路）；
+- 测试：`RtmpIngestServerTest` 用原始 RTMP 客户端完成握手、publish、AVC sequence header/keyframe，断言 hub 收到 H264；
+- 待做：Android RTMP 推流客户端（D-4 客户端侧）、RTMPS 评估。
+
+### 4.5 T0-A2 Android WHIP 客户端（已接入，待真机验证）
 
 - 新增 `io.github.webrtc-sdk:android:125.6422.07`、`WanWhipClient`（Camera2 720p30 + PeerConnection）；
 - 设置页新增「WAN WHIP 联调（P2）」：可填 WHIP URL、开始/停止、查看状态；

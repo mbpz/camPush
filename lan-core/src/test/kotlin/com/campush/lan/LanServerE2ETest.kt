@@ -44,7 +44,7 @@ class LanServerE2ETest {
         val health = TestHttp.request(port, "GET", "/healthz")
         assertEquals(200, health.status)
         assertEquals("""{"ok":true}""", health.text)
-        assertEquals("CamPush-LAN/1.0", health.headers["server"])
+        assertEquals("headers=${health.headers}", "CamPush-LAN/1.0", health.headers["server"])
 
         val badPage = TestHttp.request(port, "GET", "/s/tampered-token")
         assertEquals(401, badPage.status)
@@ -422,10 +422,10 @@ class LanServerE2ETest {
     // ------------------------------------------------------------- helpers
 
     private fun defaultConfig(maxViewers: Int = 3): LanConfig = LanConfig(
-        // 18089 在本机开发环境被 adb host 端口转发占用（lsof: adb 127.0.0.1:18089），
-        // 仍取契约区间 18089–18099 的子集 18090–18099，避免与外部监听器抢路由。
-        port = 18090,
-        portRange = 18090..18099,
+        // 18089 被 adb host 转发占用；18090 被本地 cloud-core 占用。
+        // 仍取契约区间 18089–18099 的子集 18092–18099，避免与外部监听器抢路由。
+        port = 18092,
+        portRange = 18092..18099,
         maxViewers = maxViewers,
         pageTokenTtlSeconds = 3600,
         mediaTokenTtlSeconds = 300,

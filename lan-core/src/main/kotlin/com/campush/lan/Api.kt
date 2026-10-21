@@ -16,6 +16,8 @@ data class LanConfig(
     val pageTokenTtlSeconds: Long = 3600,
     val mediaTokenTtlSeconds: Long = 300,
     val bindAddress: String = "0.0.0.0",
+    /** P2 D-4：端侧 RTMP ingest 端口；0 表示关闭。 */
+    val rtmpPort: Int = 0,
     /** 端侧诊断日志提供者；非空时 `/s/{pageToken}/logs` 返回可下载的文本日志。 */
     val logProvider: (() -> String)? = null,
 )

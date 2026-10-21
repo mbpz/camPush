@@ -133,6 +133,8 @@ class LanStreamEngine(
             pinRequired = options.pinRequired,
             pin = options.pin,
             bindAddress = "0.0.0.0",
+            // P2 D-4：端侧 RTMP ingest；失败不影响 HTTP/FLV 主链路。
+            rtmpPort = 1935,
             logProvider = {
                 DiagLog.snapshot(
                     "phase=$phase surface=${mediaPipeline?.kind == MediaPipelineKind.SURFACE} " +
