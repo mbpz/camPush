@@ -91,6 +91,19 @@ curl -X POST http://127.0.0.1:18090/api/v1/rooms \
   -d '{"accessScope":"wan","captureMode":"single_back"}'
 ```
 
+## 3.2.1 TURN（coturn，本地已验证）
+
+```bash
+cd tools/m0-wan
+CANDIDATE=192.168.107.2 docker compose up -d coturn
+docker exec campush-turn turnutils_stunclient 127.0.0.1   # UDP reflexive addr
+docker exec campush-turn turnutils_uclient -u campush -w campush -y -n 3 127.0.0.1
+```
+
+- 镜像：`docker.1ms.run/coturn/coturn:latest`（本机镜像源；官方 `coturn/coturn` 拉取受凭据阻断）
+- 端口：`3478/udp,tcp`；relay `49160–49200/udp`；账号 `campush/campush`（仅本地开发）
+- 状态 2026-10-21：STUN 绑定成功、TURN 分配/发包成功；WebRTC 跨 NAT 仍需真实网络验证
+
 ## 3.3 端侧 RTMP ingest 本地验证
 
 ```bash

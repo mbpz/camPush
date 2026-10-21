@@ -22,9 +22,10 @@ services:
 
   # TURN（NAT 穿透）。本机 macOS 验证时可先不启，公网/E2 时必需。
   coturn:
-    image: coturn/coturn:latest
+    image: docker.1ms.run/coturn/coturn:latest
     container_name: campush-turn
-    network_mode: host
+    environment:
+      CANDIDATE: ${CANDIDATE:-127.0.0.1}
     command:
       - "-n"
       - "--log-file=stdout"
@@ -33,4 +34,11 @@ services:
       - "--realm=campush.local"
       - "--fingerprint"
       - "--no-cli"
+      - "--min-port=49160"
+      - "--max-port=49200"
+      - "--external-ip=${CANDIDATE:-127.0.0.1}"
+    ports:
+      - "3478:3478/udp"
+      - "3478:3478/tcp"
+      - "49160-49200:49160-49200/udp"
     restart: unless-stopped

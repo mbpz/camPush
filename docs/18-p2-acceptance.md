@@ -21,7 +21,7 @@
 | T2-A4 LAN RTMP | ✅ 端侧/客户端 | ingest E2E `rtmpFrames=60`；App Tee→SRS `publish.active=true`、FLV 5.9MB |
 | T0-A1 双摄探测 | ✅ 单机 | 设置页「双摄能力」；仅 1 台设备数据 |
 | T0-A3 双摄 PiP | ⚠️ 实验性原型 | `DualPipActivity` 模拟器 56fps/thermal=0，合成画面 `docs/assets/p2-dual-pip.jpg`；未接入推流，D-3 支持率未达 40%，保持实验性 |
-| TURN | ⚠️ 配置完成/服务未起 | coturn 镜像拉取被 Docker 凭据阻断；play-session/播放页已带 TURN 配置 |
+| TURN | ✅ 本地服务 | coturn STUN 绑定 + TURN 分配通过；WebRTC 跨 NAT 待真实网络 |
 | 真机 WHIP | ⛔ 阻塞 | 需华为平板安装 APK 并填 Mac 局域网 IP:1985 |
 | P2 G2 正式验收 | ⛔ 未到 | 缺真机 WHIP、TURN、双摄实验结论 |
 
@@ -49,7 +49,7 @@ ffmpeg -re -f lavfi -i testsrc=size=320x180:rate=15 -c:v libx264 -t 4 -f flv rtm
 |---|---|---|
 | 无 H264 硬编真机 | Android WHIP 无法完成实测 | 华为平板安装最新 APK，设置 WHIP URL 为 `http://<Mac-IP>:1985/rtc/v1/whip/?app=live&stream=...` |
 | 本地 ICE 仅容器 candidate 可用 | 跨设备/手机 ICE 不通 | 起 TURN 或提供可用公网/局域网 UDP 路径 |
-| coturn 镜像拉取失败 | TURN 无法本地验证 | 修复 Docker 凭据或使用已缓存镜像/外部 TURN |
+| TURN 跨 NAT 未验证 | 真实弱网/蜂窝场景未覆盖 | 用手机/公网 TURN 验证；本地服务已可用 |
 | 双摄机型数据不足 | T0-A3 无法达到 D-3 门槛 | 原型已跑通；收集 Top20 数据，不足则维持“实验性”并记录 |
 
 ## 4. 变更记录
