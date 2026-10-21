@@ -321,6 +321,7 @@ camPush/
 | v1.10 | 2026-10-20 | Team Lead | 推流瞬间掉 2fps 修复：枚举并优先硬件 H.264 编码器、按能力选择 NV12/I420/ Flexible 输入、YUV 转换复用缓冲、日志输出 encoder choice |
 | v1.11 | 2026-10-20 | Team Lead | 极低帧率救援：1080p 连续 3s 仅 1–4fps 时自动切 720p（播放地址不变），提示语更新；配合硬件编码器选择排查真机 2fps |
 | v1.12 | 2026-10-20 | Team Lead | 低帧率提示携带编码器名称/软硬编与 in/out fps；播放器追帧阈值 1.2s→0.6s 降低观看延迟 |
+| v2.39 | 2026-10-21 | Team Lead | Android WHIP 源 WHEP 播放通过：readyState=4/4.8s/180x320；Android→SRS→WHEP 闭环 |
 | v2.38 | 2026-10-21 | Team Lead | Android WHIP 模拟器 E2E 通过：软件 H264（前摄 180x320）→ SRS `Accept sync Video`、FLV/HLS；真机待验证 |
 | v2.37 | 2026-10-21 | Team Lead | Android WHIP 软件 H264 编码器（MediaCodec+Hybrid 工厂）：模拟器 offer 含 H264、SRS Publisher established；视频帧同步待验证 |
 | v2.36 | 2026-10-21 | Team Lead | D-3 决策：双摄保持实验性（缺 Top20 支持率）；PiP 预览原型已验证，编码/推流延后；新增 docs/19 |

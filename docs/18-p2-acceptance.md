@@ -15,7 +15,7 @@
 | Top5 决策 | ✅ | docs/15 §2 |
 | T0-S1 WHIP→WHEP | ✅ | `docs/15 §4.1`：WHIP publisher established；SRS WHEP `readyState=4/320x240/currentTime=7.78s`；cloud player `WHEP 已连接/readyState=4/currentTime=9.38s` |
 | T0-S2 RTMP→FLV/HLS | ✅ | SRS 测试源 FLV 200/894KB/4s；HLS master 200+切片 |
-| T0-A2 Android WHIP | ✅ 模拟器 E2E | 前摄 + 软件 H264：WHIP H264 180x320，SRS `Accept sync Video`、FLV/HLS；真机硬件 H264 仍待验证 |
+| T0-A2 Android WHIP | ✅ 模拟器 E2E | 前摄 + 软件 H264：WHIP H264 180x320，SRS `Accept sync Video`；WHEP 播放 `readyState=4/4.8s/180x320`；真机硬件 H264 仍待验证 |
 | T1-S1 房间 REST | ✅ 骨架 | 创建/查询/停止/play-session/status/SSE/PIN 锁定/额度/限流；`cloud-core` 12/12 |
 | T1-W1 播放页 | ✅ | WHEP→FLV→HLS 三级兜底、同源代理、PIN、HUD；cloud 10/10 |
 | T2-A4 LAN RTMP | ✅ 端侧/客户端 | ingest E2E `rtmpFrames=60`；App Tee→SRS `publish.active=true`、FLV 5.9MB |

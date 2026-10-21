@@ -182,6 +182,8 @@
 - **模拟器 Android WHIP E2E 已通过（2026-10-21）**：前摄采集 → WHIP（H264 180x320）→ SRS
   `Publisher established`、`Accept sync Video`、`video sh H264 Baseline`，FLV/HLS 可播；
   主界面后摄预览与 WAN 共用相机冲突，WAN 原型暂用前摄；真机仍建议用硬件 H264 后摄；
+- **WHEP 播放 Android 源已验证（2026-10-21）**：SRS `whep.html` 播放 Android WHIP 流，
+  `video.readyState=4`、`currentTime=4.8s`、180×320、`paused=false`；Android→SRS→WHEP 闭环通过；
 - 真机 WHIP 硬件编码待验证。
 - 模拟器实测：房间创建成功（如 `rV190RZWSB`），拿到 roomId/playUrl，WHIP offer 到达 SRS 后因无 H264 失败；
 - 下一步：在真机（有 H.264 硬编）验证 App→SRS WHIP 30fps；模拟器可用 RTMP/FLV 路径做替代验证；
