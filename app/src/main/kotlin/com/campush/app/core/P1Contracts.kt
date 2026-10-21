@@ -85,6 +85,8 @@ interface P1Controller {
     val wanTest: StateFlow<WanTestUi>
     fun startWanRoom(apiBase: String)
     fun stopWanRoom()
+    /** T0-A3 实验：打开双摄 PiP 预览。 */
+    fun openDualPipPreview()
 
     fun start()
     fun stop()

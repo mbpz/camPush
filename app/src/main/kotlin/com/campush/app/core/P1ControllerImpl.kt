@@ -374,6 +374,15 @@ class P1ControllerImpl(context: Context) : P1Controller {
         wanClient.stop()
     }
 
+    override fun openDualPipPreview() {
+        runCatching {
+            appContext.startActivity(
+                android.content.Intent(appContext, com.campush.app.camera.dual.DualPipActivity::class.java)
+                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+        }
+    }
+
     override fun onAddressCopied() {
         Telemetry.event("address_copied", mapOf("accessScope" to "lan"))
     }

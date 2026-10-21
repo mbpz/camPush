@@ -319,6 +319,7 @@ camPush/
 | v1.10 | 2026-10-20 | Team Lead | 推流瞬间掉 2fps 修复：枚举并优先硬件 H.264 编码器、按能力选择 NV12/I420/ Flexible 输入、YUV 转换复用缓冲、日志输出 encoder choice |
 | v1.11 | 2026-10-20 | Team Lead | 极低帧率救援：1080p 连续 3s 仅 1–4fps 时自动切 720p（播放地址不变），提示语更新；配合硬件编码器选择排查真机 2fps |
 | v1.12 | 2026-10-20 | Team Lead | 低帧率提示携带编码器名称/软硬编与 in/out fps；播放器追帧阈值 1.2s→0.6s 降低观看延迟 |
+| v2.31 | 2026-10-21 | Team Lead | T0-A3 双摄 PiP 实验原型：Camera2 双路 + OpenGL 合成，模拟器 56fps/thermal=0，设置页入口 |
 | v2.30 | 2026-10-21 | Team Lead | 新增 P2 滚动验收文档（T0-S1 闭环证据、RTMP E2E、真机/TURN/双摄阻塞）；docs/18 |
 | v2.29 | 2026-10-21 | Team Lead | T0-S1 闭环通过：WHIP 发布→SRS→cloud WHEP 代理→播放页 `readyState=4/320x240` 首帧；CDP 证据 |
 | v2.28 | 2026-10-21 | Team Lead | 本地 WebRTC ICE 打通：SRS CANDIDATE=容器 IP 192.168.107.2，WHIP publisher/WHEP subscriber established；cloud player WHEP 首帧待桌面确认 |

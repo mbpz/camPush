@@ -61,7 +61,7 @@
 | 3 | T0-A2 | Android WHIP 推流最小闭环（单摄 720p30） | 接口初稿 | 成功日志 + 首帧时间 |
 | 4 | T0-W1 | 播放页 WHEP 最小原型 + 错误态 | T0-S1 | 可打开 URL |
 | 5 | T0-S2 | RTMP→FLV/HLS 兜底验证 | T0-S1 | HLS 可播 + 切片时长 |
-| 6 | T0-A3 | 双摄 PiP OpenGL 合成（D-3 允许时） | T0-A1 | 合成+温升采样 |
+| 6 | T0-A3 | 双摄 PiP OpenGL 合成（实验性；D-3 未达 40%，不做卖点） | T0-A1 | ✅ 原型：合成画面 + 56fps/thermal 采样 |
 | 7 | T2-A4（新增） | LAN 端侧 RTMP ingest（✅ 服务端骨架）+ Android RTMP 推流（待做） | P1 端侧服务 | 推流器接入 + FLV 播放 |
 
 **开发原则**
@@ -155,7 +155,17 @@
   - 修复：SRS 要求 connect 带 `tcUrl`、`createStream` 带 null command object；
 - 待做：真机 RTMP 旁路/FLV 播放、RTMPS 评估。
 
-### 4.5 T0-A2 Android WHIP 客户端（已接入，待真机验证）
+### 4.5 T0-A3 双摄 PiP 原型（实验性，已跑通）
+
+- 新增 `DualPipActivity`：Camera2 同时打开前后摄，两个 `SurfaceTexture` 输入 OpenGL，
+  后摄全屏 + 前摄右下角 PiP，输出到单 `SurfaceView`；
+- 模拟器实测（2026-10-21）：**56fps、thermal=0**，合成画面见
+  [docs/assets/p2-dual-pip.jpg](./assets/p2-dual-pip.jpg)；
+- 入口：设置页「双摄 PiP 预览（实验）」；
+- 限制：仅预览/单 SurfaceView 输出，未接入 MediaRecorder/推流；D-3 支持率未达 40%，
+  按决策保持实验性，不作卖点；正式编码接入需 D-3 结论。
+
+### 4.6 T0-A2 Android WHIP 客户端（已接入，待真机验证）
 
 - 新增 `io.github.webrtc-sdk:android:125.6422.07`、`WanWhipClient`（Camera2 720p30 + PeerConnection）；
 - 设置页新增「WAN WHIP 联调（P2）」：可填 WHIP URL、开始/停止、查看状态；
