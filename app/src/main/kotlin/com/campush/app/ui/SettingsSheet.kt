@@ -52,6 +52,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import android.content.Intent
+import android.widget.Toast
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -504,6 +506,22 @@ private fun SettingsContent(
             style = MaterialTheme.typography.bodySmall,
             color = if (wan.error != null) MaterialTheme.colorScheme.error else CamPushColors.TextSecondary,
         )
+        if (wan.playUrl != null) {
+            Spacer(Modifier.height(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = {
+                    context.copyPlayUrlToClipboard(wan.playUrl!!)
+                    Toast.makeText(context, "已复制播放地址", Toast.LENGTH_SHORT).show()
+                }) { Text("复制播放地址") }
+                OutlinedButton(onClick = {
+                    val send = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TEXT, wan.playUrl)
+                    }
+                    context.startActivity(Intent.createChooser(send, "分享播放地址"))
+                }) { Text("分享") }
+            }
+        }
         Spacer(Modifier.height(14.dp))
         HorizontalDivider(color = CamPushColors.Border.copy(alpha = 0.6f))
 

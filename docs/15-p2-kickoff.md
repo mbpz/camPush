@@ -157,6 +157,7 @@
   `TeeLanMediaPublisherTest` 验证主链路成功/旁路失败隔离；
 - 客户端：`RtmpPushClient`（简单握手、AMF0 publish、H.264/AAC FLV tag）已完成，
   与 `RtmpIngestServer` 回环测试通过；`TeeLanMediaPublisher` 支持 LAN 主链路 + RTMP 旁路（旁路失败不影响主链路）；
+- WAN 房间创建后，设置页支持**复制/分享播放地址**（公网 H5 唯一地址）；
 - App 已接入：设置页「RTMP 旁路（可选）」写入 `StreamSettingsUi.rtmpUrl`，
   启动 LAN 推流时引擎创建 `RtmpPushClient` + `TeeLanMediaPublisher`，旁路失败仅记录日志；
 - **端侧 ingest E2E 已通过（2026-10-21）**：模拟器 LAN 推流 + `adb forward tcp:19351 tcp:1935`，
