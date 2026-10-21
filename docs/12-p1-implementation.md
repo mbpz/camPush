@@ -395,7 +395,29 @@ grep -n "CameraHost\|Camera2SurfacePipeline\|VideoEncoder\|JpegEncoder"   app/sr
 - 启动会话只创建一次（不再 `recreateSession`），停止无 `FATAL`；
 - 若 12 Mbps 仍模糊，下一步需要 MediaCodec Surface + 自管 CBR（MediaRecorder 只有 VBR，低复杂度场景会明显低于目标码率）。
 
-### 5.12 真实浏览器播放（宿主 Chrome headless）
+### 5.12 画面方向修复：手机向上移动、电脑画面向右移动
+
+**现象**：Surface 管线推流后，手机向上移动，电脑端画面向右移动（整体旋转 90°）。
+
+**根因**：FLV/HTTP 传输不携带旋转元数据。Camera2 按**传感器方向**输出画面（手机竖持时传感器画面是横的），
+而播放页直接按原始方向渲染；没有 metadata，浏览器不会自动转正。
+
+**修复**
+
+| 层 | 内容 |
+|---|---|
+| 管线 | Surface 管线根据前后摄 `SENSOR_ORIENTATION` + 当前屏幕旋转，计算播放端需要的旋转角（竖屏后摄典型为 270°） |
+| URL | 播放地址自动追加 `?rot=270`（日志 `streaming started ... rotation=270`）；切换前后摄时刷新 |
+| 播放页 | 解析 `rot`，对 video 元素应用 CSS 旋转并按 stage 尺寸居中缩放；新增「旋转」按钮，用户可 90° 循环微调 |
+| 兼容 | 无 `rot` 参数（如旧地址/兼容管线）保持原行为；日志地址自动去掉 query 后再拼 `/logs` |
+
+**验证**：模拟器日志 `rotation=270`；带 query 的页面 `GET /s/<token>?rot=270` 返回 200；日志接口 200；
+播放页 JS 通过 `node --check` 语法校验，播放页 selftest 26/26。
+
+> 若个别机型方向仍不对（不同厂商传感器方向/镜像差异），点播放页「旋转」按钮可手动校正；下一个版本会把
+> App 内 SurfaceView 预览也做同样的方向变换（TextureView + transform）。
+
+### 5.13 真实浏览器播放（宿主 Chrome headless）
 
 - 打开唯一地址 → **FLV→MSE 成功**：`video.readyState=4`、`currentTime≈0.8s`、`buffered≈2.1s`、`videoWidth=1920`；
 - 无控制台错误；HUD 显示「直播中 / 0/3 人观看 / 871 kbps · 20 fps」；

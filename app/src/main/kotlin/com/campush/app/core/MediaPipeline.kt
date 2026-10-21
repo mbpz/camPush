@@ -59,6 +59,9 @@ interface MediaPipeline {
     fun requestKeyFrame()
 
     fun diagnostics(): PipelineDiagnostics?
+
+    /** 播放端需要旋转的角度（0/90/180/270）；由管线根据相机传感器/屏幕方向计算。 */
+    val playerRotationDegrees: Int get() = 0
 }
 
 interface MediaPipelineFactory {

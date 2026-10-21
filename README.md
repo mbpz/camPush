@@ -299,6 +299,7 @@ camPush/
 | v1.10 | 2026-10-20 | Team Lead | 推流瞬间掉 2fps 修复：枚举并优先硬件 H.264 编码器、按能力选择 NV12/I420/ Flexible 输入、YUV 转换复用缓冲、日志输出 encoder choice |
 | v1.11 | 2026-10-20 | Team Lead | 极低帧率救援：1080p 连续 3s 仅 1–4fps 时自动切 720p（播放地址不变），提示语更新；配合硬件编码器选择排查真机 2fps |
 | v1.12 | 2026-10-20 | Team Lead | 低帧率提示携带编码器名称/软硬编与 in/out fps；播放器追帧阈值 1.2s→0.6s 降低观看延迟 |
+| v1.19 | 2026-10-21 | Team Lead | 画面方向修复：按传感器+屏幕旋转生成 `?rot=`，播放页 CSS 旋转并提供「旋转」按钮，解决手机向上/画面向右的 90° 错位 |
 | v1.18 | 2026-10-21 | Team Lead | 1080p 进一步清晰化：自动 12 Mbps + 档位 12000；启动等待 SurfaceView 避免黑屏重建；恢复相机原生预览尺寸 |
 | v1.17 | 2026-10-21 | Team Lead | 1080p 清晰度修复：码率档位到 10 Mbps、1080p 自动 ≥8 Mbps、AVC High Profile；修复停止推流时 CameraAccessException 崩溃 |
 | v1.16 | 2026-10-20 | Team Lead | 管线抽象重构：新增 core.MediaPipeline/Factory 契约，Camera2/CameraX 适配器移入 streaming/pipeline，引擎只依赖契约；AGENTS/docs/00 同步 | 2026-10-20 | Team Lead | 局域网诊断日志下载：地址卡「日志」一键复制 `播放地址/logs`，电脑浏览器下载 App 内日志/状态/崩溃栈；lan-core 新增 `/s/{token}/logs` |

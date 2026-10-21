@@ -125,7 +125,7 @@ fun MainScreen(controller: P1Controller) {
     val copyLogs: () -> Unit = {
         val url = state.playUrl
         if (url != null) {
-            context.copyPlayUrlToClipboard("$url/logs")
+            context.copyPlayUrlToClipboard("${url.substringBefore('?')}/logs")
             notify("诊断日志下载地址已复制，局域网电脑浏览器打开即可下载")
         } else {
             notify("播放地址尚未生成，请稍候")

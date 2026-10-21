@@ -58,6 +58,7 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:15px/1.
     <div class="meta"><span id="mViewers"></span><span id="mRate"></span></div>
     <button id="btnSound" type="button" aria-label="开启声音">声音</button>
     <button id="btnFull" type="button" aria-label="全屏">全屏</button>
+    <button id="btnRotate" type="button" aria-label="旋转画面">旋转</button>
   </header>
   <main id="stage">
     <video id="v" playsinline autoplay muted></video>
@@ -473,7 +474,7 @@ function buildMediaSegment(seq,videoSamples,audioSamples,audioTimescale){
 
 var $=function(id){ return document.getElementById(id); };
 var E={v:$('v'),mj:$('mj'),liveDot:$('liveDot'),liveText:$('liveText'),viewers:$('mViewers'),
-  rate:$('mRate'),soundBtn:$('btnSound'),fullBtn:$('btnFull'),load:$('load'),loadText:$('loadText'),
+  rate:$('mRate'),soundBtn:$('btnSound'),fullBtn:$('btnFull'),rotateBtn:$('btnRotate'),load:$('load'),loadText:$('loadText'),
   err:$('err'),errTitle:$('errTitle'),errMsg:$('errMsg'),errCode:$('errCode'),errTips:$('errTips'),
   retry:$('retry'),pinLayer:$('pinLayer'),pin:$('pin'),pinErr:$('pinErr'),pinOk:$('pinOk'),
   sound:$('sound'),stage:$('stage'),foot:$('foot')};
@@ -483,6 +484,34 @@ var S={phase:'boot',pageToken:parsePathToken(location.pathname),mediaToken:null,
   statusTimer:null,renewTimer:null,watchTimer:null,telemQueue:[],flvAbort:null,
   mseUrl:null,ms:null,sb:null,awaitingPin:false,reconnecting:0,closed:false,lastBytesAt:0};
 
+/* 画面旋转：推流端按相机传感器/屏幕方向在 URL 上带 ?rot=90/180/270。
+   FLV/HTTP 不携带旋转元数据，由播放端 CSS 旋转；用户可点「旋转」微调。 */
+var rotationDeg=(function(){
+  var m=/[?&]rot=(\d+)/.exec(location.search);
+  var d=m?parseInt(m[1],10):0;
+  return ((d%360)+360)%360;
+})();
+function applyRotation(){
+  var stage=E.stage; if(!stage){ return; }
+  var w=stage.clientWidth,h=stage.clientHeight;
+  [E.v,E.mj].forEach(function(el){
+    if(!el){ return; }
+    if(!rotationDeg){
+      el.style.transform='';el.style.width='';el.style.height='';
+      el.style.left='';el.style.top='';el.style.right='';el.style.bottom='';
+      return;
+    }
+    var swap=(rotationDeg===90||rotationDeg===270);
+    el.style.right='auto';el.style.bottom='auto';
+    el.style.width=(swap?h:w)+'px';
+    el.style.height=(swap?w:h)+'px';
+    el.style.left=((swap?(w-h):0)/2)+'px';
+    el.style.top=((swap?(h-w):0)/2)+'px';
+    el.style.transform='rotate('+rotationDeg+'deg)';
+    el.style.transformOrigin='center center';
+  });
+}
+function cycleRotation(){ rotationDeg=(rotationDeg+90)%360; applyRotation(); }
 function text(el,v){ if(el){ el.textContent=v; } }
 function show(el,on){ if(el){ el.hidden=!on; } }
 function setLoad(msg){ text(E.loadText,msg); show(E.load,true); }
@@ -1022,6 +1051,10 @@ function bind(){
     text(E.soundBtn,'静音');
     E.soundBtn.setAttribute('aria-label','静音');
   });
+  if(E.rotateBtn){ E.rotateBtn.addEventListener('click',cycleRotation); }
+  window.addEventListener('resize',applyRotation);
+  document.addEventListener('fullscreenchange',function(){ setTimeout(applyRotation,50); });
+  setTimeout(applyRotation,50);
   E.fullBtn.addEventListener('click',function(){
     try{
       if(document.fullscreenElement){ document.exitFullscreen().catch(function(){}); }

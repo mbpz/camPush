@@ -59,6 +59,7 @@ class LanStreamEngine(
     private var lastActualHeight: Int = 0
     private var publisherRef: LanMediaPublisher? = null
     private var streamMuted: Boolean = false
+    private var playUrlBase: String? = null
     private var pipelineSettings: StreamSettingsUi? = null
     private var pipelineFacing: CameraFacingUi = CameraFacingUi.BACK
     private var pipelineJob: Job? = null
@@ -158,6 +159,7 @@ class LanStreamEngine(
             return
         }
         server = lanServer
+        playUrlBase = playUrl
 
         val publisher: LanMediaPublisher = try {
             lanServer.publisher
@@ -191,11 +193,16 @@ class LanStreamEngine(
         val micDenied = startMediaPipeline(activeSettings, activeFacing, publisher)
 
         phase = EnginePhase.STREAMING
-        DiagLog.i("Engine", "streaming started: surface=${mediaPipeline?.kind == MediaPipelineKind.SURFACE} settings=${pipelineSettings} facing=$pipelineFacing")
+        val displayUrl = playUrlWithRotation()
+        DiagLog.i(
+            "Engine",
+            "streaming started: surface=${mediaPipeline?.kind == MediaPipelineKind.SURFACE} " +
+                "rotation=${mediaPipeline?.playerRotationDegrees ?: 0} settings=$pipelineSettings facing=$pipelineFacing",
+        )
         StreamingBridge.update {
             it.copy(
                 phase = EnginePhase.STREAMING,
-                playUrl = playUrl,
+                playUrl = displayUrl,
                 lanIp = network.lanIp,
                 port = options.port,
                 maxViewers = MAX_VIEWERS,
@@ -396,6 +403,7 @@ class LanStreamEngine(
     fun switchCameraSurface(target: CameraFacingUi) {
         pipelineFacing = target
         runCatching { mediaPipeline?.switchCamera(target) }
+        StreamingBridge.update { it.copy(playUrl = playUrlWithRotation()) }
     }
 
     fun setTorchSurface(on: Boolean) {
@@ -418,6 +426,12 @@ class LanStreamEngine(
             StreamingBridge.update { it.copy(actualWidth = 0, actualHeight = 0) }
             Log.i(TAG, "media pipeline updated to ${settings.width}x${settings.height}@${settings.fps}")
         }
+    }
+
+    private fun playUrlWithRotation(): String? {
+        val base = playUrlBase ?: return null
+        val rot = mediaPipeline?.playerRotationDegrees ?: 0
+        return if (rot == 0) base else "$base?rot=$rot"
     }
 
     private fun serverFpsForLog(): Int = runCatching { server?.status()?.fps ?: 0 }.getOrDefault(0)

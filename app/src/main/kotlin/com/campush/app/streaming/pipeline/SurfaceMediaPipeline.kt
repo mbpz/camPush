@@ -1,8 +1,13 @@
 package com.campush.app.streaming.pipeline
 
 import android.content.Context
+import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CameraManager
+import android.hardware.display.DisplayManager
 import android.os.Handler
 import android.os.Looper
+import android.view.Display
+import android.view.Surface
 import android.view.SurfaceView
 import com.campush.app.camera.Camera2SurfacePipeline
 import com.campush.app.core.CameraFacingUi
@@ -30,10 +35,12 @@ class SurfaceMediaPipeline(
     private var pendingSpec: MediaPipelineSpec? = null
     private var started = false
     private var startChecks = 0
+    private var rotationDegrees = 0
     private val startCheck = Runnable { tryStart() }
 
     override fun start(spec: MediaPipelineSpec) {
         this.spec = spec
+        rotationDegrees = computeRotation(spec.facing)
         pendingSpec = spec
         started = false
         startChecks = 0
@@ -114,6 +121,40 @@ class SurfaceMediaPipeline(
     }
 
     override fun requestKeyFrame() = Unit
+
+    override val playerRotationDegrees: Int
+        get() = rotationDegrees
+
+    private fun computeRotation(facing: CameraFacingUi): Int {
+        return runCatching {
+            val mgr = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+            val want = if (facing == CameraFacingUi.FRONT) {
+                CameraCharacteristics.LENS_FACING_FRONT
+            } else {
+                CameraCharacteristics.LENS_FACING_BACK
+            }
+            val id = mgr.cameraIdList.firstOrNull { cameraId ->
+                mgr.getCameraCharacteristics(cameraId).get(CameraCharacteristics.LENS_FACING) == want
+            } ?: mgr.cameraIdList.firstOrNull() ?: return 0
+            val sensor = mgr.getCameraCharacteristics(id)
+                .get(CameraCharacteristics.SENSOR_ORIENTATION) ?: 90
+            val display = when (
+                (context.getSystemService(Context.DISPLAY_SERVICE) as DisplayManager)
+                    .getDisplay(Display.DEFAULT_DISPLAY)?.rotation ?: Surface.ROTATION_0
+            ) {
+                Surface.ROTATION_90 -> 90
+                Surface.ROTATION_180 -> 180
+                Surface.ROTATION_270 -> 270
+                else -> 0
+            }
+            val raw = if (facing == CameraFacingUi.FRONT) {
+                (sensor + display) % 360
+            } else {
+                (360 - sensor + display) % 360
+            }
+            ((raw % 360) + 360) % 360
+        }.getOrDefault(0)
+    }
 
     override fun diagnostics(): PipelineDiagnostics = PipelineDiagnostics(
         codecName = "MediaRecorder/H.264",
