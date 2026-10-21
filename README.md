@@ -317,6 +317,7 @@ camPush/
 | v1.10 | 2026-10-20 | Team Lead | 推流瞬间掉 2fps 修复：枚举并优先硬件 H.264 编码器、按能力选择 NV12/I420/ Flexible 输入、YUV 转换复用缓冲、日志输出 encoder choice |
 | v1.11 | 2026-10-20 | Team Lead | 极低帧率救援：1080p 连续 3s 仅 1–4fps 时自动切 720p（播放地址不变），提示语更新；配合硬件编码器选择排查真机 2fps |
 | v1.12 | 2026-10-20 | Team Lead | 低帧率提示携带编码器名称/软硬编与 in/out fps；播放器追帧阈值 1.2s→0.6s 降低观看延迟 |
+| v2.24 | 2026-10-21 | Team Lead | D-4 客户端 `RtmpPushClient`（握手/AMF0/H264+AAC）与 `TeeLanMediaPublisher`；回环测试通过，lan-core 52/52 |
 | v2.23 | 2026-10-21 | Team Lead | D-4 端侧 RTMP ingest 骨架（RtmpIngestServer：握手/AMF0/publish/H264+AAC），LanConfig.rtmpPort；lan-core 测试 50/50 |
 | v2.22 | 2026-10-21 | Team Lead | 房间额度 maxRooms（429/2004）与测试；cloud-core 10/10 |
 | v2.21 | 2026-10-21 | Team Lead | T0-A1 双摄能力探测（逻辑多摄/并发组合）写入 P1UiState 与设置页，作为 D-3 门槛数据 |
