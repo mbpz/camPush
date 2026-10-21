@@ -104,7 +104,7 @@ private fun SettingsContent(
     var portMenuOpen by remember { mutableStateOf(false) }
     var checklistOpen by remember { mutableStateOf(false) }
     var logCopied by remember { mutableStateOf(false) }
-    var wanUrl by remember { mutableStateOf("http://10.0.2.2:1985/rtc/v1/whip/?app=live&stream=campush-dev") }
+    var wanApi by remember { mutableStateOf("http://10.0.2.2:18090") }
     val wan by controller.wanTest.collectAsStateWithLifecycle()
 
     fun applySettings(updated: StreamSettingsUi) {
@@ -449,34 +449,38 @@ private fun SettingsContent(
         )
 
         // ---------- WAN WHIP 联调（P2 T0-A2 原型） ----------
-        SettingsSectionTitle("WAN WHIP 联调（P2）")
+        SettingsSectionTitle("WAN 房间联调（P2）")
         Text(
-            text = "开发联调入口：App 采集 720p30 → WHIP → SRS。模拟器用 10.0.2.2；手机用 Mac 局域网 IP 或 SRS 域名。正式 WAN 房间流程接入后替换。",
+            text = "cloud-core 创建房间 → 取 ingest.whipUrl → WHIP 推流。模拟器用 10.0.2.2:18090；手机用 Mac 局域网 IP。",
             style = MaterialTheme.typography.bodySmall,
             color = CamPushColors.TextSecondary,
         )
         Spacer(Modifier.height(8.dp))
         OutlinedTextField(
-            value = wanUrl,
-            onValueChange = { wanUrl = it },
-            label = { Text("WHIP URL") },
+            value = wanApi,
+            onValueChange = { wanApi = it },
+            label = { Text("Cloud API") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(
-                onClick = { controller.startWanTest(wanUrl) },
+                onClick = { controller.startWanRoom(wanApi) },
                 enabled = !wan.running,
-            ) { Text("开始 WHIP") }
+            ) { Text("创建房间并推流") }
             OutlinedButton(
-                onClick = { controller.stopWanTest() },
+                onClick = { controller.stopWanRoom() },
                 enabled = wan.running,
             ) { Text("停止") }
         }
         Spacer(Modifier.height(6.dp))
         Text(
-            text = if (wan.error != null) "失败：${wan.error}" else "状态：${wan.status}",
+            text = buildString {
+                if (wan.roomId != null) append("房间：${wan.roomId}\n")
+                if (wan.playUrl != null) append("播放：${wan.playUrl}\n")
+                if (wan.error != null) append("失败：${wan.error}") else append("状态：${wan.status}")
+            },
             style = MaterialTheme.typography.bodySmall,
             color = if (wan.error != null) MaterialTheme.colorScheme.error else CamPushColors.TextSecondary,
         )

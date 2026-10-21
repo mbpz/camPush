@@ -317,6 +317,7 @@ camPush/
 | v1.10 | 2026-10-20 | Team Lead | 推流瞬间掉 2fps 修复：枚举并优先硬件 H.264 编码器、按能力选择 NV12/I420/ Flexible 输入、YUV 转换复用缓冲、日志输出 encoder choice |
 | v1.11 | 2026-10-20 | Team Lead | 极低帧率救援：1080p 连续 3s 仅 1–4fps 时自动切 720p（播放地址不变），提示语更新；配合硬件编码器选择排查真机 2fps |
 | v1.12 | 2026-10-20 | Team Lead | 低帧率提示携带编码器名称/软硬编与 in/out fps；播放器追帧阈值 1.2s→0.6s 降低观看延迟 |
+| v2.19 | 2026-10-21 | Team Lead | App 接入 WAN 房间流程（cloud-core 创建房间→WHIP→停止回收）；模拟器房间创建成功，WHIP 受 H264/ICE 限制 |
 | v2.18 | 2026-10-21 | Team Lead | HLS 同源代理 `/hls`（playlist 分段改写+token），播放页三级兜底全部走 cloud-core；cloud-core 8/8 |
 | v2.17 | 2026-10-21 | Team Lead | play-session/播放页接入 TURN（urls/username/credential）；记录本地 Docker ICE 媒体面未通（信令正常、frames=0） |
 | v2.16 | 2026-10-21 | Team Lead | 播放页补 PIN（3004/3005）与 HUD（分辨率/fps/kbps）；cloud-core 测试 7/7 |

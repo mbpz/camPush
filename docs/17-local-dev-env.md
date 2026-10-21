@@ -78,6 +78,9 @@ http://127.0.0.1:1985/api/v1/versions
 ```bash
 scripts/build.sh :cloud-core:installDist
 JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" \
+CAMPUSH_API_HOST=http://10.0.2.2:18090 \
+CAMPUSH_WHIP_HOST=http://10.0.2.2 CAMPUSH_WHIP_API_PORT=1985 \
+CAMPUSH_PLAYBACK_HOST=http://10.0.2.2 CAMPUSH_PLAYBACK_PORT=18080 \
   cloud-core/build/install/cloud-core/bin/cloud-core
 # 默认 http://127.0.0.1:18090；/config 配置页；创建房间：
 curl -X POST http://127.0.0.1:18090/api/v1/rooms \

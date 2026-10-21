@@ -31,7 +31,8 @@ data class P1Error(val code: Int, val message: String, val hint: String? = null)
 data class WanTestUi(
     val running: Boolean = false,
     val status: String = "idle",
-    val sessionUrl: String? = null,
+    val roomId: String? = null,
+    val playUrl: String? = null,
     val error: String? = null,
 )
 
@@ -76,8 +77,8 @@ interface P1Controller {
 
     /** P2 T0-A2：WAN WHIP 联调（设置页开发入口）。 */
     val wanTest: StateFlow<WanTestUi>
-    fun startWanTest(whipUrl: String)
-    fun stopWanTest()
+    fun startWanRoom(apiBase: String)
+    fun stopWanRoom()
 
     fun start()
     fun stop()
