@@ -57,3 +57,4 @@ ffmpeg -re -f lavfi -i testsrc=size=320x180:rate=15 -c:v libx264 -t 4 -f flv rtm
 | 版本 | 日期 | 说明 |
 |---|---|---|
 | v1.0 | 2026-10-21 | 首版滚动验收状态；记录 T0-S1 闭环、RTMP E2E、真机/TURN/双摄阻塞 |
+| v1.1 | 2026-10-21 | TURN relay 通过（`&relay=1` WHEP readyState=4）；T1-S1 限流/PIN 锁定；D-3 实验性结论；剩余阻塞：真机 WHIP、公网 TURN、PiP 编码 |
