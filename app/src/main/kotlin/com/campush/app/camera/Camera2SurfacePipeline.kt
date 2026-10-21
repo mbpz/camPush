@@ -1,6 +1,7 @@
 package com.campush.app.camera
 
 import android.content.Context
+import android.graphics.ImageFormat
 import android.graphics.SurfaceTexture
 import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraCharacteristics
@@ -8,6 +9,8 @@ import android.hardware.camera2.CameraDevice
 import android.hardware.camera2.CameraManager
 import android.hardware.camera2.CaptureRequest
 import android.hardware.camera2.params.StreamConfigurationMap
+import android.media.Image
+import android.media.ImageReader
 import android.media.MediaRecorder
 import android.os.Build
 import android.os.Handler
@@ -39,10 +42,14 @@ class Camera2SurfacePipeline(
     private val onActualSize: (Int, Int) -> Unit,
     private val onError: (String) -> Unit,
     private val onStarted: () -> Unit,
+    /** 小尺寸 JPEG（MJPEG 降级用），由 ImageReader 输出 YUV 后交给上层编码。 */
+    private val onJpegImage: ((Image) -> Unit)? = null,
 ) {
 
     private val thread = HandlerThread("campush-camera2").apply { start() }
     private val handler = Handler(thread.looper)
+    private val jpegThread = HandlerThread("campush-jpeg").apply { start() }
+    private val jpegHandler = Handler(jpegThread.looper)
 
     private var manager: CameraManager? = null
     private var device: CameraDevice? = null
@@ -52,6 +59,9 @@ class Camera2SurfacePipeline(
     private var pipeWrite: ParcelFileDescriptor? = null
     private var recorderSurface: Surface? = null
     private var previewSurface: Surface? = null
+    private var imageReader: ImageReader? = null
+    private var jpegWidth = 0
+    private var jpegHeight = 0
     private var actualWidth = width
     private var actualHeight = height
     private var torch = false
@@ -101,6 +111,9 @@ class Camera2SurfacePipeline(
         started = false
         runCatching { recorderSurface?.release() }
         recorderSurface = null
+        runCatching { imageReader?.close() }
+        imageReader = null
+        jpegThread.quitSafely()
         runCatching { pipeRead?.close() }
         pipeRead = null
         runCatching { pipeWrite?.close() }
@@ -179,16 +192,51 @@ class Camera2SurfacePipeline(
         recorderSurface = rec.surface
         Log.i(TAG, "recorder ready ${actualWidth}x$actualHeight@$fps ${bitrateKbps}kbps")
         DiagLog.i("Surface", "recorder ready ${actualWidth}x$actualHeight@$fps ${bitrateKbps}kbps facing=$facing")
+        setupJpegReader()
         onActualSize(actualWidth, actualHeight)
+    }
+
+    /** 额外开一路小尺寸 YUV 输出用于 MJPEG（iOS Safari 无 MSE，必须有 JPEG 降级）。 */
+    private fun setupJpegReader() {
+        if (onJpegImage == null) return
+        runCatching {
+            val mgr = manager ?: return
+            val id = device?.id ?: return
+            val map = mgr.getCameraCharacteristics(id)
+                .get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP) ?: return
+            val sizes = map.getOutputSizes(ImageFormat.YUV_420_888) ?: return
+            if (sizes.isEmpty()) return
+            val chosen = sizes
+                .filter { it.width <= 960 && it.width >= 320 && kotlin.math.abs(it.width.toDouble() / it.height - 16.0 / 9.0) < 0.12 }
+                .maxByOrNull { it.width.toLong() * it.height }
+                ?: sizes.minByOrNull { kotlin.math.abs(it.width - 640) }
+                ?: return
+            jpegWidth = chosen.width
+            jpegHeight = chosen.height
+            val reader = ImageReader.newInstance(chosen.width, chosen.height, ImageFormat.YUV_420_888, 2)
+            reader.setOnImageAvailableListener({ r ->
+                val image = runCatching { r.acquireLatestImage() }.getOrNull() ?: return@setOnImageAvailableListener
+                try {
+                    onJpegImage?.invoke(image)
+                } catch (t: Throwable) {
+                    Log.w(TAG, "jpeg encode failed", t)
+                } finally {
+                    runCatching { image.close() }
+                }
+            }, jpegHandler)
+            imageReader = reader
+            DiagLog.i("Surface", "jpeg reader ${chosen.width}x${chosen.height} for MJPEG fallback")
+        }.onFailure { Log.w(TAG, "setup jpeg reader failed", it) }
     }
 
     @Suppress("DEPRECATION")
     private fun createSession() {
         val dev = device ?: return
         val recSurface = recorderSurface ?: return
-        val targets = ArrayList<Surface>(2)
+        val targets = ArrayList<Surface>(3)
         targets.add(recSurface)
         previewSurface?.let { targets.add(it) }
+        imageReader?.surface?.let { targets.add(it) }
         try {
             dev.createCaptureSession(targets, object : CameraCaptureSession.StateCallback() {
                 override fun onConfigured(session: CameraCaptureSession) {
@@ -210,7 +258,15 @@ class Camera2SurfacePipeline(
                 }
 
                 override fun onConfigureFailed(session: CameraCaptureSession) {
-                    reportError("相机会话配置失败")
+                    if (imageReader != null) {
+                        // 部分机型不支持 3 路输出：关闭 JPEG 输出后重试 2 路，MJPEG 降级不可用。
+                        DiagLog.w("Surface", "3-stream session failed, retry without jpeg reader")
+                        runCatching { imageReader?.close() }
+                        imageReader = null
+                        if (running) createSession()
+                    } else {
+                        reportError("相机会话配置失败")
+                    }
                 }
             }, handler)
         } catch (t: Throwable) {
@@ -226,9 +282,10 @@ class Camera2SurfacePipeline(
             session = null
             val dev = device ?: return@post
             val recSurface = recorderSurface ?: return@post
-            val targets = ArrayList<Surface>(2)
+            val targets = ArrayList<Surface>(3)
             targets.add(recSurface)
             previewSurface?.let { targets.add(it) }
+            imageReader?.surface?.let { targets.add(it) }
             try {
                 @Suppress("DEPRECATION")
                 dev.createCaptureSession(targets, object : CameraCaptureSession.StateCallback() {
@@ -243,7 +300,13 @@ class Camera2SurfacePipeline(
                     }
 
                     override fun onConfigureFailed(session: CameraCaptureSession) {
-                        if (running) Log.w(TAG, "recreate preview session failed")
+                        if (imageReader != null) {
+                            runCatching { imageReader?.close() }
+                            imageReader = null
+                            if (running) recreateSession()
+                        } else if (running) {
+                            Log.w(TAG, "recreate preview session failed")
+                        }
                     }
                 }, handler)
             } catch (t: Throwable) {
@@ -257,6 +320,7 @@ class Camera2SurfacePipeline(
         val builder = dev.createCaptureRequest(CameraDevice.TEMPLATE_RECORD)
         recorderSurface?.let { builder.addTarget(it) }
         previewSurface?.let { builder.addTarget(it) }
+        imageReader?.surface?.let { builder.addTarget(it) }
         builder.set(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
         builder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO)
         builder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, aeRange(dev.id))

@@ -16,6 +16,7 @@ import com.campush.app.core.MediaPipelineCallbacks
 import com.campush.app.core.MediaPipelineKind
 import com.campush.app.core.MediaPipelineSpec
 import com.campush.app.core.PipelineDiagnostics
+import com.campush.app.streaming.JpegEncoder
 import com.campush.lan.H264AccessUnit
 import com.campush.lan.LanMediaPublisher
 
@@ -30,6 +31,7 @@ class SurfaceMediaPipeline(
     override val kind: MediaPipelineKind = MediaPipelineKind.SURFACE
     private var spec: MediaPipelineSpec? = null
     private var pipeline: Camera2SurfacePipeline? = null
+    private var jpegEncoder: JpegEncoder? = null
     private var previewView: SurfaceView? = null
     private val handler = Handler(Looper.getMainLooper())
     private var pendingSpec: MediaPipelineSpec? = null
@@ -64,6 +66,8 @@ class SurfaceMediaPipeline(
 
     private fun doStart(spec: MediaPipelineSpec) {
         started = true
+        val jpeg = JpegEncoder(publisher) { bytes -> callbacks.onPreviewJpeg(bytes) }
+        jpegEncoder = jpeg
         val base = nowUs()
         val p = Camera2SurfacePipeline(
             context = context,
@@ -78,6 +82,7 @@ class SurfaceMediaPipeline(
             onActualSize = { w, h -> callbacks.onActualSize(w, h) },
             onError = { message -> callbacks.onError(message) },
             onStarted = { callbacks.onStarted(MediaPipelineKind.SURFACE) },
+            onJpegImage = { image -> runCatching { jpeg.onFrame(image) } },
         )
         pipeline = p
         previewView?.let { runCatching { p.setPreviewSurface(it.holder.surface) } }
@@ -90,6 +95,8 @@ class SurfaceMediaPipeline(
         handler.removeCallbacks(startCheck)
         pipeline?.let { runCatching { it.stopAwait() } }
         pipeline = null
+        jpegEncoder?.let { runCatching { it.close() } }
+        jpegEncoder = null
     }
 
     override fun update(spec: MediaPipelineSpec) {

@@ -326,7 +326,7 @@ Camera2 ──Surface──> MediaRecorder(SURFACE, MPEG_2_TS) ──硬件 H.26
 
 **已知限制**
 
-- Surface 模式不产出 MJPEG（浏览器优先 FLV；回退兼容模式仍有 MJPEG）；
+- Surface 模式已通过额外 **640×480 YUV ImageReader → JPEG** 产出 MJPEG（iOS Safari 无 MSE 时必须走此降级）；
 - 画面方向为相机传感器方向，竖屏观看如需旋转需后续增加旋转元数据/播放器 CSS 处理；
 - 需要 API 26+；低版本自动走兼容管线。
 
