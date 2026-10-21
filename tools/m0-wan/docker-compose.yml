@@ -27,6 +27,7 @@ services:
     environment:
       CANDIDATE: ${CANDIDATE:-127.0.0.1}
       TURN_SECRET: ${TURN_SECRET:-dev-turn-secret}
+      TURN_EXTERNAL_IP: ${TURN_EXTERNAL_IP:-${CANDIDATE:-127.0.0.1}}
     command:
       - "-n"
       - "--log-file=stdout"
@@ -37,7 +38,7 @@ services:
       - "--no-cli"
       - "--min-port=49160"
       - "--max-port=49200"
-      - "--external-ip=${CANDIDATE:-127.0.0.1}"
+      - "--external-ip=${TURN_EXTERNAL_IP:-${CANDIDATE:-127.0.0.1}}"
     ports:
       - "3478:3478/udp"
       - "3478:3478/tcp"

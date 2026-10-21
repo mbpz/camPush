@@ -319,6 +319,7 @@ camPush/
 | v1.10 | 2026-10-20 | Team Lead | 推流瞬间掉 2fps 修复：枚举并优先硬件 H.264 编码器、按能力选择 NV12/I420/ Flexible 输入、YUV 转换复用缓冲、日志输出 encoder choice |
 | v1.11 | 2026-10-20 | Team Lead | 极低帧率救援：1080p 连续 3s 仅 1–4fps 时自动切 720p（播放地址不变），提示语更新；配合硬件编码器选择排查真机 2fps |
 | v1.12 | 2026-10-20 | Team Lead | 低帧率提示携带编码器名称/软硬编与 in/out fps；播放器追帧阈值 1.2s→0.6s 降低观看延迟 |
+| v2.34 | 2026-10-21 | Team Lead | TURN relay-only E2E：播放页 `&relay=1` WHEP 已连接/readyState=4/320x240；修正 TURN_EXTERNAL_IP=容器 IP |
 | v2.33 | 2026-10-21 | Team Lead | TURN REST 凭证修正（HMAC-SHA1 base64）并启用 coturn `--use-auth-secret`；uclient 分配通过 |
 | v2.32 | 2026-10-21 | Team Lead | TURN 本地可用：coturn 镜像源启动，STUN/UDP 分配验证通过；文档更新；跨 NAT 待真实网络 |
 | v2.31 | 2026-10-21 | Team Lead | T0-A3 双摄 PiP 实验原型：Camera2 双路 + OpenGL 合成，模拟器 56fps/thermal=0，设置页入口 |

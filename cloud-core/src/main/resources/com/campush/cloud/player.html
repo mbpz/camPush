@@ -105,7 +105,8 @@
 
   async function tryWhep(url, mediaToken) {
     const iceServers = sessionTurn ? [{ urls: sessionTurn.urls, username: sessionTurn.username, credential: sessionTurn.credential }] : [];
-    pc = new RTCPeerConnection({ iceServers });
+    const relayOnly = params.get('relay') === '1';
+    pc = new RTCPeerConnection({ iceServers, iceTransportPolicy: relayOnly ? 'relay' : 'all' });
     pc.addTransceiver('video', { direction: 'recvonly' });
     pc.addTransceiver('audio', { direction: 'recvonly' });
     pc.ontrack = (ev) => {

@@ -95,7 +95,7 @@ curl -X POST http://127.0.0.1:18090/api/v1/rooms \
 
 ```bash
 cd tools/m0-wan
-CANDIDATE=192.168.107.2 docker compose up -d coturn
+CANDIDATE=192.168.107.2 TURN_EXTERNAL_IP=192.168.107.3 docker compose up -d coturn
 docker exec campush-turn turnutils_stunclient 127.0.0.1   # UDP reflexive addr
 docker exec campush-turn turnutils_uclient -u campush -w campush -y -n 3 127.0.0.1
 ```
@@ -103,8 +103,11 @@ docker exec campush-turn turnutils_uclient -u campush -w campush -y -n 3 127.0.0
 - 镜像：`docker.1ms.run/coturn/coturn:latest`（本机镜像源；官方 `coturn/coturn` 拉取受凭据阻断）
 - 端口：`3478/udp,tcp`；relay `49160–49200/udp`；
 - 认证：TURN REST（`--use-auth-secret`），secret 默认 `dev-turn-secret`（与 cloud-core `CloudConfig.turnSecret` 一致）；
+- `TURN_EXTERNAL_IP` 必须为 **TURN 容器 IP**（`docker inspect campush-turn`），不是 SRS 容器 IP；
+  本机验证：`TURN_EXTERNAL_IP=192.168.107.3`；
   `play-session` 的 username=`expiry:roomId`，credential=`base64(HMAC-SHA1(secret, username))`；
-- 状态 2026-10-21：STUN 绑定成功；TURN REST 凭证 + 分配/发包成功；WebRTC 跨 NAT 仍需真实网络验证
+- 状态 2026-10-21：STUN 绑定成功；TURN REST 凭证 + 分配/发包成功；
+  播放页 `&relay=1` 强制 relay，WHEP `readyState=4/320x240`（浏览器→TURN→SRS）
 
 ## 3.3 端侧 RTMP ingest 本地验证
 

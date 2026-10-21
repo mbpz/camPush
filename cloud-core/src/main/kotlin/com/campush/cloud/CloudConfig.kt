@@ -13,7 +13,7 @@ data class CloudConfig(
     val whipApiPort: Int = 1985,
     val playbackHost: String = "http://srs.m0-wan.orb.local",
     val playbackPort: Int = 8080,
-    val turnUrls: List<String> = listOf("turn:srs.m0-wan.orb.local:3478?transport=udp"),
+    val turnUrls: List<String> = listOf("turn:127.0.0.1:3478?transport=udp"),
     val turnSecret: String = "dev-turn-secret",
     val accountToken: String = "acct_dev",
     val maxViewers: Int = 100,
