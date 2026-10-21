@@ -139,7 +139,9 @@
   `TeeLanMediaPublisherTest` 验证主链路成功/旁路失败隔离；
 - 客户端：`RtmpPushClient`（简单握手、AMF0 publish、H.264/AAC FLV tag）已完成，
   与 `RtmpIngestServer` 回环测试通过；`TeeLanMediaPublisher` 支持 LAN 主链路 + RTMP 旁路（旁路失败不影响主链路）；
-- 待做：App 管线接入 Tee + RTMP URL 设置、RTMPS 评估。
+- App 已接入：设置页「RTMP 旁路（可选）」写入 `StreamSettingsUi.rtmpUrl`，
+  启动 LAN 推流时引擎创建 `RtmpPushClient` + `TeeLanMediaPublisher`，旁路失败仅记录日志；
+- 待做：真机/端侧 FLV 联调、RTMPS 评估。
 
 ### 4.5 T0-A2 Android WHIP 客户端（已接入，待真机验证）
 

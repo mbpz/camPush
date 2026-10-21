@@ -20,6 +20,8 @@ data class StreamSettingsUi(
     val audioEnabled: Boolean = true,
     val powerSave: Boolean = false,
     val adaptiveBitrate: Boolean = true,
+    /** P2 D-4：可选 RTMP 旁路推流地址（rtmp://host/app/stream）；空 = 关闭。 */
+    val rtmpUrl: String = "",
 ) {
     val label: String
         get() = "${width}x${height} · ${fps}fps · ${bitrateKbps / 1000.0} Mbps"

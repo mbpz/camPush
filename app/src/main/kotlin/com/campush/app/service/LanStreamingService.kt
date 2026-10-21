@@ -209,6 +209,7 @@ class LanStreamingService : LifecycleService() {
                 audioEnabled = getBooleanExtra(EXTRA_AUDIO_ENABLED, true),
                 powerSave = getBooleanExtra(EXTRA_POWER_SAVE, false),
                 adaptiveBitrate = getBooleanExtra(EXTRA_ADAPTIVE_BITRATE, true),
+                rtmpUrl = getStringExtra(EXTRA_RTMP_URL) ?: "",
             ),
             facing = if (getBooleanExtra(EXTRA_FACING_FRONT, false)) {
                 CameraFacingUi.FRONT
@@ -220,6 +221,7 @@ class LanStreamingService : LifecycleService() {
             port = getIntExtra(EXTRA_PORT, 8089),
             muted = getBooleanExtra(EXTRA_MUTED, false),
             requestedAtMs = getLongExtra(EXTRA_REQUESTED_AT, System.currentTimeMillis()),
+            rtmpUrl = getStringExtra(EXTRA_RTMP_URL) ?: "",
         )
     }
 
@@ -241,6 +243,7 @@ class LanStreamingService : LifecycleService() {
         private const val EXTRA_AUDIO_ENABLED = "audioEnabled"
         private const val EXTRA_POWER_SAVE = "powerSave"
         private const val EXTRA_ADAPTIVE_BITRATE = "adaptiveBitrate"
+        private const val EXTRA_RTMP_URL = "rtmpUrl"
         private const val EXTRA_FACING_FRONT = "facingFront"
         private const val EXTRA_PIN_REQUIRED = "pinRequired"
         private const val EXTRA_PIN = "pin"
@@ -261,6 +264,7 @@ class LanStreamingService : LifecycleService() {
                 putExtra(EXTRA_AUDIO_ENABLED, options.settings.audioEnabled)
                 putExtra(EXTRA_POWER_SAVE, options.settings.powerSave)
                 putExtra(EXTRA_ADAPTIVE_BITRATE, options.settings.adaptiveBitrate)
+                putStringExtraCompat(EXTRA_RTMP_URL, options.rtmpUrl)
                 putExtra(EXTRA_FACING_FRONT, options.facing == CameraFacingUi.FRONT)
                 putExtra(EXTRA_PIN_REQUIRED, options.pinRequired)
                 putStringExtraCompat(EXTRA_PIN, options.pin)

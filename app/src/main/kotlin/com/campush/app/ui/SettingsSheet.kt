@@ -245,6 +245,20 @@ private fun SettingsContent(
             checked = settings.audioEnabled,
             onCheckedChange = { applySettings(settings.copy(audioEnabled = it)) },
         )
+        Spacer(Modifier.height(8.dp))
+        OutlinedTextField(
+            value = settings.rtmpUrl,
+            onValueChange = { applySettings(settings.copy(rtmpUrl = it.trim())) },
+            label = { Text("RTMP 旁路（可选）") },
+            placeholder = { Text("rtmp://host/app/stream") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Text(
+            text = "P2 D-4：开始局域网推流时同时向该 RTMP 地址推送；旁路失败不影响 LAN 观看。",
+            style = MaterialTheme.typography.bodySmall,
+            color = CamPushColors.TextSecondary,
+        )
 
         HorizontalDivider(
             modifier = Modifier.padding(vertical = 16.dp),

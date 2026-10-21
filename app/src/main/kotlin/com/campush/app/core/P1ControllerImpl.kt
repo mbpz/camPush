@@ -193,6 +193,7 @@ class P1ControllerImpl(context: Context) : P1Controller {
             port = currentAfterUpdate.port,
             muted = currentAfterUpdate.muted,
             requestedAtMs = requestedAtMs,
+            rtmpUrl = currentAfterUpdate.settings.rtmpUrl,
         )
         Telemetry.event(
             "push_start_clicked",
@@ -548,6 +549,7 @@ class P1ControllerImpl(context: Context) : P1Controller {
             audioEnabled = prefs.getBoolean(KEY_AUDIO_ENABLED, true),
             powerSave = prefs.getBoolean(KEY_POWER_SAVE, false),
             adaptiveBitrate = prefs.getBoolean(KEY_ADAPTIVE_BITRATE, true),
+            rtmpUrl = prefs.getString(KEY_RTMP_URL, "") ?: "",
         )
         val facing = runCatching {
             CameraFacingUi.valueOf(prefs.getString(KEY_FACING, CameraFacingUi.BACK.name) ?: "BACK")
@@ -578,6 +580,7 @@ class P1ControllerImpl(context: Context) : P1Controller {
             .putBoolean(KEY_AUDIO_ENABLED, settings.audioEnabled)
             .putBoolean(KEY_POWER_SAVE, settings.powerSave)
             .putBoolean(KEY_ADAPTIVE_BITRATE, settings.adaptiveBitrate)
+            .putString(KEY_RTMP_URL, settings.rtmpUrl)
             .apply()
     }
 
@@ -593,6 +596,7 @@ class P1ControllerImpl(context: Context) : P1Controller {
         const val KEY_AUDIO_ENABLED = "settings_audio_enabled"
         const val KEY_POWER_SAVE = "settings_power_save"
         const val KEY_ADAPTIVE_BITRATE = "settings_adaptive_bitrate"
+        const val KEY_RTMP_URL = "settings_rtmp_url"
         const val KEY_FACING = "camera_facing"
         const val KEY_MUTED = "muted"
         const val KEY_PORT = "lan_port"
