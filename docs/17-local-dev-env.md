@@ -70,8 +70,11 @@ http://127.0.0.1:1985/api/v1/versions
   App WHIP 需在真机验证，模拟器可用 RTMP→FLV/HLS 替代验证。
 - `srs.m0-wan.orb.local` 在 macOS 浏览器可用；手机/模拟器访问时用 Mac 局域网 IP 或模拟器
   `10.0.2.2`（仅端口映射，不改网络配置）。
-- **ICE 媒体面未通**（2026-10-21）：WHIP/WHEP 信令成功，但 SRS 收不到 RTP（frames=0）；
-  本地 Docker 的 UDP 8000 路径需进一步排查，或在有 TURN/host 网络的环境验证。不要靠改宿主网络解决。
+- **ICE 媒体面已于 2026-10-21 打通**：SRS 的 `CANDIDATE` 使用**容器 IP `192.168.107.2`**
+  时，Chrome 可完成 DTLS/ICE，WHIP publisher / WHEP subscriber 均 `established`；
+  使用宿主 Wi-Fi IP 时 UDP 包未到达（原因未定，未改宿主网络）。
+  仅本机浏览器调试用容器 IP；手机/跨设备仍用宿主 IP/TURN。
+  复现：`CANDIDATE=192.168.107.2 docker compose up -d --force-recreate srs`。
 
 ## 3.2 cloud-core 本地运行
 

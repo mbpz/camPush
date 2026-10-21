@@ -87,9 +87,12 @@
     说明 WHIP 信令与 ICE candidate 链路已打通；
   - `players/whep.html` 播放页面可打开（200）；headless CDP 自动化在拉流断言阶段不稳定，
     WHEP 实际首帧需用桌面 Chrome 手动/下一轮自动化验证；
-  - **ICE 媒体面未通**：浏览器 WHIP 发布在 SRS 创建 session、answer 正常，但
-    `publish.active=false / frames=0`；本地 Docker/OrbStack 下 `192.168.3.184:8000/udp`
-    媒体包未到达 SRS。属环境/socket 路径问题，需 TURN 或 host 网络验证，未改宿主网络。
+  - **ICE 媒体面已通（2026-10-21）**：将 SRS `CANDIDATE` 设为容器 IP
+    `192.168.107.2`（`CANDIDATE=192.168.107.2 docker compose up -d --force-recreate srs`）后，
+    浏览器 WHIP `RTC: DTLS handshake done / Publisher established`，SRS 收到 H264 Baseline 320x240；
+    WHEP 请求 `Subscriber url=/live/... established`；
+  - 云端播放页 headless 截图 WHEP 未出首帧（回退 HLS 也因 headless 限制失败），
+    需桌面 Chrome/真机确认首帧；信令与 SRS 订阅已建立。
 - 下一步：T0-S1 用 App/browser 完成 WHIP→WHEP 首帧并记录时延。
 
 ### 4.2 T1-S1 房间 REST 骨架（已启动）

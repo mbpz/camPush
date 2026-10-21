@@ -317,6 +317,7 @@ camPush/
 | v1.10 | 2026-10-20 | Team Lead | 推流瞬间掉 2fps 修复：枚举并优先硬件 H.264 编码器、按能力选择 NV12/I420/ Flexible 输入、YUV 转换复用缓冲、日志输出 encoder choice |
 | v1.11 | 2026-10-20 | Team Lead | 极低帧率救援：1080p 连续 3s 仅 1–4fps 时自动切 720p（播放地址不变），提示语更新；配合硬件编码器选择排查真机 2fps |
 | v1.12 | 2026-10-20 | Team Lead | 低帧率提示携带编码器名称/软硬编与 in/out fps；播放器追帧阈值 1.2s→0.6s 降低观看延迟 |
+| v2.28 | 2026-10-21 | Team Lead | 本地 WebRTC ICE 打通：SRS CANDIDATE=容器 IP 192.168.107.2，WHIP publisher/WHEP subscriber established；cloud player WHEP 首帧待桌面确认 |
 | v2.27 | 2026-10-21 | Team Lead | App RTMP 旁路 E2E：模拟器 Tee→SRS `publish.active=true`/5.3MB，FLV 可下载；修复 tcUrl/createStream null |
 | v2.26 | 2026-10-21 | Team Lead | D-4 端侧 RTMP ingest E2E：ffmpeg→模拟器 1935→MediaHub→FLV，状态 `rtmpFrames:60`；新增状态字段 |
 | v2.25 | 2026-10-21 | Team Lead | App 接入 RTMP 旁路：设置页 URL + StreamStartOptions + 引擎 Tee；旁路失败不影响 LAN 主链路 |
