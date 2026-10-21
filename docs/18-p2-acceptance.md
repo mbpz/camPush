@@ -25,6 +25,17 @@
 | 真机 WHIP | ⛔ 阻塞 | 需华为平板安装 APK 并填 Mac 局域网 IP:1985 |
 | P2 G2 正式验收 | ⛔ 未到 | 缺真机 WHIP、TURN、双摄实验结论 |
 
+## 1.1 AC 本地证据（P2 G2 子集）
+
+| AC | 本地证据 | 状态 |
+|---|---|---|
+| AC-02 公网 WebRTC 首帧 <2s | cloud 播放页 WHEP 首帧 `1513ms`（单样本，RTMP→RTC 源，headless Chrome，指标 `/api/v1/metrics`） | ⚠️ 单样本，待多机型/网络矩阵 |
+| AC-03 协议切换地址不变 | 播放页 FLV→HLS，`location.href` 完全不变，切换后 `readyState=4` | ✅ 播放侧 |
+| AC-05 双摄不支持无入口 | 设置页 PiP 入口按 `dualCameraSupported` 隐藏；D-3 实验性 | ✅ 门禁 |
+| AC-07 移动网络可播/降级/停止失效 | FLV 强制兜底 `readyState=4`；HLS 强制兜底 `readyState=4`（RTMP 源）；房间关闭媒体 `410/2002` | ⚠️ 本地网络，非 4G/5G |
+
+> 以上为本地/模拟器证据；G2 仍需真机与公网环境，不能据此宣称 G2 通过。
+
 ## 2. 可复现命令
 
 ```bash
