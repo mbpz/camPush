@@ -10,6 +10,7 @@ import com.campush.app.core.MediaPipelineFactory
 import com.campush.app.core.MediaPipelineKind
 import com.campush.app.core.MediaPipelineSpec
 import com.campush.app.diag.DiagLog
+import com.campush.app.diag.Telemetry
 import com.campush.app.core.CameraFacingUi
 import com.campush.app.core.StreamSettingsUi
 import com.campush.app.network.NetworkMonitor
@@ -59,6 +60,7 @@ class LanStreamEngine(
     private var lastActualHeight: Int = 0
     private var publisherRef: LanMediaPublisher? = null
     private var streamMuted: Boolean = false
+    private var startRequestedAtMs: Long = 0L
     private var playUrlBase: String? = null
     private var pipelineSettings: StreamSettingsUi? = null
     private var pipelineFacing: CameraFacingUi = CameraFacingUi.BACK
@@ -136,7 +138,9 @@ class LanStreamEngine(
                         "facing=$pipelineFacing settings=${pipelineSettings ?: options.settings} " +
                         "actual=${lastActualWidth}x${lastActualHeight} " +
                         "serverFps=${serverFpsForLog()} bitrate=${serverBitrateForLog()} " +
-                        "streamingOwner=${cameraLifecycleOwner != null}",
+                        "streamingOwner=${cameraLifecycleOwner != null} " +
+                        Telemetry.summaryLine() +
+                        " serverTelemetry=${runCatching { server?.telemetrySummary() }.getOrNull()}",
                 )
             },
         )
@@ -160,6 +164,8 @@ class LanStreamEngine(
         }
         server = lanServer
         playUrlBase = playUrl
+        Telemetry.configure(options.port)
+        Telemetry.flush()
 
         val publisher: LanMediaPublisher = try {
             lanServer.publisher
@@ -193,6 +199,17 @@ class LanStreamEngine(
         val micDenied = startMediaPipeline(activeSettings, activeFacing, publisher)
 
         phase = EnginePhase.STREAMING
+        Telemetry.event(
+            "push_start_success",
+            mapOf(
+                "durationMs" to (System.currentTimeMillis() - startRequestedAtMs),
+                "serverConfirmed" to true,
+                "resolution" to "${lastActualWidth}x$lastActualHeight",
+                "fps" to (mediaPipeline?.diagnostics()?.outFps ?: 0),
+                "bitrateKbps" to (serverBitrateForLog() / 1000),
+                "pipeline" to (mediaPipeline?.kind?.name?.lowercase() ?: "unknown"),
+            ),
+        )
         val displayUrl = playUrlWithRotation()
         DiagLog.i(
             "Engine",
@@ -237,6 +254,7 @@ class LanStreamEngine(
 
     fun stop() {
         DiagLog.i("Engine", "stop requested phase=$phase")
+        Telemetry.flush()
         if (phase == EnginePhase.IDLE) {
             StreamingBridge.engine = null
             return
@@ -485,6 +503,17 @@ class LanStreamEngine(
     }
 
     private fun onLanEvent(event: LanEventData) {
+        when (event.event) {
+            LanEvent.VIEWER_JOINED -> Telemetry.event(
+                "lan_viewer_join",
+                mapOf("viewers" to event.viewers, "protocol" to "flv"),
+            )
+            LanEvent.VIEWER_LEFT -> Telemetry.event(
+                "lan_viewer_leave",
+                mapOf("viewers" to event.viewers),
+            )
+            else -> Unit
+        }
         scope.launch {
             when (event.event) {
                 LanEvent.VIEWER_JOINED -> {
@@ -549,6 +578,7 @@ class LanStreamEngine(
 
     private fun fail(code: Int, message: String? = null, hint: String? = null) {
         DiagLog.e("Engine", "fail code=$code message=$message hint=$hint phase=$phase")
+        Telemetry.event("push_failed", mapOf("code" to code))
         scope.launch {
             if (phase == EnginePhase.IDLE || phase == EnginePhase.FAILED) return@launch
             phase = EnginePhase.FAILED

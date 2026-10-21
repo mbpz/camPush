@@ -75,6 +75,11 @@ interface P1Controller {
     fun dismissError()
     fun dismissWarning()
 
+    /** P1 埋点：地址复制 / 二维码 / 分享（UI 只调契约，不直接依赖 telemetry 实现）。 */
+    fun onAddressCopied()
+    fun onQrShown()
+    fun onShareClicked()
+
     /** 预览绑定由 app-ui 的 CameraPreview composable 调用。 */
     fun bindPreview(previewView: PreviewView)
     fun unbindPreview()

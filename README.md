@@ -72,7 +72,7 @@ PRD 定义 **What / Why**；本集定义 **How / 边界 / 验收 / 排期 / 风�
 |---|---|
 | 代码 | `app/`（Compose + CameraX 客户端）、`lan-core/`（纯 JVM 端侧服务）、`tools/player-selftest/`（播放页自检） |
 | 构建 | `scripts/setup-toolchain.sh` → `scripts/build.sh :app:assembleDebug`（沙箱内 SDK/Gradle 全部落在 workspace） |
-| 自动化 | `:lan-core:test` **46/46**；播放页 Node 自检 **26/26**；APK 构建通过 |
+| 自动化 | `:lan-core:test` **48/48**；播放页 Node 自检 **26/26**；APK 构建通过 |
 | 端到端 | Android 14 模拟器：播放页 200（43 KB）、MJPEG/FLV 出流、3 观看者上限、PIN 校验、端口 8090、停止即失效；Chrome 实播 FLV→MSE `readyState=4` |
 | 细节 | [docs/12-p1-implementation.md](./docs/12-p1-implementation.md) |
 
@@ -97,6 +97,7 @@ PRD 定义 **What / Why**；本集定义 **How / 边界 / 验收 / 排期 / 风�
 | 10 | [observability](./docs/10-observability.md) | 指标分阶段启用（P1 LAN / P2 WAN）、24 事件埋点、漏斗、SLO、23 条告警、埋点 QA | 数据 / QA |
 | 11 | [risk-adr](./docs/11-risk-adr.md) | 20 条风险、Top5 决策门禁、ADR-001～013（含 LAN-first 分期）、降级路径 | 产品 / 技术负责人 |
 | 12 | [p1-implementation](./docs/12-p1-implementation.md) | **P1 实现说明**：代码结构、构建运行、功能清单、验收证据、已知限制 | 研发 / QA |
+| 13 | [p1-acceptance](./docs/13-p1-acceptance.md) | **P1 验收报告（G1 证据包）**：M0-LAN、AC/N 对照、DoD、未完成项与收尾计划 | 产品 / QA / Lead |
 | — | [PRD v1.0](./docs/PRD-v1.0.md) | 用户提供的需求原文（不改写，仅引用） | 全员 |
 | — | [scripts/check_docs.py](./scripts/check_docs.py) | 8 类文档一致性 CI 门禁 | 全员 |
 
@@ -220,7 +221,8 @@ python3 scripts/check_docs.py --strict
 | 09 task-plan | 960 | 3 | 基线 v1.1（P1/P2/P3） |
 | 10 observability | 876 | 2 | 基线 v1.1（阶段启用） |
 | 11 risk-adr | 512 | 2 | 基线 v1.2（ADR-013） |
-| 12 p1-implementation |      420 | 0 | 实现基线 v1.0 |
+| 12 p1-implementation |      493 | 0 | 实现基线 v1.0 |
+| 13 p1-acceptance |      119 | 0 | 验收证据 v1.0 |
 | PRD v1.0 | 643 | 0 | 需求基线（原文） |
 
 > 子文档中 “00 v1.1/v1.2” 的引用为其写作时点；以 00 当前版本 v1.5 为准。
@@ -299,6 +301,7 @@ camPush/
 | v1.10 | 2026-10-20 | Team Lead | 推流瞬间掉 2fps 修复：枚举并优先硬件 H.264 编码器、按能力选择 NV12/I420/ Flexible 输入、YUV 转换复用缓冲、日志输出 encoder choice |
 | v1.11 | 2026-10-20 | Team Lead | 极低帧率救援：1080p 连续 3s 仅 1–4fps 时自动切 720p（播放地址不变），提示语更新；配合硬件编码器选择排查真机 2fps |
 | v1.12 | 2026-10-20 | Team Lead | 低帧率提示携带编码器名称/软硬编与 in/out fps；播放器追帧阈值 1.2s→0.6s 降低观看延迟 |
+| v1.20 | 2026-10-21 | Team Lead | 补齐 P1 埋点与验收：App 队列/批量上报、端侧事件计数、PIN 限速/锁定测试；新增 docs/13 P1 验收报告 |
 | v1.19 | 2026-10-21 | Team Lead | 画面方向修复：按传感器+屏幕旋转生成 `?rot=`，播放页 CSS 旋转并提供「旋转」按钮，解决手机向上/画面向右的 90° 错位 |
 | v1.18 | 2026-10-21 | Team Lead | 1080p 进一步清晰化：自动 12 Mbps + 档位 12000；启动等待 SurfaceView 避免黑屏重建；恢复相机原生预览尺寸 |
 | v1.17 | 2026-10-21 | Team Lead | 1080p 清晰度修复：码率档位到 10 Mbps、1080p 自动 ≥8 Mbps、AVC High Profile；修复停止推流时 CameraAccessException 崩溃 |

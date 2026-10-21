@@ -117,4 +117,7 @@ class LanServer(
     fun status(): LanStatus = impl.status()
 
     fun updatePin(required: Boolean, pin: String?): Unit = impl.updatePin(required, pin)
+
+    /** P1 端侧埋点计数（事件名 -> 次数）；供诊断日志/局域网观测使用。 */
+    fun telemetrySummary(): Map<String, Long> = impl.telemetrySummary()
 }

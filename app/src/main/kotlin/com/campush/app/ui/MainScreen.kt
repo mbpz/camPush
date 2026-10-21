@@ -116,6 +116,7 @@ fun MainScreen(controller: P1Controller) {
         val url = state.playUrl
         if (url != null) {
             context.copyPlayUrlToClipboard(url)
+            controller.onAddressCopied()
             notify("播放地址已复制")
         } else {
             notify("播放地址尚未生成，请稍候")
@@ -209,10 +210,13 @@ fun MainScreen(controller: P1Controller) {
             addressExpanded = addressExpanded,
             onToggleAddress = { addressExpanded = !addressExpanded },
             onCopy = copyAddress,
-            onQr = { showQr = true },
+            onQr = { controller.onQrShown(); showQr = true },
             onPreview = { showPreview = true },
             onShare = {
-                state.playUrl?.let { context.sharePlayUrl(it) } ?: notify("播放地址尚未生成")
+                state.playUrl?.let {
+                    controller.onShareClicked()
+                    context.sharePlayUrl(it)
+                } ?: notify("播放地址尚未生成")
             },
             onLogs = copyLogs,
             onLanSelected = {

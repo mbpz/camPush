@@ -7,6 +7,7 @@ import android.os.Build
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import com.campush.app.camera.CameraHost
+import com.campush.app.diag.Telemetry
 import com.campush.app.network.NetworkMonitor
 import com.campush.app.service.LanStreamingService
 import com.campush.app.streaming.EnginePhase
@@ -60,6 +61,7 @@ class P1ControllerImpl(context: Context) : P1Controller {
 
         // 相机权限缺失：1001，阻止推流。
         if (!hasPermission(Manifest.permission.CAMERA)) {
+            Telemetry.event("permission_denied", mapOf("permission" to "camera"))
             showError(
                 P1Error(
                     1001,
@@ -95,6 +97,7 @@ class P1ControllerImpl(context: Context) : P1Controller {
         // 麦克风权限缺失：1002 提示后静音继续，不阻断。
         val micGranted = hasPermission(Manifest.permission.RECORD_AUDIO)
         if (!micGranted) {
+            Telemetry.event("permission_denied", mapOf("permission" to "microphone"))
             _state.update {
                 it.copy(muted = true, warning = "未授予麦克风权限，将静音推流")
             }
@@ -131,9 +134,21 @@ class P1ControllerImpl(context: Context) : P1Controller {
             port = currentAfterUpdate.port,
             muted = currentAfterUpdate.muted,
         )
+        Telemetry.event(
+            "push_start_clicked",
+            mapOf(
+                "accessScope" to "lan",
+                "resolution" to "${currentAfterUpdate.settings.width}x${currentAfterUpdate.settings.height}",
+                "fps" to currentAfterUpdate.settings.fps,
+                "bitrateKbps" to currentAfterUpdate.settings.bitrateKbps,
+                "pinRequired" to currentAfterUpdate.pinRequired,
+                "cameraFacing" to currentAfterUpdate.cameraFacing.name.lowercase(),
+            ),
+        )
         try {
             LanStreamingService.start(appContext, options)
         } catch (t: Throwable) {
+            Telemetry.event("push_failed", mapOf("code" to 1007))
             // 前台服务启动被拒 -> 1007。
             showError(
                 P1Error(
@@ -146,6 +161,7 @@ class P1ControllerImpl(context: Context) : P1Controller {
     }
 
     override fun stop() {
+        Telemetry.event("push_stop", mapOf("reason" to "user"))
         _state.update {
             it.copy(
                 starting = false,
@@ -260,6 +276,18 @@ class P1ControllerImpl(context: Context) : P1Controller {
 
     override fun dismissWarning() {
         _state.update { it.copy(warning = null) }
+    }
+
+    override fun onAddressCopied() {
+        Telemetry.event("address_copied", mapOf("accessScope" to "lan"))
+    }
+
+    override fun onQrShown() {
+        Telemetry.event("qr_shown", mapOf("accessScope" to "lan"))
+    }
+
+    override fun onShareClicked() {
+        Telemetry.event("share_clicked", mapOf("accessScope" to "lan"))
     }
 
     override fun bindPreview(previewView: PreviewView) {

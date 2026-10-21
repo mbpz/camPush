@@ -4,6 +4,7 @@ import android.app.Application
 import com.campush.app.core.P1Controller
 import com.campush.app.core.P1ControllerImpl
 import com.campush.app.diag.DiagLog
+import com.campush.app.diag.Telemetry
 
 /**
  * 进程级依赖容器：P1Controller 单例。
@@ -17,6 +18,7 @@ class CamPushApp : Application() {
     override fun onCreate() {
         super.onCreate()
         DiagLog.init(this)
+        Telemetry.event("app_open", mapOf("appVersion" to BuildConfig.VERSION_NAME))
         if (BuildConfig.DEBUG) {
             android.webkit.WebView.setWebContentsDebuggingEnabled(true)
         }

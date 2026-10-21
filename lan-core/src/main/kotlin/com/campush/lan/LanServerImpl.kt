@@ -24,6 +24,10 @@ internal class LanServerImpl(
 ) {
     private val mediaHub = MediaHub(clock)
     val publisher: LanMediaPublisher = mediaHub
+    private val telemetryCounts =
+        java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.atomic.AtomicLong>()
+    private val telemetryAccepted = java.util.concurrent.atomic.AtomicLong()
+    private val telemetryDropped = java.util.concurrent.atomic.AtomicLong()
 
     private val lock = Any()
 
@@ -345,18 +349,40 @@ internal class LanServerImpl(
     }
 
     private fun handleTelemetry(request: HttpRequest): HttpResult {
-        val accepted = try {
+        var accepted = 0
+        var dropped = 0
+        try {
             val parsed = MiniJson.parse(String(request.body, StandardCharsets.UTF_8)) as? Map<*, *>
             val events = parsed?.get("events") as? List<*>
-            events?.size ?: 0
+            events?.forEach { raw ->
+                val entry = raw as? Map<*, *>
+                val name = (entry?.get("eventName") ?: entry?.get("name"))?.toString()
+                if (name != null && name in TELEMETRY_EVENTS) {
+                    telemetryCounts.computeIfAbsent(name) { java.util.concurrent.atomic.AtomicLong() }
+                        .incrementAndGet()
+                    accepted++
+                } else {
+                    dropped++
+                }
+            }
         } catch (_: Exception) {
-            0
+            dropped++
         }
-        // 仅记录计数，不落盘（10 号文档：断外网时端侧丢弃）。
+        telemetryAccepted.addAndGet(accepted.toLong())
+        telemetryDropped.addAndGet(dropped.toLong())
+        // P1 端侧只做内存计数（断网/停止即丢弃，不落盘）。
         val payload = LinkedHashMap<String, Any?>()
         payload["accepted"] = accepted
-        payload["dropped"] = 0
+        payload["dropped"] = dropped
         return json(202, payload)
+    }
+
+    fun telemetrySummary(): Map<String, Long> {
+        val out = LinkedHashMap<String, Long>()
+        telemetryCounts.entries.sortedBy { it.key }.forEach { (name, count) -> out[name] = count.get() }
+        out["_accepted"] = telemetryAccepted.get()
+        out["_dropped"] = telemetryDropped.get()
+        return out
     }
 
     private fun handleFlv(request: HttpRequest): HttpResult {
@@ -598,6 +624,16 @@ internal class LanServerImpl(
     }
 
     private companion object {
+        /** 00 §11 的 24 个必埋事件名（P1 端侧只计数，不做业务处理）。 */
+        val TELEMETRY_EVENTS: Set<String> = setOf(
+            "app_open", "push_start_clicked", "push_start_success", "push_failed", "push_stop",
+            "play_page_open", "play_first_frame", "play_fallback", "play_failed",
+            "play_stall_start", "play_stall_end", "protocol_switch_start", "protocol_switch_end",
+            "address_copied", "qr_shown", "share_clicked",
+            "lan_viewer_join", "lan_viewer_leave", "ap_isolation_detected",
+            "degrade_triggered", "thermal_sample", "latency_sample",
+            "permission_denied", "permission_granted",
+        )
         val CRLF = "\r\n".toByteArray(StandardCharsets.ISO_8859_1)
     }
 }

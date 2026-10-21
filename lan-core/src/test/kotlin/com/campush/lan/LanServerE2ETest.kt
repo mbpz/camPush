@@ -117,11 +117,25 @@ class LanServerE2ETest {
             port,
             "/api/v1/telemetry/batch",
             emptyMap(),
-            """{"events":[{"name":"a"},{"name":"b"},{"name":"c"}]}""",
+            """{"events":[{"name":"app_open"},{"name":"push_start_clicked"},{"name":"play_first_frame"}]}""",
         )
         assertEquals(202, telemetry.status)
         assertEquals(3, (jsonField(telemetry.text, "accepted") as Number).toInt())
         assertEquals(0, (jsonField(telemetry.text, "dropped") as Number).toInt())
+        // 00 §11 白名单外的名字丢弃，但计入 dropped；摘要按事件名计数。
+        val invalid = TestHttp.postJson(
+            port,
+            "/api/v1/telemetry/batch",
+            emptyMap(),
+            """{"events":[{"name":"not_allowed_event"}]}""",
+        )
+        assertEquals(202, invalid.status)
+        assertEquals(0, (jsonField(invalid.text, "accepted") as Number).toInt())
+        assertEquals(1, (jsonField(invalid.text, "dropped") as Number).toInt())
+        val summary = s.telemetrySummary()
+        assertEquals(1L, summary["app_open"]?.toLong() ?: 0L)
+        assertEquals(1L, summary["push_start_clicked"]?.toLong() ?: 0L)
+        assertEquals(1L, summary["play_first_frame"]?.toLong() ?: 0L)
 
         // mediaToken 过期 -> 401 + 3003
         now += 301_000L
@@ -275,6 +289,37 @@ class LanServerE2ETest {
         assertTrue(events.any { it.event == LanEvent.VIEWER_JOINED })
         assertTrue(events.any { it.event == LanEvent.VIEWER_LEFT })
         assertTrue(events.any { it.event == LanEvent.VIEWER_LIMITED })
+    }
+
+    @Test
+    fun pinRateLimitAndLockout() {
+        val s = start(pinConfig())
+        val port = s.status().port
+        val token = token()
+        fun wrong(): HttpResp = TestHttp.postJson(
+            port,
+            "/api/v1/play-session",
+            mapOf("X-Page-Token" to token),
+            """{"pin":"0000"}""",
+        )
+
+        // 单 IP 5 次/分钟：第 6 次 -> 3008。
+        repeat(5) { assertEquals(3005, jsonCode(wrong().text)) }
+        assertEquals(3008, jsonCode(wrong().text))
+
+        // 窗口重置后继续失败，连续 10 次 -> 3006 锁定。
+        now += 61_000L
+        repeat(4) { assertEquals(3005, jsonCode(wrong().text)) }
+        assertEquals(3006, jsonCode(wrong().text))
+        // 锁定期内即使 PIN 正确也拒绝。
+        val lockedCorrect = TestHttp.postJson(
+            port,
+            "/api/v1/play-session",
+            mapOf("X-Page-Token" to token),
+            """{"pin":"1234"}""",
+        )
+        assertEquals(3006, jsonCode(lockedCorrect.text))
+        assertTrue(s.telemetrySummary().isNotEmpty())
     }
 
     @Test
