@@ -76,6 +76,8 @@ class CloudServer(
                     playSession(ex, path.removePrefix("/api/v1/rooms/").removeSuffix("/play-session"))
                 method == "GET" && path.endsWith("/status") ->
                     status(ex, path.removePrefix("/api/v1/rooms/").removeSuffix("/status"))
+                method == "GET" && path.endsWith("/events") ->
+                    events(ex, path.removePrefix("/api/v1/rooms/").removeSuffix("/events"))
                 else -> send(ex, 404, error(2001, "not_found", "room or endpoint not found"))
             }
         } catch (t: Throwable) {
@@ -155,6 +157,34 @@ class CloudServer(
         val claims = pageToken?.let { tokens.verify(it) }
         if (claims == null || claims.sub != id) return send(ex, 401, error(3002, "token_invalid", "page token invalid"))
         send(ex, 200, """{"roomId":"${room.id}","state":"${room.state}","viewers":${room.viewers},"maxViewers":${config.maxViewers}}""")
+    }
+
+    /** 房间状态 SSE（骨架：state + heartbeat；viewer-count/ended 后续接入）。 */
+    private fun events(ex: HttpExchange, id: String) {
+        val room = rooms[id] ?: return send(ex, 404, error(2001, "not_found", "room not found"))
+        val pageToken = ex.requestHeaders.getFirst("X-Page-Token")
+        val claims = pageToken?.let { tokens.verify(it) }
+        if (claims == null || claims.sub != id) return send(ex, 401, error(3002, "token_invalid", "page token invalid"))
+        ex.responseHeaders.add("Content-Type", "text/event-stream; charset=utf-8")
+        ex.responseHeaders.add("Cache-Control", "no-store")
+        ex.responseHeaders.add("Connection", "keep-alive")
+        ex.sendResponseHeaders(200, 0)
+        val out = ex.responseBody
+        try {
+            fun emit(event: String, data: String) {
+                out.write("retry: 3000\nevent: $event\ndata: $data\n\n".toByteArray())
+                out.flush()
+            }
+            emit("state", """{"roomId":"${room.id}","state":"${room.state}","viewers":${room.viewers}}""")
+            while (server != null) {
+                Thread.sleep(15_000)
+                room.lastActiveAt = clock()
+                emit("heartbeat", "{}")
+            }
+        } catch (_: Throwable) {
+        } finally {
+            runCatching { out.close() }
+        }
     }
 
     private fun cleanupIdle() {

@@ -79,6 +79,28 @@ class CloudServerTest {
     }
 
     @Test
+    fun roomEventsSseStartsAndHeartbeats() {
+        val (_, base) = start()
+        val created = post(base, "/api/v1/rooms", """{"accessScope":"wan","captureMode":"single_back"}""", mapOf("Authorization" to "Bearer acct_test"))
+        val roomId = Regex("\"roomId\":\"([^\"]+)\"").find(created.body())!!.groupValues[1]
+        val pageToken = Regex("\"playUrl\":\"[^\"]*token=([^\"]+)\"").find(created.body())!!.groupValues[1]
+        val conn = java.net.URL("$base/api/v1/rooms/$roomId/events").openConnection() as java.net.HttpURLConnection
+        conn.setRequestProperty("X-Page-Token", pageToken)
+        conn.connectTimeout = 2000
+        conn.readTimeout = 2000
+        try {
+            assertEquals(200, conn.responseCode)
+            val reader = conn.inputStream.bufferedReader()
+            val first = reader.readLine()
+            assertEquals("retry: 3000", first)
+            assertEquals("event: state", reader.readLine())
+            assertTrue(reader.readLine()!!.startsWith("data: "))
+        } finally {
+            conn.disconnect()
+        }
+    }
+
+    @Test
     fun rejectsLanScopeAndBadToken() {
         val (_, base) = start()
         val lan = post(base, "/api/v1/rooms", """{"accessScope":"lan","captureMode":"single_back"}""", mapOf("Authorization" to "Bearer acct_test"))
