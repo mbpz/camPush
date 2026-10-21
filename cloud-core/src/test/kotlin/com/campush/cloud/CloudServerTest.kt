@@ -116,6 +116,22 @@ class CloudServerTest {
     }
 
     @Test
+    fun closedRoomReturns410ForMediaAndPlaySession() {
+        val (_, base) = start()
+        val created = post(base, "/api/v1/rooms", """{"accessScope":"wan","captureMode":"single_back"}""", mapOf("Authorization" to "Bearer acct_test"))
+        val roomId = Regex("\"roomId\":\"([^\"]+)\"").find(created.body())!!.groupValues[1]
+        val pageToken = Regex("\"playUrl\":\"[^\"]*token=([^\"]+)\"").find(created.body())!!.groupValues[1]
+        val ingestToken = Regex("\"ingest\":\\{[^}]*\"token\":\"([^\"]+)\"").find(created.body())!!.groupValues[1]
+        val del = java.net.URI.create("$base/api/v1/rooms/$roomId").toURL().openConnection() as java.net.HttpURLConnection
+        del.requestMethod = "DELETE"; del.setRequestProperty("Authorization", "Bearer $ingestToken")
+        assertEquals(202, del.responseCode); del.disconnect()
+
+        val play = post(base, "/api/v1/rooms/$roomId/play-session", "{}", mapOf("X-Page-Token" to pageToken))
+        assertEquals(410, play.statusCode())
+        assertTrue(play.body().contains("2002"))
+    }
+
+    @Test
     fun telemetryFirstFrameMetrics() {
         val (_, base) = start()
         repeat(3) { i ->

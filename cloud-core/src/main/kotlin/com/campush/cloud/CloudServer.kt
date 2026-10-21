@@ -324,6 +324,9 @@ class CloudServer(
         val kind = parts[0]
         val roomId = parts[1]
         val room = rooms[roomId] ?: return send(ex, 404, error(2001, "not_found", "room not found"))
+        if (room.state == "closed" || room.state == "failed") {
+            return sendCors(ex, 410, error(2002, "room_closed", "room closed"))
+        }
         val token = bearer(ex)
         val claims = token?.let { tokens.verify(it) }
         val aud = if (kind == "whep") "media" else "ingest"
@@ -380,6 +383,10 @@ class CloudServer(
     /** 同源 FLV 代理：播放页只访问 cloud-core，避免 SRS CORS/混合内容问题。 */
     private fun proxyLive(ex: HttpExchange, file: String) {
         val roomId = file.substringBefore('.')
+        val room = rooms[roomId]
+        if (room == null || room.state == "closed" || room.state == "failed") {
+            return send(ex, 410, error(2002, "room_closed", "room closed"))
+        }
         val token = (ex.requestURI.rawQuery ?: "").split('&').mapNotNull {
             val kv = it.split('=', limit = 2)
             if (kv.size == 2 && kv[0] == "token") URLDecoder.decode(kv[1], "UTF-8") else null
@@ -415,17 +422,18 @@ class CloudServer(
 
     /** HLS 同源代理：playlist 内 .ts 相对地址改写为带 token 的 /hls 路径。 */
     private fun proxyHls(ex: HttpExchange, file: String) {
-        val roomId = file.substringBefore('.')
         val query = ex.requestURI.rawQuery ?: ""
         val token = query.split('&').mapNotNull {
             val kv = it.split('=', limit = 2)
             if (kv.size == 2 && kv[0] == "token") URLDecoder.decode(kv[1], "UTF-8") else null
         }.firstOrNull()
         val claims = token?.let { tokens.verify(it) }
-        val valid = claims != null && claims.aud == "media" &&
-            (if (file.endsWith(".m3u8")) claims.sub == roomId else true)
-        if (!valid) {
+        if (claims == null || claims.aud != "media") {
             return send(ex, 401, error(3002, "token_invalid", "media token required"))
+        }
+        val room = rooms[claims.sub]
+        if (room == null || room.state == "closed" || room.state == "failed") {
+            return send(ex, 410, error(2002, "room_closed", "room closed"))
         }
         val extraQuery = (ex.requestURI.rawQuery ?: "").split('&')
             .filter { it.isNotEmpty() && !it.startsWith("token=") }

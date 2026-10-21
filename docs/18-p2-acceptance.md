@@ -20,7 +20,7 @@
 | T1-W1 播放页 | ✅ | WHEP/FLV/HLS 强制兜底通过（HLS readyState=4/320x240/首帧 231ms，RTMP 源）；PIN/HUD/指标；cloud 13/13 |
 | T2-A4 LAN RTMP | ✅ 端侧/客户端 | ingest E2E `rtmpFrames=60`；App Tee→SRS `publish.active=true`、FLV 5.9MB |
 | T0-A1 双摄探测 | ✅ 单机 | 设置页「双摄能力」；仅 1 台设备数据 |
-| T0-A3 双摄 PiP | ⚠️ 实验性原型 | `DualPipActivity` 模拟器 56fps/thermal=0，合成画面 `docs/assets/p2-dual-pip.jpg`；未接入推流，D-3 支持率未达 40%，保持实验性 |
+| T0-A3 双摄 PiP | ⚠️ 实验性原型 | `DualPipActivity` 模拟器 56fps/thermal=0；设置入口按 `dualCameraSupported` 隐藏（AC-05 不支持设备无入口）；未接入推流，D-3 未达 40% |
 | TURN | ✅ 本地 relay | coturn STUN/TURN 分配；播放页 `&relay=1` WHEP `readyState=4/320x240`；公网跨 NAT 待真实环境 |
 | 真机 WHIP | ⛔ 阻塞 | 需华为平板安装 APK 并填 Mac 局域网 IP:1985 |
 | P2 G2 正式验收 | ⛔ 未到 | 缺真机 WHIP、TURN、双摄实验结论 |

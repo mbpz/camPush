@@ -108,6 +108,7 @@
 - WHIP/WHEP 反向代理已补：`POST /whep/{roomId}`、`POST /whip/{roomId}`，校验 media/ingest token，
   转发到 SRS `${whipHost}:${whipApiPort}`，带 CORS 头；
 - 房间额度：`CloudConfig.maxRooms`（默认 20），超限 `429 + 2004 room_quota_exceeded`；
+- 房间关闭后 `play-session`/WHEP/FLV/HLS 统一 `410 + 2002`（停止即失效）；
 - play-session 限流 60/min/IP → `429/3008`；PIN 连续失败（默认 10 次）锁定 10 min → `429/3006`；
 - WAN 指标：播放页上报 `play_first_frame`（协议、`timeToFirstFrameMs`）与 `play_fallback`；
   `GET /api/v1/metrics` 返回事件计数与首帧 p50/p95（为 G2 指标/SLO 提供数据入口）；

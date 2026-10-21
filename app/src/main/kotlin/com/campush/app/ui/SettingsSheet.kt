@@ -259,9 +259,11 @@ private fun SettingsContent(
             style = MaterialTheme.typography.bodySmall,
             color = CamPushColors.TextSecondary,
         )
-        Spacer(Modifier.height(10.dp))
-        OutlinedButton(onClick = { controller.openDualPipPreview() }) {
-            Text("双摄 PiP 预览（实验）")
+        if (state.dualCameraSupported) {
+            Spacer(Modifier.height(10.dp))
+            OutlinedButton(onClick = { controller.openDualPipPreview() }) {
+                Text("双摄 PiP 预览（实验）")
+            }
         }
 
         HorizontalDivider(

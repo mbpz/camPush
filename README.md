@@ -321,6 +321,7 @@ camPush/
 | v1.10 | 2026-10-20 | Team Lead | 推流瞬间掉 2fps 修复：枚举并优先硬件 H.264 编码器、按能力选择 NV12/I420/ Flexible 输入、YUV 转换复用缓冲、日志输出 encoder choice |
 | v1.11 | 2026-10-20 | Team Lead | 极低帧率救援：1080p 连续 3s 仅 1–4fps 时自动切 720p（播放地址不变），提示语更新；配合硬件编码器选择排查真机 2fps |
 | v1.12 | 2026-10-20 | Team Lead | 低帧率提示携带编码器名称/软硬编与 in/out fps；播放器追帧阈值 1.2s→0.6s 降低观看延迟 |
+| v2.43 | 2026-10-21 | Team Lead | WAN 停止 410（play-session/WHEP/FLV/HLS）；双摄入口按能力隐藏（AC-05）；cloud-core 14/14 |
 | v2.42 | 2026-10-21 | Team Lead | HLS 强制兜底通过（RTMP 源 readyState=4/320x240/首帧 231ms）；修正首帧指标在 HLS 起播后上报 |
 | v2.41 | 2026-10-21 | Team Lead | 播放页 `?force=flv` 强制降级通过（readyState=4/首帧 2561ms）；HLS 同源兜底仍报 manifestLoadError 待修 |
 | v2.40 | 2026-10-21 | Team Lead | WAN 指标：播放页上报首帧/降级，cloud `/api/v1/metrics` p50/p95；cloud-core 13/13 |
