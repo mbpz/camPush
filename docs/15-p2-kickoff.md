@@ -97,6 +97,16 @@
 - 测试：2/2 通过（创建→play-session→status、LAN scope 2007、无/坏 token 3001/3002）；
 - 待补：账号体系、额度/套餐、SSE、10 min 回收（已有定时器，需 clock 注入测试）、WHIP/WHEP 代理接入。
 
+**地址配置（本轮新增）**
+
+- `CloudConfig` 不再硬编码：`apiHost`/`playHost`/`whipHost`/`whipApiPort`/`turnUrls` 均可配置；
+- 默认值指向本地 Docker：`whipHost=http://srs.m0-wan.orb.local`、`whipApiPort=1985`，
+  `apiHost/playHost=http://127.0.0.1:18090`（本机 cloud-core），TURN `turn:srs.m0-wan.orb.local:3478`；
+- 配置页面：`GET /config`（表单保存）与 `GET/POST /api/v1/config`（JSON），保存后新建房间立即生效；
+- 部署时可用环境变量覆盖：`CAMPUSH_API_HOST`、`CAMPUSH_PLAY_HOST`、`CAMPUSH_WHIP_HOST`、
+  `CAMPUSH_WHIP_API_PORT`、`CAMPUSH_TURN_URLS`；
+- 测试：`cloud-core` 3/3（默认值、配置页/保存、房间/play-session/status、错误码）。
+
 > 本地 Docker 环境（SRS 域名/容器 IP/端口）已记录在 [17-local-dev-env.md](./17-local-dev-env.md)；
 > 后续本地开发直接使用 `srs.m0-wan.orb.local:8080`（页面）与 `:1985`（API），不修改宿主/OrbStack 网络。
 

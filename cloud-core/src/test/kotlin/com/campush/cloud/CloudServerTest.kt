@@ -21,7 +21,7 @@ class CloudServerTest {
     }
 
     private fun start(): Pair<CloudServer, String> {
-        val s = CloudServer(CloudServer.Config(accountToken = "acct_test"))
+        val s = CloudServer(CloudConfig(accountToken = "acct_test"))
         val port = s.start(0)
         server = s
         return s to "http://127.0.0.1:$port"
@@ -57,6 +57,25 @@ class CloudServerTest {
         val status = get(base, "/api/v1/rooms/$roomId/status", mapOf("X-Page-Token" to pageToken))
         assertEquals(200, status.statusCode())
         assertTrue(status.body().contains("\"viewers\":1"))
+    }
+
+    @Test
+    fun configPageDefaultsAndUpdate() {
+        val (_, base) = start()
+        val page = get(base, "/config")
+        assertEquals(200, page.statusCode())
+        assertTrue(page.body().contains("srs.m0-wan.orb.local"))
+        val current = get(base, "/api/v1/config")
+        assertEquals(200, current.statusCode())
+        assertTrue(current.body().contains("1985"))
+
+        val updated = post(
+            base,
+            "/api/v1/config",
+            """{"whipHost":"http://127.0.0.1","whipApiPort":9999}""",
+        )
+        assertEquals(200, updated.statusCode())
+        assertTrue(updated.body().contains("9999"))
     }
 
     @Test

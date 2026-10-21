@@ -17,22 +17,11 @@ import kotlin.random.Random
  * 未实现：账号体系、计费/额度、SSE、WHIP/WHEP 代理（后续任务）。
  */
 class CloudServer(
-    private val config: Config,
+    initialConfig: CloudConfig = CloudConfig.fromEnv(),
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
-    data class Config(
-        val apiHost: String = "http://127.0.0.1:18090",
-        val playHost: String = "http://127.0.0.1:18090",
-        val whipHost: String = "http://srs.m0-wan.orb.local",
-        val whipApiPort: Int = 1985,
-        val turnUrls: List<String> = listOf("turn:127.0.0.1:3478?transport=udp"),
-        val turnSecret: String = "dev-turn-secret",
-        val accountToken: String = "acct_dev",
-        val maxViewers: Int = 100,
-        val maxDurationSec: Int = 43_200,
-        val idleRoomTtlMs: Long = 10 * 60 * 1000L,
-    )
-
+    @Volatile
+    private var config: CloudConfig = initialConfig
     data class Room(
         val id: String,
         val createdAt: Long,
@@ -77,6 +66,9 @@ class CloudServer(
             val method = ex.requestMethod
             when {
                 method == "GET" && path == "/healthz" -> send(ex, 200, """{"ok":true}""")
+                method == "GET" && path == "/config" -> send(ex, 200, configPage(), "text/html; charset=utf-8")
+                method == "GET" && path == "/api/v1/config" -> send(ex, 200, configJson())
+                method == "POST" && path == "/api/v1/config" -> updateConfig(ex)
                 method == "POST" && path == "/api/v1/rooms" -> createRoom(ex)
                 method == "GET" && Regex("^/api/v1/rooms/[^/]+$").matches(path) -> getRoom(ex, path.removePrefix("/api/v1/rooms/"))
                 method == "DELETE" && Regex("^/api/v1/rooms/[^/]+$").matches(path) -> deleteRoom(ex, path.removePrefix("/api/v1/rooms/"))
@@ -177,17 +169,65 @@ class CloudServer(
     private fun roomJson(room: Room): String {
         val turnUser = "${(clock() + 3600_000) / 1000}:${room.id}"
         val credential = Tokens.sha256("${config.turnSecret}$turnUser".toByteArray())
-        return """{"roomId":"${room.id}","state":"${room.state}","createdAt":"${Instant.ofEpochMilli(room.createdAt)}","expireAt":"${Instant.ofEpochMilli(room.expireAt)}","playUrl":"${config.playHost}/s/${room.id}?token=${room.pageToken}","ingest":{"protocol":"whip","whipUrl":"${config.whipHost.replace("http://","http://")}:${config.whipApiPort}/rtc/v1/whip/?app=live&stream=${room.id}","rtmpUrl":"rtmp://localhost:1935/live/${room.id}","srtUrl":"srt://localhost:10080?streamid=#!::r=${room.id}","token":"${room.ingestToken}"},"turn":{"urls":${config.turnUrls.joinToString(",", "[", "]") { "\"$it\"" }},"username":"$turnUser","credential":"$credential"},"limits":{"maxViewers":${config.maxViewers},"maxDurationSec":${config.maxDurationSec}}}"""
+        return """{"roomId":"${room.id}","state":"${room.state}","createdAt":"${Instant.ofEpochMilli(room.createdAt)}","expireAt":"${Instant.ofEpochMilli(room.expireAt)}","playUrl":"${config.playHost}/s/${room.id}?token=${room.pageToken}","ingest":{"protocol":"whip","whipUrl":"${config.whipHost}:${config.whipApiPort}/rtc/v1/whip/?app=live&stream=${room.id}","rtmpUrl":"rtmp://localhost:1935/live/${room.id}","srtUrl":"srt://localhost:10080?streamid=#!::r=${room.id}","token":"${room.ingestToken}"},"turn":{"urls":${config.turnUrls.joinToString(",", "[", "]") { "\"$it\"" }},"username":"$turnUser","credential":"$credential"},"limits":{"maxViewers":${config.maxViewers},"maxDurationSec":${config.maxDurationSec}}}"""
     }
+
+    private fun configJson(): String =
+        """{"apiHost":"${config.apiHost}","playHost":"${config.playHost}","whipHost":"${config.whipHost}","whipApiPort":${config.whipApiPort},"turnUrls":${config.turnUrls.joinToString(",", "[", "]") { "\"$it\"" }}}"""
+
+    private fun updateConfig(ex: HttpExchange) {
+        val body = ex.requestBody.bufferedReader().readText()
+        val contentType = ex.requestHeaders.getFirst("Content-Type") ?: ""
+        fun value(name: String): String? =
+            if (contentType.startsWith("application/x-www-form-urlencoded")) {
+                body.split('&').mapNotNull { part ->
+                    val kv = part.split('=', limit = 2)
+                    if (kv.size == 2 && kv[0] == name) java.net.URLDecoder.decode(kv[1], "UTF-8") else null
+                }.firstOrNull()
+            } else {
+                field(body, name)
+            }
+        val whipHost = value("whipHost")?.trim()?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
+            ?: return send(ex, 400, error(2007, "invalid_argument", "whipHost must be http(s) URL"))
+        val apiHost = value("apiHost")?.trim()?.takeIf { it.isNotBlank() } ?: config.apiHost
+        val playHost = value("playHost")?.trim()?.takeIf { it.isNotBlank() } ?: config.playHost
+        val whipPort = value("whipApiPort")?.toIntOrNull()
+            ?: Regex("\"whipApiPort\"\\s*:\\s*(\\d+)").find(body)?.groupValues?.get(1)?.toIntOrNull()
+            ?: config.whipApiPort
+        val turnUrls = value("turnUrls")?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() }
+        config = config.copy(
+            apiHost = apiHost,
+            playHost = playHost,
+            whipHost = whipHost.removeSuffix("/"),
+            whipApiPort = whipPort,
+            turnUrls = turnUrls ?: config.turnUrls,
+        )
+        send(ex, 200, configJson())
+    }
+
+    private fun configPage(): String = """<!doctype html><meta charset="utf-8">
+<title>CamPush Cloud 配置</title>
+<style>body{font:14px system-ui;background:#0b0f14;color:#e8eef6;padding:24px;max-width:720px}label{display:block;margin:10px 0 4px}input{width:100%;padding:8px;background:#121a24;color:#e8eef6;border:1px solid #1e2a38;border-radius:6px}button{margin-top:14px;padding:10px 18px;background:#34d399;border:0;border-radius:8px;font-weight:600}</style>
+<h2>CamPush Cloud 地址配置（本地开发）</h2>
+<p>默认值来自本地 Docker：SRS <code>srs.m0-wan.orb.local</code>（页面 8080 / 信令 1985）。保存后创建房间立即生效。</p>
+<form method="post" action="/api/v1/config">
+<label>API Host（房间 REST）</label><input name="apiHost" value="${config.apiHost}">
+<label>Play Host（播放地址/FLV/HLS）</label><input name="playHost" value="${config.playHost}">
+<label>WHIP Host（WebRTC 推流）</label><input name="whipHost" value="${config.whipHost}">
+<label>WHIP API Port</label><input name="whipApiPort" value="${config.whipApiPort}">
+<label>TURN URLs（逗号分隔）</label><input name="turnUrls" value="${config.turnUrls.joinToString(",")}">
+<button type="submit">保存配置</button>
+</form>
+<p><a style="color:#34d399" href="/api/v1/config">查看 JSON</a></p>"""
 
     private fun isAccount(ex: HttpExchange): Boolean = bearer(ex) == config.accountToken || bearer(ex)?.startsWith("acct_") == true
 
     private fun bearer(ex: HttpExchange): String? =
         ex.requestHeaders.getFirst("Authorization")?.removePrefix("Bearer ")?.takeIf { it.isNotBlank() }
 
-    private fun send(ex: HttpExchange, status: Int, body: String) {
+    private fun send(ex: HttpExchange, status: Int, body: String, contentType: String = "application/json; charset=utf-8") {
         val bytes = body.toByteArray()
-        ex.responseHeaders.add("Content-Type", "application/json; charset=utf-8")
+        ex.responseHeaders.add("Content-Type", contentType)
         ex.responseHeaders.add("Cache-Control", "no-store")
         ex.sendResponseHeaders(status, bytes.size.toLong())
         ex.responseBody.use { it.write(bytes) }
