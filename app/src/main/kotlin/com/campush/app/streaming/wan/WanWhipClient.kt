@@ -130,7 +130,9 @@ class WanWhipClient(private val context: Context) {
 
     private fun startCamera(pc: PeerConnection) {
         val enumerator = Camera2Enumerator(context)
-        val deviceName = enumerator.deviceNames.firstOrNull { enumerator.isBackFacing(it) }
+        // WAN 原型优先前摄，避免与主界面 CameraX 后摄预览冲突；正式版再支持切换。
+        val deviceName = enumerator.deviceNames.firstOrNull { enumerator.isFrontFacing(it) }
+            ?: enumerator.deviceNames.firstOrNull { enumerator.isBackFacing(it) }
             ?: enumerator.deviceNames.firstOrNull()
             ?: throw IllegalStateException("no camera")
         val cam = enumerator.createCapturer(deviceName, null)
@@ -142,6 +144,7 @@ class WanWhipClient(private val context: Context) {
         videoSource = source
         cam.initialize(helper, context, source.capturerObserver)
         cam.startCapture(1280, 720, 30)
+        DiagLog.i("WanWhip", "camera started ${deviceName} ${cam.isScreencast}")
         val videoTrack: VideoTrack = factory!!.createVideoTrack("video0", source)
         pc.addTrack(videoTrack, listOf("campush"))
 

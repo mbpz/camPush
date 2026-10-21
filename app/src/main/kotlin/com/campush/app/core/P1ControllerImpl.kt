@@ -367,11 +367,14 @@ class P1ControllerImpl(context: Context) : P1Controller {
     }
 
     override fun startWanRoom(apiBase: String) {
+        // WAN WHIP 需要独占相机；先释放主界面预览，避免 Camera2 session 被抢。
+        pausePreview()
         wanClient.start(apiBase)
     }
 
     override fun stopWanRoom() {
         wanClient.stop()
+        resumePreview()
     }
 
     override fun openDualPipPreview() {

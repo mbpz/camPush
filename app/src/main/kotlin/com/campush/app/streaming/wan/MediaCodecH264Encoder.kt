@@ -49,7 +49,6 @@ class MediaCodecH264Encoder : VideoEncoder {
             c.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
             c.start()
             codec = c
-            Log.i(TAG, "init ${width}x$height color=$colorFormat")
             VideoCodecStatus.OK
         } catch (t: Throwable) {
             Log.w(TAG, "initEncode failed", t)
