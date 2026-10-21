@@ -1,4 +1,5 @@
 # CamPush P2 M0-WAN 本地栈（仅开发验证，不是生产部署）
+# 固定使用 localhost/端口访问，不修改宿主机或 OrbStack 网络配置。
 # 用法：cd tools/m0-wan && docker compose up -d
 # 停止：docker compose down
 services:
@@ -7,11 +8,11 @@ services:
     container_name: campush-srs
     command: ["./objs/srs", "-c", "conf/srs.conf"]
     environment:
-      # 本机/局域网 IP（浏览器 ICE 需要能访问该地址）
+      # 本机/局域网 IP（WebRTC ICE candidate；仅 SRS 内部使用）
       CANDIDATE: ${CANDIDATE:-127.0.0.1}
     ports:
       - "1935:1935"     # RTMP ingest
-      - "18080:8080"    # HTTP-FLV / HLS / HTTP server / WHIP/WHEP 页面
+      - "18080:8080"    # HTTP-FLV / HLS / WHIP/WHEP 页面
       - "1985:1985"     # SRS HTTP API
       - "8000:8000/udp" # WebRTC RTC port
       - "8000:8000/tcp" # WebRTC over TCP

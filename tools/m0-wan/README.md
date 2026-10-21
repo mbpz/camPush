@@ -25,12 +25,14 @@ ffplay http://127.0.0.1:18080/live/campush.flv
 ffplay http://127.0.0.1:18080/live/campush.m3u8
 ```
 
-## WHIP/WHEP（SRS 内置）
+## WHIP/WHEP（SRS 内置，仅 localhost/端口访问）
 
 - 发布页：<http://127.0.0.1:18080/players/whip.html?app=live&stream=campush>
 - 播放页：<http://127.0.0.1:18080/players/whep.html?app=live&stream=campush>
 - 需要 `CANDIDATE` 指向本机局域网 IP，且 8000/udp 可访问；容器已映射 8000 udp/tcp。
 - SRS 自带 WHIP/WHEP 仅用于 M0-WAN 验证；生产按文档接 Mediasoup/自建网关。
+- **不要使用 OrbStack 自动域名/反向代理来改宿主网络配置**；本仓库只用宿主机端口
+  （1935/18080/1985/8000），如需 HTTPS 由部署环境另行提供。
 
 ## 当前状态
 

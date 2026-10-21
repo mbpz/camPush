@@ -315,6 +315,7 @@ camPush/
 | v1.10 | 2026-10-20 | Team Lead | 推流瞬间掉 2fps 修复：枚举并优先硬件 H.264 编码器、按能力选择 NV12/I420/ Flexible 输入、YUV 转换复用缓冲、日志输出 encoder choice |
 | v1.11 | 2026-10-20 | Team Lead | 极低帧率救援：1080p 连续 3s 仅 1–4fps 时自动切 720p（播放地址不变），提示语更新；配合硬件编码器选择排查真机 2fps |
 | v1.12 | 2026-10-20 | Team Lead | 低帧率提示携带编码器名称/软硬编与 in/out fps；播放器追帧阈值 1.2s→0.6s 降低观看延迟 |
+| v2.7 | 2026-10-21 | Team Lead | 明确 M0-WAN 只用宿主机端口，不修改宿主/OrbStack 网络；移除 proxy/域名 label 方案 |
 | v2.6 | 2026-10-21 | Team Lead | M0-WAN：SRS 启用 RTC/WHIP（vhost rtc、8000 udp/tcp），headless Chrome fake media 成功发起 WHIP publish；WHEP 播放待首帧验证 |
 | v2.5 | 2026-10-21 | Team Lead | 首个正式签名 Release：v1.0.0-p1.1 由 release keystore 签名（CI apksigner 校验 SHA-256 ace6137c…），APK `campush-1.0.0-p1.1-33.apk` |
 | v2.4 | 2026-10-21 | Team Lead | release 签名接入：本地生成 keystore + 4 个 GitHub Secrets 模板；tag workflow decode→assembleRelease→apksigner 校验；未配置时回退 debug |
