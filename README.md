@@ -315,6 +315,7 @@ camPush/
 | v1.10 | 2026-10-20 | Team Lead | 推流瞬间掉 2fps 修复：枚举并优先硬件 H.264 编码器、按能力选择 NV12/I420/ Flexible 输入、YUV 转换复用缓冲、日志输出 encoder choice |
 | v1.11 | 2026-10-20 | Team Lead | 极低帧率救援：1080p 连续 3s 仅 1–4fps 时自动切 720p（播放地址不变），提示语更新；配合硬件编码器选择排查真机 2fps |
 | v1.12 | 2026-10-20 | Team Lead | 低帧率提示携带编码器名称/软硬编与 in/out fps；播放器追帧阈值 1.2s→0.6s 降低观看延迟 |
+| v2.4 | 2026-10-21 | Team Lead | release 签名接入：本地生成 keystore + 4 个 GitHub Secrets 模板；tag workflow decode→assembleRelease→apksigner 校验；未配置时回退 debug |
 | v2.3 | 2026-10-21 | Team Lead | GitHub Actions 首次构建/发布成功：main 构建 Artifact（a9770f4-30），tag v1.0.0-p1 自动创建 Pre-release 并上传 APK/SHA256；APK 文件名清洗修复 |
 | v2.2 | 2026-10-21 | Team Lead | GitHub Actions Android CI：push/PR 自动构建 APK 并上传 Artifact，tag 自动创建 Release；versionCode=提交数、versionName=tag、注入 git SHA；新增 docs/16 |
 | v2.1 | 2026-10-21 | Team Lead | P2 启动：Top5 决策记录（D-1 按网络自动推荐、D-2 自建、D-3 ≥40%、D-4 LAN RTMP 纳入 P2、D-5 评估）；M0-WAN 本机 SRS 验证 RTMP→FLV/HLS 通过 |

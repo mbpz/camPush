@@ -61,11 +61,43 @@ scripts/build.sh :lan-core:test :app:assembleDebug \
   -PgitSha=$(git rev-parse --short=8 HEAD)
 ```
 
-## 6. 签名
+## 6. 签名（release keystore 已生成，待配置 Secrets）
 
-- 当前 CI 构建的是 **debug 签名**（`app/debug.keystore` 随仓库；仅内测/调试）；
-- 正式对外发布前需加入 release keystore + GitHub Secrets（`RELEASE_KEYSTORE_BASE64`、`RELEASE_STORE_PASSWORD`、`RELEASE_KEY_ALIAS`、`RELEASE_KEY_PASSWORD`），并在 workflow 中配置 `assembleRelease`；
-- 未配置前，Release 资产明确标注“debug/内测”。
+release keystore 已在**本地**生成（不提交仓库）：
+
+```
+.tooling/release/campush-release.jks          # 正式签名 keystore（请备份！）
+.tooling/release/campush-release.jks.b64      # base64 形式
+.tooling/release/GITHUB_SECRETS.txt           # 4 个 Secret 值（本地查看，勿提交）
+```
+
+在 GitHub → Settings → Secrets and variables → Actions 添加：
+
+| Secret | 值来源 |
+|---|---|
+| `RELEASE_KEYSTORE_BASE64` | `.tooling/release/campush-release.jks.b64` 的**单行内容** |
+| `RELEASE_STORE_PASSWORD` | `GITHUB_SECRETS.txt` |
+| `RELEASE_KEY_ALIAS` | `campush` |
+| `RELEASE_KEY_PASSWORD` | 同 store password |
+
+配置后：push `v*` tag 的 workflow 会：
+1. base64 解码 keystore 到 runner 临时目录（不落仓库）；
+2. `:app:assembleRelease` 使用正式签名；
+3. `apksigner verify --print-certs` 校验证书；
+4. 上传签名 APK 到 GitHub Release。
+
+未配置 Secrets 时：tag 构建回退 debug 签名并输出 workflow warning，便于本地/内测；**正式对外发布前必须配置**。
+
+本地等价构建：
+
+```bash
+PW="$(cat .tooling/release/store_password.txt)"
+RELEASE_KEYSTORE_PATH=.tooling/release/campush-release.jks \
+RELEASE_STORE_PASSWORD="$PW" RELEASE_KEY_ALIAS=campush RELEASE_KEY_PASSWORD="$PW" \
+scripts/build.sh :app:assembleRelease
+```
+
+> keystore 丢失将无法对已安装 App 升级；请离线备份 `.tooling/release/`（不要提交 Git）。
 
 ## 7. 故障排查
 

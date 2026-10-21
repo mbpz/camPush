@@ -74,19 +74,47 @@ jobs:
           echo "file=campush-${SAFE}-${CODE}.apk" >> "$GITHUB_OUTPUT"
           echo "Version: $NAME ($CODE)"
 
-      - name: Build (tests + debug APK)
+      - name: Decode release keystore (tag only)
+        if: github.ref_type == 'tag'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
         run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::warning::RELEASE_KEYSTORE_BASE64 未配置，tag 构建将回退 debug 签名"
+            exit 0
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/campush-release.jks"
+          echo "RELEASE_KEYSTORE_PATH=$RUNNER_TEMP/campush-release.jks" >> "$GITHUB_ENV"
+
+      - name: Build (tests + APK)
+        env:
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            TASK=":app:assembleRelease"
+            APK="app/build/outputs/apk/release/app-release.apk"
+          else
+            TASK=":app:assembleDebug"
+            APK="app/build/outputs/apk/debug/app-debug.apk"
+          fi
           gradle --no-daemon --console=plain \
-            :lan-core:test :app:assembleDebug \
+            :lan-core:test "$TASK" \
             -PappVersionCode=${{ steps.version.outputs.code }} \
             -PappVersionName=${{ steps.version.outputs.name }} \
             -PgitSha=${GITHUB_SHA::8}
+          echo "APK_PATH=$APK" >> "$GITHUB_ENV"
 
       - name: Prepare APK
         run: |
           mkdir -p artifacts
-          cp app/build/outputs/apk/debug/app-debug.apk "artifacts/${{ steps.version.outputs.file }}"
+          cp "$APK_PATH" "artifacts/${{ steps.version.outputs.file }}"
           sha256sum "artifacts/${{ steps.version.outputs.file }}" | tee artifacts/SHA256SUMS.txt
+          if [ "${GITHUB_REF_TYPE}" = "tag" ] && [ -n "${RELEASE_KEYSTORE_PATH:-}" ]; then
+            APKSIGNER="$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)"
+            "$APKSIGNER" verify --print-certs "artifacts/${{ steps.version.outputs.file }}" || exit 1
+          fi
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4

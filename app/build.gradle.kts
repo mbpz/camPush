@@ -27,12 +27,29 @@ android {
             keyAlias = "androiddebugkey"
             keyPassword = "android"
         }
+        val releaseKeystorePath = System.getenv("RELEASE_KEYSTORE_PATH")
+            ?: (project.findProperty("releaseKeystorePath") as? String)
+        if (releaseKeystorePath != null && rootProject.file(releaseKeystorePath).exists()) {
+            create("release") {
+                storeFile = rootProject.file(releaseKeystorePath)
+                storePassword = System.getenv("RELEASE_STORE_PASSWORD")
+                    ?: (project.findProperty("releaseStorePassword") as? String)
+                keyAlias = System.getenv("RELEASE_KEY_ALIAS")
+                    ?: (project.findProperty("releaseKeyAlias") as? String)
+                    ?: "campush"
+                keyPassword = System.getenv("RELEASE_KEY_PASSWORD")
+                    ?: System.getenv("RELEASE_STORE_PASSWORD")
+                    ?: (project.findProperty("releaseStorePassword") as? String)
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // CI 提供 release keystore 时使用正式签名；本地/未配置时回退 debug 签名，保证可构建。
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
     }
 
