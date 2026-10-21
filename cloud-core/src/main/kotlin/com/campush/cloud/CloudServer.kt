@@ -47,6 +47,8 @@ class CloudServer(
     private val httpClient = HttpClient.newHttpClient()
     private val idempotency = ConcurrentHashMap<String, String>()
     private val playRates = ConcurrentHashMap<String, ArrayDeque<Long>>()
+    private val telemetryCounts = ConcurrentHashMap<String, Long>()
+    private val firstFrameMs = ConcurrentHashMap<String, MutableList<Long>>()
     private var server: HttpServer? = null
     private val cleaner = Executors.newSingleThreadScheduledExecutor { r ->
         Thread(r, "cloud-room-cleaner").apply { isDaemon = true }
@@ -87,6 +89,8 @@ class CloudServer(
                 method == "GET" && path == "/config" -> send(ex, 200, configPage(), "text/html; charset=utf-8")
                 method == "GET" && path == "/api/v1/config" -> send(ex, 200, configJson())
                 method == "POST" && path == "/api/v1/config" -> updateConfig(ex)
+                method == "POST" && path == "/api/v1/telemetry" -> ingestTelemetry(ex)
+                method == "GET" && path == "/api/v1/metrics" -> metrics(ex)
                 method == "POST" && path == "/api/v1/rooms" -> createRoom(ex)
                 method == "GET" && Regex("^/api/v1/rooms/[^/]+$").matches(path) -> getRoom(ex, path.removePrefix("/api/v1/rooms/"))
                 method == "DELETE" && Regex("^/api/v1/rooms/[^/]+$").matches(path) -> deleteRoom(ex, path.removePrefix("/api/v1/rooms/"))
@@ -250,6 +254,32 @@ class CloudServer(
         } finally {
             runCatching { out.close() }
         }
+    }
+
+    private fun ingestTelemetry(ex: HttpExchange) {
+        val body = ex.requestBody.bufferedReader().readText()
+        val event = field(body, "event")?.takeIf { it.isNotBlank() } ?: return send(ex, 400, error(2007, "invalid_argument", "event required"))
+        telemetryCounts.merge(event, 1L, Long::plus)
+        val protocol = field(body, "protocol")
+        val ttff = Regex("\"timeToFirstFrameMs\"\\s*:\\s*(\\d+)").find(body)?.groupValues?.get(1)?.toLongOrNull()
+        if (event == "play_first_frame" && protocol != null && ttff != null) {
+            firstFrameMs.getOrPut(protocol) { java.util.Collections.synchronizedList(mutableListOf()) }.add(ttff)
+        }
+        send(ex, 202, """{"accepted":true}""")
+    }
+
+    private fun metrics(ex: HttpExchange) {
+        fun summarize(values: List<Long>): String {
+            if (values.isEmpty()) return """{"count":0}"""
+            val sorted = values.sorted()
+            fun p(q: Double): Long = sorted[(Math.ceil(sorted.size * q).toInt() - 1).coerceIn(0, sorted.size - 1)]
+            return """{"count":${sorted.size},"p50":${p(0.50)},"p95":${p(0.95)},"max":${sorted.last()}}"""
+        }
+        val protocols = firstFrameMs.entries.joinToString(",", "{", "}") { (k, v) ->
+            "\"$k\":${summarize(v.toList())}"
+        }
+        val counts = telemetryCounts.entries.joinToString(",", "{", "}") { (k, v) -> "\"$k\":$v" }
+        send(ex, 200, """{"counts":$counts,"firstFrame":$protocols}""")
     }
 
     private fun allowPlay(ip: String): Boolean {

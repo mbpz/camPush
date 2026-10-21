@@ -17,7 +17,7 @@
 | T0-S2 RTMP→FLV/HLS | ✅ | SRS 测试源 FLV 200/894KB/4s；HLS master 200+切片 |
 | T0-A2 Android WHIP | ✅ 模拟器 E2E | 前摄 + 软件 H264：WHIP H264 180x320，SRS `Accept sync Video`；WHEP 播放 `readyState=4/4.8s/180x320`；真机硬件 H264 仍待验证 |
 | T1-S1 房间 REST | ✅ 骨架 | 创建/查询/停止/play-session/status/SSE/PIN 锁定/额度/限流；`cloud-core` 12/12 |
-| T1-W1 播放页 | ✅ | WHEP→FLV→HLS 三级兜底、同源代理、PIN、HUD；cloud 10/10 |
+| T1-W1 播放页 | ✅ | WHEP→FLV→HLS 三级兜底、同源代理、PIN、HUD、首帧/降级指标；cloud 13/13 |
 | T2-A4 LAN RTMP | ✅ 端侧/客户端 | ingest E2E `rtmpFrames=60`；App Tee→SRS `publish.active=true`、FLV 5.9MB |
 | T0-A1 双摄探测 | ✅ 单机 | 设置页「双摄能力」；仅 1 台设备数据 |
 | T0-A3 双摄 PiP | ⚠️ 实验性原型 | `DualPipActivity` 模拟器 56fps/thermal=0，合成画面 `docs/assets/p2-dual-pip.jpg`；未接入推流，D-3 支持率未达 40%，保持实验性 |

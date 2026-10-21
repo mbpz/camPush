@@ -116,6 +116,21 @@ class CloudServerTest {
     }
 
     @Test
+    fun telemetryFirstFrameMetrics() {
+        val (_, base) = start()
+        repeat(3) { i ->
+            val r = post(base, "/api/v1/telemetry", """{"event":"play_first_frame","protocol":"whep","timeToFirstFrameMs":${100 + i * 100}}""")
+            assertEquals(202, r.statusCode())
+        }
+        post(base, "/api/v1/telemetry", """{"event":"play_fallback","protocol":"hls"}""")
+        val metrics = get(base, "/api/v1/metrics")
+        assertEquals(200, metrics.statusCode())
+        assertTrue(metrics.body().contains("\"play_first_frame\":3"))
+        assertTrue(metrics.body().contains("\"whep\""))
+        assertTrue(metrics.body().contains("\"p95\":300"))
+    }
+
+    @Test
     fun roomQuotaIsEnforced() {
         val s = CloudServer(CloudConfig(accountToken = "acct_test", maxRooms = 1))
         val port = s.start(0)

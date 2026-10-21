@@ -109,6 +109,8 @@
   转发到 SRS `${whipHost}:${whipApiPort}`，带 CORS 头；
 - 房间额度：`CloudConfig.maxRooms`（默认 20），超限 `429 + 2004 room_quota_exceeded`；
 - play-session 限流 60/min/IP → `429/3008`；PIN 连续失败（默认 10 次）锁定 10 min → `429/3006`；
+- WAN 指标：播放页上报 `play_first_frame`（协议、`timeToFirstFrameMs`）与 `play_fallback`；
+  `GET /api/v1/metrics` 返回事件计数与首帧 p50/p95（为 G2 指标/SLO 提供数据入口）；
 - 待补：账号套餐细分、10 min 回收 clock 注入测试、真实 SDP 代理 E2E。
 
 ### 4.4 云端播放页（T0-W2 骨架）
@@ -119,7 +121,7 @@
 - 内置 `hls.min.js`（415 KB）与 `mpegts.js`（273 KB，Apache-2.0），无需外网 CDN；
 - `CloudConfig` 增加 `playbackHost/playbackPort`（默认 `srs.m0-wan.orb.local:8080`），可在 `/config` 页修改；
 - 本地启动：`cloud-core/build/install/cloud-core/bin/cloud-core`（JAVA_HOME 指向 JDK 17+），默认 `:18090`；
-- 测试：`cloud-core` 12/12（播放页/资产、坏 token、PIN/PIN 锁定、限流、FLV/HLS、SSE、额度）。
+- 测试：`cloud-core` 13/13（播放页、PIN/锁定、限流、FLV/HLS、SSE、额度、首帧指标）。
 - PIN：创建房间 `pinRequired=true` 必须提供 4–6 位数字（否则 400/3004）；
   `play-session` 校验 `pin`（错误/缺失 401/3005），播放页 3005 时弹窗输入重试；
 - 播放页 HUD：WHEP 显示分辨率/fps/kbps（getStats），FLV/HLS 显示分辨率/丢帧；
