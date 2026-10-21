@@ -6,10 +6,15 @@ services:
     image: ossrs/srs:6
     container_name: campush-srs
     command: ["./objs/srs", "-c", "conf/srs.conf"]
+    environment:
+      # 本机/局域网 IP（浏览器 ICE 需要能访问该地址）
+      CANDIDATE: ${CANDIDATE:-127.0.0.1}
     ports:
       - "1935:1935"     # RTMP ingest
-      - "18080:8080"    # HTTP-FLV / HLS / HTTP server
+      - "18080:8080"    # HTTP-FLV / HLS / HTTP server / WHIP/WHEP 页面
       - "1985:1985"     # SRS HTTP API
+      - "8000:8000/udp" # WebRTC RTC port
+      - "8000:8000/tcp" # WebRTC over TCP
     volumes:
       - ./srs.conf:/usr/local/srs/conf/srs.conf:ro
     restart: unless-stopped

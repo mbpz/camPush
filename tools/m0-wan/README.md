@@ -6,6 +6,7 @@ P2 的 M0-WAN 门禁（E2/E4/E5）开发环境。**仅本地验证**，不代表
 
 ```bash
 cd tools/m0-wan
+export CANDIDATE="$(ipconfig getifaddr en0 2>/dev/null || echo 127.0.0.1)"   # Mac Wi-Fi IP
 docker compose up -d
 curl -s http://127.0.0.1:1985/api/v1/versions
 ```
@@ -23,6 +24,13 @@ docker run --rm --network host linuxserver/ffmpeg \
 ffplay http://127.0.0.1:18080/live/campush.flv
 ffplay http://127.0.0.1:18080/live/campush.m3u8
 ```
+
+## WHIP/WHEP（SRS 内置）
+
+- 发布页：<http://127.0.0.1:18080/players/whip.html?app=live&stream=campush>
+- 播放页：<http://127.0.0.1:18080/players/whep.html?app=live&stream=campush>
+- 需要 `CANDIDATE` 指向本机局域网 IP，且 8000/udp 可访问；容器已映射 8000 udp/tcp。
+- SRS 自带 WHIP/WHEP 仅用于 M0-WAN 验证；生产按文档接 Mediasoup/自建网关。
 
 ## 当前状态
 

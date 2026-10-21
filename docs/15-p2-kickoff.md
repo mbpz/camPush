@@ -81,7 +81,13 @@
   - HTTP-FLV `200`，约 **894 KB / 4s**；
   - HLS master `200`，切片 `live/campush-*.ts` 正常生成；
 - TURN（coturn）镜像拉取受 macOS Docker 凭据弹窗阻塞，待解决；
-- WHIP/WHEP 需 Mediasoup，下一任务 T0-S1。
+- 已启用 SRS RTC（`rtc_server` + vhost `rtc.enabled`，8000/udp、8000/tcp）：
+  - `players/whip.html` 通过 headless Chrome + fake media 点击 Publish，SRS 日志出现
+    `RTC whip publish /live/campush`、`RTC init session`、`RTC: Use candidates 192.168.3.184`，
+    说明 WHIP 信令与 ICE candidate 链路已打通；
+  - `players/whep.html` 播放页面可打开（200）；headless CDP 自动化在拉流断言阶段不稳定，
+    WHEP 实际首帧需用桌面 Chrome 手动/下一轮自动化验证；
+- 下一步：T0-S1 用 App/browser 完成 WHIP→WHEP 首帧并记录时延；随后 T1-S1 房间 REST 骨架。
 
 ## 5. 需要用户/环境提供
 
