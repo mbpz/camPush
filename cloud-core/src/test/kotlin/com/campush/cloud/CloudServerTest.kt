@@ -53,6 +53,8 @@ class CloudServerTest {
         val session = post(base, "/api/v1/rooms/$roomId/play-session", "{}", mapOf("X-Page-Token" to pageToken))
         assertEquals(201, session.statusCode())
         assertTrue(session.body().contains("\"mediaToken\""))
+        assertTrue(session.body().contains("\"turn\""))
+        assertTrue(session.body().contains("\"urls\""))
 
         val status = get(base, "/api/v1/rooms/$roomId/status", mapOf("X-Page-Token" to pageToken))
         assertEquals(200, status.statusCode())

@@ -101,8 +101,11 @@
     }, 1000);
   }
 
+  let sessionTurn = null;
+
   async function tryWhep(url, mediaToken) {
-    pc = new RTCPeerConnection({ iceServers: [] });
+    const iceServers = sessionTurn ? [{ urls: sessionTurn.urls, username: sessionTurn.username, credential: sessionTurn.credential }] : [];
+    pc = new RTCPeerConnection({ iceServers });
     pc.addTransceiver('video', { direction: 'recvonly' });
     pc.addTransceiver('audio', { direction: 'recvonly' });
     pc.ontrack = (ev) => {
@@ -162,6 +165,7 @@
     setStatus('连接中…');
     try {
       const session = await playSession();
+      sessionTurn = session.turn || null;
       const protocols = session.protocols || {};
       current = session;
       if (protocols.webrtc && protocols.webrtc.url) {

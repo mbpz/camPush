@@ -87,6 +87,9 @@
     说明 WHIP 信令与 ICE candidate 链路已打通；
   - `players/whep.html` 播放页面可打开（200）；headless CDP 自动化在拉流断言阶段不稳定，
     WHEP 实际首帧需用桌面 Chrome 手动/下一轮自动化验证；
+  - **ICE 媒体面未通**：浏览器 WHIP 发布在 SRS 创建 session、answer 正常，但
+    `publish.active=false / frames=0`；本地 Docker/OrbStack 下 `192.168.3.184:8000/udp`
+    媒体包未到达 SRS。属环境/socket 路径问题，需 TURN 或 host 网络验证，未改宿主网络。
 - 下一步：T0-S1 用 App/browser 完成 WHIP→WHEP 首帧并记录时延。
 
 ### 4.2 T1-S1 房间 REST 骨架（已启动）
@@ -112,6 +115,7 @@
 - PIN：创建房间 `pinRequired=true` 必须提供 4–6 位数字（否则 400/3004）；
   `play-session` 校验 `pin`（错误/缺失 401/3005），播放页 3005 时弹窗输入重试；
 - 播放页 HUD：WHEP 显示分辨率/fps/kbps（getStats），FLV/HLS 显示分辨率/丢帧；
+- TURN：`play-session` 返回 `turn.urls/username/credential`，播放页 WebRTC 使用该 TURN；
 - 待补：MJPEG 兜底、真实媒体 E2E、HLS 同源代理/分段 token、首帧量化指标。
 
 ### 4.3 T0-A2 Android WHIP 客户端（已接入，待真机验证）

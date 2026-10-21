@@ -70,6 +70,8 @@ http://127.0.0.1:1985/api/v1/versions
   App WHIP 需在真机验证，模拟器可用 RTMP→FLV/HLS 替代验证。
 - `srs.m0-wan.orb.local` 在 macOS 浏览器可用；手机/模拟器访问时用 Mac 局域网 IP 或模拟器
   `10.0.2.2`（仅端口映射，不改网络配置）。
+- **ICE 媒体面未通**（2026-10-21）：WHIP/WHEP 信令成功，但 SRS 收不到 RTP（frames=0）；
+  本地 Docker 的 UDP 8000 路径需进一步排查，或在有 TURN/host 网络的环境验证。不要靠改宿主网络解决。
 
 ## 3.2 cloud-core 本地运行
 

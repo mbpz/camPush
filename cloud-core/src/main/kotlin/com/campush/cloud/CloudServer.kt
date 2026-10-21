@@ -172,7 +172,7 @@ class CloudServer(
         send(
             ex,
             201,
-            """{"playSessionId":"$session","pageToken":"${room.pageToken}","mediaToken":"$media","protocols":{"webrtc":{"url":"${config.apiHost}/whep/$id"},"flv":{"url":"${config.apiHost}/live/$id.flv?token=$media"},"hls":{"url":"${config.playbackHost}:${config.playbackPort}/live/$id.m3u8"}},"maxViewers":${config.maxViewers}}""",
+            """{"playSessionId":"$session","pageToken":"${room.pageToken}","mediaToken":"$media","protocols":{"webrtc":{"url":"${config.apiHost}/whep/$id"},"flv":{"url":"${config.apiHost}/live/$id.flv?token=$media"},"hls":{"url":"${config.playbackHost}:${config.playbackPort}/live/$id.m3u8"}},"turn":${turnJson(room)},"maxViewers":${config.maxViewers}}""",
         )
     }
 
@@ -219,6 +219,12 @@ class CloudServer(
                 room.state = "closed"
             }
         }
+    }
+
+    private fun turnJson(room: Room): String {
+        val turnUser = "${(clock() + 3600_000) / 1000}:${room.id}"
+        val credential = Tokens.sha256("${config.turnSecret}$turnUser".toByteArray())
+        return """{"urls":${config.turnUrls.joinToString(",", "[", "]") { "\"$it\"" }},"username":"$turnUser","credential":"$credential"}"""
     }
 
     private fun roomJson(room: Room): String {
