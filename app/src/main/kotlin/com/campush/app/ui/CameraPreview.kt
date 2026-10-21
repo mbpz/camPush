@@ -42,11 +42,12 @@ import kotlinx.coroutines.withContext
 @Composable
 fun CameraPreview(controller: P1Controller, modifier: Modifier = Modifier) {
     val state by controller.state.collectAsStateWithLifecycle()
-    if (state.streaming) {
-        if (state.surfacePipeline) {
-            SurfaceStreamPreview(controller = controller, modifier = modifier)
-        } else {
+    if (state.starting || state.streaming) {
+        // starting 阶段就挂 SurfaceView：管线会等 surface 就绪再建会话，避免启动后黑屏重建。
+        if (state.streaming && !state.surfacePipeline) {
             JpegPreview(controller = controller, modifier = modifier)
+        } else {
+            SurfaceStreamPreview(controller = controller, modifier = modifier)
         }
     } else {
         CameraXPreview(controller = controller, modifier = modifier)

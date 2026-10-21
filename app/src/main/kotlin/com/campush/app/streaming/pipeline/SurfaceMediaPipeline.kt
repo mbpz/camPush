@@ -1,6 +1,8 @@
 package com.campush.app.streaming.pipeline
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.view.SurfaceView
 import com.campush.app.camera.Camera2SurfacePipeline
 import com.campush.app.core.CameraFacingUi
@@ -24,9 +26,37 @@ class SurfaceMediaPipeline(
     private var spec: MediaPipelineSpec? = null
     private var pipeline: Camera2SurfacePipeline? = null
     private var previewView: SurfaceView? = null
+    private val handler = Handler(Looper.getMainLooper())
+    private var pendingSpec: MediaPipelineSpec? = null
+    private var started = false
+    private var startChecks = 0
+    private val startCheck = Runnable { tryStart() }
 
     override fun start(spec: MediaPipelineSpec) {
         this.spec = spec
+        pendingSpec = spec
+        started = false
+        startChecks = 0
+        tryStart()
+    }
+
+    /** 等 UI 的 SurfaceView 就绪再创建相机会话，避免启动后重建会话导致黑屏。 */
+    private fun tryStart() {
+        if (started) return
+        val target = pendingSpec ?: return
+        val surface = previewView?.holder?.surface
+        if (surface?.isValid == true || startChecks >= 15) {
+            pendingSpec = null
+            startChecks = 0
+            doStart(target)
+        } else {
+            startChecks++
+            handler.postDelayed(startCheck, 100L)
+        }
+    }
+
+    private fun doStart(spec: MediaPipelineSpec) {
+        started = true
         val base = nowUs()
         val p = Camera2SurfacePipeline(
             context = context,
@@ -48,6 +78,9 @@ class SurfaceMediaPipeline(
     }
 
     override fun stop() {
+        started = false
+        pendingSpec = null
+        handler.removeCallbacks(startCheck)
         pipeline?.let { runCatching { it.stopAwait() } }
         pipeline = null
     }
@@ -68,7 +101,11 @@ class SurfaceMediaPipeline(
 
     override fun bindPreview(view: SurfaceView) {
         previewView = view
-        runCatching { pipeline?.setPreviewSurface(view.holder.surface) }
+        if (pendingSpec != null) {
+            tryStart()
+        } else {
+            runCatching { pipeline?.setPreviewSurface(view.holder.surface) }
+        }
     }
 
     override fun unbindPreview() {

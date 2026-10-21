@@ -302,8 +302,12 @@ class LanStreamEngine(
             pipelineFactory.createLegacy(publisher, pipelineCallbacks(), ::nowUs)
         }
         if (pipeline == null) {
+            StreamingBridge.update { it.copy(surfacePipeline = false) }
             startLegacyPipeline(settings, facing, publisher)
         } else {
+            // 先置为 Surface 模式：避免 STARTING→STREAMING 瞬间 UI 把 SurfaceView 换成 JPEG 预览，
+            // 导致相机 Surface 被销毁、会话配置失败（真机表现为黑屏几秒后回退）。
+            StreamingBridge.update { it.copy(surfacePipeline = true) }
             mediaPipeline = pipeline
             streamPreviewView?.let { runCatching { pipeline.bindPreview(it) } }
             pipeline.start(spec)

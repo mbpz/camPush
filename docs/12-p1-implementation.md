@@ -382,15 +382,18 @@ grep -n "CameraHost\|Camera2SurfacePipeline\|VideoEncoder\|JpegEncoder"   app/sr
 
 | 问题 | 修复 |
 |---|---|
-| 1080p 发糊 | 码率档位提升到 **1500–10000 kbps**；选择 1080p 时自动至少 6000；**启动时 1080p 低于 8000 自动抬到 8000**；编码器上限 12 Mbps |
+| 1080p 发糊 | 码率档位提升到 **1500–12000 kbps**；选择 1080p 自动至少 12000；启动时 1080p 低于 12000 自动抬到 12000；编码器上限 12 Mbps |
 | 编码效率 | MediaRecorder 优先 **AVC High Profile / Level 4**（失败自动忽略，不影响兼容） |
 | 停止崩溃 | `recreateSession` 增加 `running` 二次检查 + try/catch；`createSession` 同样捕获 `CameraAccessException`，不再逃逸到相机线程 |
+| 启动黑屏几秒 | 管线**等待 SurfaceView 就绪后再创建 Camera2 会话**（最多 1.5s），STARTING 阶段就挂载 SurfaceView；并乐观标记 surface 模式，避免 STARTING→STREAMING 切换时预览组件被替换导致 Surface 销毁、会话重建 |
+| 推流后预览变差 | 移除强制 720p 预览缓冲（`setFixedSize`），保持相机原生预览尺寸，避免预览被降采样 |
 
 **实测（模拟器）**
 
-- 设置 8000 kbps：`recorder ready 1280x720@30 8000kbps`，`serverFps=30`、状态码率 **8234 kbps**；
-- 开始/停止多次：无 `FATAL`，进程存活，停止后回到「未推流」；
-- 真机 1080p 将自动使用 ≥8 Mbps，画质应明显提升；若仍模糊需检查 Wi-Fi 实际吞吐/路由器 2.4G 干扰。
+- 最新日志（08:03）：1080p30 正常，但设置 6000 kbps 时状态实际仅 **3.98 Mbps**，仍是发糊主因；
+- 现在 1080p 启动自动抬到 **12000 kbps**；实测设置 12000 时 `recorder ready ... 12000kbps`、状态码率 **12055 kbps**、30fps，浏览器 11.8 Mbps 正常播放；
+- 启动会话只创建一次（不再 `recreateSession`），停止无 `FATAL`；
+- 若 12 Mbps 仍模糊，下一步需要 MediaCodec Surface + 自管 CBR（MediaRecorder 只有 VBR，低复杂度场景会明显低于目标码率）。
 
 ### 5.12 真实浏览器播放（宿主 Chrome headless）
 

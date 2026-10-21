@@ -173,7 +173,7 @@ private fun SettingsContent(
                         settings.copy(
                             width = 1920,
                             height = 1080,
-                            bitrateKbps = maxOf(settings.bitrateKbps, 6000),
+                            bitrateKbps = maxOf(settings.bitrateKbps, 12000),
                         )
                     )
                 },
@@ -181,7 +181,7 @@ private fun SettingsContent(
         }
         Spacer(Modifier.height(6.dp))
         Text(
-            text = "1080p 建议码率 6000–10000 kbps（越高越清晰）；需要稳定 30fps 可选 720p。实际编码分辨率显示在主界面。",
+            text = "1080p 建议码率 8000–12000 kbps（越高越清晰）；需要稳定 30fps 可选 720p。实际编码分辨率显示在主界面。",
             style = MaterialTheme.typography.bodySmall,
             color = CamPushColors.TextTertiary,
         )
@@ -193,7 +193,7 @@ private fun SettingsContent(
         )
         Spacer(Modifier.height(8.dp))
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(listOf(1500, 2500, 4000), listOf(6000, 8000, 10000)).forEach { rowKbps ->
+            listOf(listOf(1500, 2500, 4000), listOf(6000, 8000, 10000), listOf(12000)).forEach { rowKbps ->
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     rowKbps.forEach { kbps ->
                         ChoiceChip(

@@ -2,6 +2,7 @@ package com.campush.app.streaming
 
 import com.campush.app.core.P1Error
 import kotlinx.coroutines.flow.MutableSharedFlow
+import android.view.SurfaceView
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -50,6 +51,10 @@ object StreamingBridge {
     fun publishPreviewJpeg(bytes: ByteArray?) {
         _previewJpeg.value = bytes
     }
+
+    /** UI 在 STARTING 阶段就挂载的 SurfaceView；Service 创建引擎后补绑，避免错过首帧。 */
+    @Volatile
+    var pendingStreamPreview: SurfaceView? = null
 
     @Volatile
     var engine: LanStreamEngine? = null

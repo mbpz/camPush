@@ -52,6 +52,7 @@ class LanStreamingService : LifecycleService() {
         // 组合根：Service 负责把具体管线适配器装配给引擎；引擎只依赖 MediaPipeline 契约。
         engine = LanStreamEngine(this, this, CameraMediaPipelineFactory(this, this))
         StreamingBridge.engine = engine
+        StreamingBridge.pendingStreamPreview?.let { engine.bindStreamPreview(it) }
         createNotificationChannel()
         snapshotJob = lifecycleScope.launch {
             StreamingBridge.snapshot.collect { snapshot ->

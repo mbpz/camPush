@@ -86,8 +86,8 @@ class P1ControllerImpl(context: Context) : P1Controller {
         _state.update { it.copy(networkLabel = network.label, lanIp = network.lanIp) }
         // 1080p 低于 8 Mbps 会明显发糊：启动时自动抬高到 8 Mbps（用户可在设置中调更高）。
         val rawSettings = _state.value.settings
-        if (rawSettings.height >= 1080 && rawSettings.bitrateKbps < 8000) {
-            val sharper = rawSettings.copy(bitrateKbps = 8000)
+        if (rawSettings.height >= 1080 && rawSettings.bitrateKbps < 12000) {
+            val sharper = rawSettings.copy(bitrateKbps = 12000)
             _state.update { it.copy(settings = sharper) }
             persistSettings(sharper)
         }
@@ -271,10 +271,12 @@ class P1ControllerImpl(context: Context) : P1Controller {
     }
 
     override fun bindStreamPreview(view: android.view.SurfaceView) {
+        StreamingBridge.pendingStreamPreview = view
         StreamingBridge.engine?.bindStreamPreview(view)
     }
 
     override fun unbindStreamPreview() {
+        StreamingBridge.pendingStreamPreview = null
         StreamingBridge.engine?.unbindStreamPreview()
     }
 
