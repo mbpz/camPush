@@ -775,6 +775,7 @@ class P1ControllerImpl(context: Context) : P1Controller {
             adaptiveBitrate = prefs.getBoolean(KEY_ADAPTIVE_BITRATE, true),
             rtmpUrl = prefs.getString(KEY_RTMP_URL, "") ?: "",
             recordEnabled = prefs.getBoolean(KEY_RECORD_ENABLED, false),
+            watermarkEnabled = prefs.getBoolean(KEY_WATERMARK_ENABLED, false),
         )
         val facing = runCatching {
             CameraFacingUi.valueOf(prefs.getString(KEY_FACING, CameraFacingUi.BACK.name) ?: "BACK")
@@ -787,7 +788,7 @@ class P1ControllerImpl(context: Context) : P1Controller {
             cloudApiHost = cloudApi,
             accountEmail = prefs.getString(KEY_ACCOUNT_EMAIL, null),
             accountPlan = prefs.getString(KEY_ACCOUNT_PLAN, null),
-            accountLoggedIn = accountToken.isNotBlank(),
+            accountLoggedIn = (prefs.getString(KEY_ACCOUNT_TOKEN, "") ?: "").isNotBlank(),
             settings = settings,
             cameraFacing = facing,
             cameraMode = if (facing == CameraFacingUi.FRONT) CameraModeUi.SINGLE_FRONT
@@ -812,6 +813,7 @@ class P1ControllerImpl(context: Context) : P1Controller {
             .putBoolean(KEY_ADAPTIVE_BITRATE, settings.adaptiveBitrate)
             .putString(KEY_RTMP_URL, settings.rtmpUrl)
             .putBoolean(KEY_RECORD_ENABLED, settings.recordEnabled)
+            .putBoolean(KEY_WATERMARK_ENABLED, settings.watermarkEnabled)
             .apply()
     }
 
@@ -829,6 +831,7 @@ class P1ControllerImpl(context: Context) : P1Controller {
         const val KEY_ADAPTIVE_BITRATE = "settings_adaptive_bitrate"
         const val KEY_RTMP_URL = "settings_rtmp_url"
         const val KEY_RECORD_ENABLED = "settings_record_enabled"
+        const val KEY_WATERMARK_ENABLED = "settings_watermark_enabled"
         const val KEY_CLOUD_API = "settings_cloud_api"
         const val KEY_ACCOUNT_TOKEN = "account_token"
         const val KEY_ACCOUNT_EMAIL = "account_email"

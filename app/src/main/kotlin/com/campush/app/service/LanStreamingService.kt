@@ -210,6 +210,8 @@ class LanStreamingService : LifecycleService() {
                 powerSave = getBooleanExtra(EXTRA_POWER_SAVE, false),
                 adaptiveBitrate = getBooleanExtra(EXTRA_ADAPTIVE_BITRATE, true),
                 rtmpUrl = getStringExtra(EXTRA_RTMP_URL) ?: "",
+                recordEnabled = getBooleanExtra(EXTRA_RECORD_ENABLED, false),
+                watermarkEnabled = getBooleanExtra(EXTRA_WATERMARK_ENABLED, false),
             ),
             facing = if (getBooleanExtra(EXTRA_FACING_FRONT, false)) {
                 CameraFacingUi.FRONT
@@ -222,6 +224,8 @@ class LanStreamingService : LifecycleService() {
             muted = getBooleanExtra(EXTRA_MUTED, false),
             requestedAtMs = getLongExtra(EXTRA_REQUESTED_AT, System.currentTimeMillis()),
             rtmpUrl = getStringExtra(EXTRA_RTMP_URL) ?: "",
+            recordFile = getStringExtra(EXTRA_RECORD_FILE),
+            recordAudio = getBooleanExtra(EXTRA_RECORD_AUDIO, true),
         )
     }
 
@@ -244,6 +248,10 @@ class LanStreamingService : LifecycleService() {
         private const val EXTRA_POWER_SAVE = "powerSave"
         private const val EXTRA_ADAPTIVE_BITRATE = "adaptiveBitrate"
         private const val EXTRA_RTMP_URL = "rtmpUrl"
+        private const val EXTRA_RECORD_ENABLED = "recordEnabled"
+        private const val EXTRA_WATERMARK_ENABLED = "watermarkEnabled"
+        private const val EXTRA_RECORD_FILE = "recordFile"
+        private const val EXTRA_RECORD_AUDIO = "recordAudio"
         private const val EXTRA_FACING_FRONT = "facingFront"
         private const val EXTRA_PIN_REQUIRED = "pinRequired"
         private const val EXTRA_PIN = "pin"
@@ -265,6 +273,10 @@ class LanStreamingService : LifecycleService() {
                 putExtra(EXTRA_POWER_SAVE, options.settings.powerSave)
                 putExtra(EXTRA_ADAPTIVE_BITRATE, options.settings.adaptiveBitrate)
                 putStringExtraCompat(EXTRA_RTMP_URL, options.rtmpUrl)
+                putExtra(EXTRA_RECORD_ENABLED, options.settings.recordEnabled)
+                putExtra(EXTRA_WATERMARK_ENABLED, options.settings.watermarkEnabled)
+                putStringExtraCompat(EXTRA_RECORD_FILE, options.recordFile)
+                putExtra(EXTRA_RECORD_AUDIO, options.recordAudio)
                 putExtra(EXTRA_FACING_FRONT, options.facing == CameraFacingUi.FRONT)
                 putExtra(EXTRA_PIN_REQUIRED, options.pinRequired)
                 putStringExtraCompat(EXTRA_PIN, options.pin)

@@ -127,6 +127,12 @@ GET  /api/v1/account/usage (Bearer) -> usedSeconds/monthlyMinutes/roomLimit
 - 播放页右下角水印，默认 `CamPush`，支持 `?wm=` 覆盖；
 - 说明：水印为播放页覆盖层，尚未烧录进录制/转码流。
 
+## 3.13.1 单摄直播 GL 水印（实验，未验收）
+
+- 已加入 Camera2→SurfaceTexture→GL→MediaRecorder 管线与设置开关；
+- E2E 验证发现模拟器输出分块异常、水印未稳定出现，**暂不宣称完成**；
+- 需要继续修 EGL/SurfaceTexture 变换与 MediaRecorder 记录链路。
+
 ## 3.14 T3-A2 合成编码首版
 
 - `DualPipActivity` 支持 PiP/左右/上下分屏、主次交换；

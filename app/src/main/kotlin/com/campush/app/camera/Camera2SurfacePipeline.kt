@@ -44,6 +44,7 @@ class Camera2SurfacePipeline(
     private val onStarted: () -> Unit,
     /** 小尺寸 JPEG（MJPEG 降级用），由 ImageReader 输出 YUV 后交给上层编码。 */
     private val onJpegImage: ((Image) -> Unit)? = null,
+    private val watermark: Boolean = false,
 ) {
 
     private val thread = HandlerThread("campush-camera2").apply { start() }
@@ -58,6 +59,8 @@ class Camera2SurfacePipeline(
     private var pipeRead: ParcelFileDescriptor? = null
     private var pipeWrite: ParcelFileDescriptor? = null
     private var recorderSurface: Surface? = null
+    private var cameraOutputSurface: Surface? = null
+    private var watermarkRenderer: com.campush.app.streaming.watermark.GlWatermarkRenderer? = null
     private var previewSurface: Surface? = null
     private var imageReader: ImageReader? = null
     private var jpegWidth = 0
@@ -109,6 +112,9 @@ class Camera2SurfacePipeline(
         runCatching { recorder?.let { if (started) it.stop(); it.reset(); it.release() } }
         recorder = null
         started = false
+        runCatching { watermarkRenderer?.release() }
+        watermarkRenderer = null
+        cameraOutputSurface = null
         runCatching { recorderSurface?.release() }
         recorderSurface = null
         runCatching { imageReader?.close() }
@@ -127,7 +133,7 @@ class Camera2SurfacePipeline(
         handler.post {
             if (previewSurface == surface) return@post
             previewSurface = surface
-            if (device != null && recorderSurface != null) recreateSession()
+            if (device != null && cameraOutputSurface != null) recreateSession()
         }
     }
 
@@ -190,6 +196,16 @@ class Camera2SurfacePipeline(
         rec.prepare()
         recorder = rec
         recorderSurface = rec.surface
+        if (watermark) {
+            val renderer = com.campush.app.streaming.watermark.GlWatermarkRenderer(
+                rec.surface, actualWidth, actualHeight, "CamPush",
+            )
+            cameraOutputSurface = renderer.start()
+            watermarkRenderer = renderer
+            DiagLog.i("Surface", "watermark GL enabled ${actualWidth}x$actualHeight")
+        } else {
+            cameraOutputSurface = rec.surface
+        }
         Log.i(TAG, "recorder ready ${actualWidth}x$actualHeight@$fps ${bitrateKbps}kbps")
         DiagLog.i("Surface", "recorder ready ${actualWidth}x$actualHeight@$fps ${bitrateKbps}kbps facing=$facing")
         setupJpegReader()
@@ -232,7 +248,7 @@ class Camera2SurfacePipeline(
     @Suppress("DEPRECATION")
     private fun createSession() {
         val dev = device ?: return
-        val recSurface = recorderSurface ?: return
+        val recSurface = cameraOutputSurface ?: return
         val targets = ArrayList<Surface>(3)
         targets.add(recSurface)
         previewSurface?.let { targets.add(it) }
@@ -281,7 +297,7 @@ class Camera2SurfacePipeline(
             runCatching { session?.close() }
             session = null
             val dev = device ?: return@post
-            val recSurface = recorderSurface ?: return@post
+            val recSurface = cameraOutputSurface ?: return@post
             val targets = ArrayList<Surface>(3)
             targets.add(recSurface)
             previewSurface?.let { targets.add(it) }
@@ -318,9 +334,9 @@ class Camera2SurfacePipeline(
     private fun buildRequest(): CaptureRequest {
         val dev = device ?: throw IllegalStateException("camera closed")
         val builder = dev.createCaptureRequest(CameraDevice.TEMPLATE_RECORD)
-        recorderSurface?.let { builder.addTarget(it) }
         previewSurface?.let { builder.addTarget(it) }
         imageReader?.surface?.let { builder.addTarget(it) }
+        cameraOutputSurface?.let { builder.addTarget(it) }
         builder.set(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
         builder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO)
         builder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, aeRange(dev.id))

@@ -244,6 +244,12 @@ private fun SettingsContent(
             onCheckedChange = { applySettings(settings.copy(powerSave = it)) },
         )
         SwitchRow(
+            title = "直播烧录水印（实验）",
+            subtitle = "GL 合成 CamPush 水印；失败自动回退无烧录，不影响推流",
+            checked = settings.watermarkEnabled,
+            onCheckedChange = { applySettings(settings.copy(watermarkEnabled = it)) },
+        )
+        SwitchRow(
             title = "本地录制 MP4",
             subtitle = "推流同时录制到应用私有目录（含音频；不额外占用相机）",
             checked = settings.recordEnabled,

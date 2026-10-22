@@ -24,6 +24,8 @@ data class StreamSettingsUi(
     val rtmpUrl: String = "",
     /** P3 T2-A7：开始推流时同时本地录制 MP4（应用私有目录）。 */
     val recordEnabled: Boolean = false,
+    /** P3：单摄直播流 GL 烧录水印（实验，失败回退无烧录）。 */
+    val watermarkEnabled: Boolean = false,
 ) {
     val label: String
         get() = "${width}x${height} · ${fps}fps · ${bitrateKbps / 1000.0} Mbps"

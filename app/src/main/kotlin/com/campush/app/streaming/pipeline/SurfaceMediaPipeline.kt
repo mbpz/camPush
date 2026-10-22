@@ -83,6 +83,7 @@ class SurfaceMediaPipeline(
             onError = { message -> callbacks.onError(message) },
             onStarted = { callbacks.onStarted(MediaPipelineKind.SURFACE) },
             onJpegImage = { image -> runCatching { jpeg.onFrame(image) } },
+            watermark = spec.settings.watermarkEnabled,
         )
         pipeline = p
         previewView?.let { runCatching { p.setPreviewSurface(it.holder.surface) } }
