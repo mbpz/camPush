@@ -500,6 +500,10 @@ private fun SettingsContent(
                 onClick = { controller.stopWanRoom() },
                 enabled = wan.running,
             ) { Text("停止") }
+            OutlinedButton(
+                onClick = { controller.openAudience() },
+                enabled = wanApi.isNotBlank(),
+            ) { Text("观众端") }
         }
         Spacer(Modifier.height(6.dp))
         Text(

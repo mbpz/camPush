@@ -113,6 +113,8 @@ interface P1Controller {
     fun refreshByo()
     fun saveByo(whipHost: String, playHost: String, rtmpHost: String)
     fun testByo()
+    /** P3 T3-A7：打开 App 内观众端。 */
+    fun openAudience()
     /** T3-A5：导出脱敏诊断日志（token/PIN/roomId 已移除）。 */
     fun exportDiagnostics(): String
     fun updateSettings(settings: StreamSettingsUi)

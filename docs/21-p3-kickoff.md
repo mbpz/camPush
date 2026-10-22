@@ -82,6 +82,13 @@ GET  /api/v1/account/usage (Bearer) -> usedSeconds/monthlyMinutes/roomLimit
 - 「测试连通性」：HTTP(S) GET / RTMP TCP connect，输出 `WHIP=OK · Play=OK · RTMP=FAIL` 形式；
 - 待补：真实 WHIP 回源推流验证、能力降级/错误细分。
 
+## 3.8 T3-A7 App 观众端首版
+
+- 设置页「观众端」按钮：WebView 打开 `${cloudApiHost}/rooms`；
+- 复用 Web 观众端列表与 `/s/{room}` 播放页（WHEP/FLV/HLS、PIN）；
+- 返回键优先 WebView 历史；离开销毁 WebView；
+- 待补：原生列表/播放、账号态与观看限制提示。
+
 ## 4. 首版账号 API（已落地）
 
 ```text

@@ -453,6 +453,21 @@ class P1ControllerImpl(context: Context) : P1Controller {
         }
     }
 
+    override fun openAudience() {
+        val api = _state.value.cloudApiHost.trim().trimEnd('/')
+        if (api.isEmpty()) {
+            _state.update { it.copy(warning = "请先填写 Cloud API 地址") }
+            return
+        }
+        runCatching {
+            appContext.startActivity(
+                android.content.Intent(appContext, com.campush.app.ui.AudienceActivity::class.java)
+                    .putExtra(com.campush.app.ui.AudienceActivity.EXTRA_URL, "$api/rooms")
+                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+        }
+    }
+
     override fun exportDiagnostics(): String = DiagLog.downloadTextRedacted()
 
     override fun logout() {
