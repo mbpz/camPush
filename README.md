@@ -329,6 +329,7 @@ camPush/
 | v1.10 | 2026-10-20 | Team Lead | 推流瞬间掉 2fps 修复：枚举并优先硬件 H.264 编码器、按能力选择 NV12/I420/ Flexible 输入、YUV 转换复用缓冲、日志输出 encoder choice |
 | v1.11 | 2026-10-20 | Team Lead | 极低帧率救援：1080p 连续 3s 仅 1–4fps 时自动切 720p（播放地址不变），提示语更新；配合硬件编码器选择排查真机 2fps |
 | v1.12 | 2026-10-20 | Team Lead | 低帧率提示携带编码器名称/软硬编与 in/out fps；播放器追帧阈值 1.2s→0.6s 降低观看延迟 |
+| v2.84 | 2026-10-22 | Team Lead | 修正双摄水印声明：合成直播 E2E 通过但合成水印未接入；单摄 LAN/录制水印已实测 |
 | v2.83 | 2026-10-22 | Team Lead | 双摄合成直播 E2E 通过（ffmpeg RTMP 监听，9.54s/4.1MB/1280×720 分屏）；回测脚本 |
 | v2.82 | 2026-10-22 | Team Lead | WAN 房间控制面 E2E：cloud-core 本机 + WHIP 失败自动清理房间；cloud 支持 CAMPUSH_PORT |
 | v2.81 | 2026-10-22 | Team Lead | 修复录制 publisher 接线；LAN E2E 实测 9.12s/12MB MP4（H264+AAC）带水印；回测脚本覆盖录制/水印 |
