@@ -511,8 +511,8 @@ class P1ControllerImpl(context: Context) : P1Controller {
         }
         runCatching {
             appContext.startActivity(
-                android.content.Intent(appContext, com.campush.app.ui.AudienceActivity::class.java)
-                    .putExtra(com.campush.app.ui.AudienceActivity.EXTRA_URL, "$api/rooms")
+                android.content.Intent(appContext, com.campush.app.ui.AudienceListActivity::class.java)
+                    .putExtra(com.campush.app.ui.AudienceListActivity.EXTRA_API, api)
                     .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
             )
         }

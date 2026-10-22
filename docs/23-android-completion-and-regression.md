@@ -24,7 +24,7 @@
 - WAN/WebRTC 烧录水印：✅ 首版（VideoProcessor I420 叠加 CamPush，待媒体环境 E2E）；
 - 双摄 PiP 合成直播（D-3 实验性，先保留预览+MP4）；
 - 多地址配置 UI：✅ 首版（WAN 房间 WHIP/RTMP/SRT 地址列表、复制、刷新）；
-- App 观众端原生列表/播放（当前 WebView）；
+- App 观众端原生列表：✅ 首版（原生房间列表，点击进 WebView 播放页）；
 - 录制水印（双摄合成已烧录，单摄随水印方案）。
 
 ### P2（打磨）
