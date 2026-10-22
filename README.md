@@ -108,6 +108,7 @@ PRD 定义 **What / Why**；本集定义 **How / 边界 / 验收 / 排期 / 风�
 | 21 | [p3-kickoff](./docs/21-p3-kickoff.md) | **P3 Kickoff**：账号/套餐/BYO/观众端/合规执行顺序与首版账号 API | 全员 |
 | 22 | [p3-completion](./docs/22-p3-completion.md) | **P3 功能完成报告**：功能矩阵、质量门禁、按用户裁剪项（商业化付费/双摄编码） | 全员 |
 | 23 | [android-completion-regression](./docs/23-android-completion-and-regression.md) | **Android 功能收口 + 回测方案**；免费云资源（Cloudflare TURN/Workers、Oracle、国内试用） | 全员 |
+| 24 | [regression README](./tools/regression/README.md) | **回测矩阵**与自动冒烟脚本 | QA / 全员 |
 | — | [PRD v1.0](./docs/PRD-v1.0.md) | 用户提供的需求原文（不改写，仅引用） | 全员 |
 | — | [scripts/check_docs.py](./scripts/check_docs.py) | 8 类文档一致性 CI 门禁 | 全员 |
 
@@ -328,6 +329,7 @@ camPush/
 | v1.10 | 2026-10-20 | Team Lead | 推流瞬间掉 2fps 修复：枚举并优先硬件 H.264 编码器、按能力选择 NV12/I420/ Flexible 输入、YUV 转换复用缓冲、日志输出 encoder choice |
 | v1.11 | 2026-10-20 | Team Lead | 极低帧率救援：1080p 连续 3s 仅 1–4fps 时自动切 720p（播放地址不变），提示语更新；配合硬件编码器选择排查真机 2fps |
 | v1.12 | 2026-10-20 | Team Lead | 低帧率提示携带编码器名称/软硬编与 in/out fps；播放器追帧阈值 1.2s→0.6s 降低观看延迟 |
+| v2.75 | 2026-10-22 | Team Lead | 回测矩阵 + `tools/regression/run-android-smoke.sh` 自动冒烟（构建/门禁/启动/UI 断言）|
 | v2.74 | 2026-10-22 | Team Lead | P1 多地址 UI 首版：WAN 房间地址列表/复制/刷新；构建通过 |
 | v2.73 | 2026-10-22 | Team Lead | P0 WAN 默认/网络推荐与错误映射：默认 WAN（已配置 API）、记住访问范围、3002/7002/7001 提示 |
 | v2.72 | 2026-10-22 | Team Lead | P0 录制管理首版：列表/大小/时间/分享（FileProvider）/删除；构建通过 |
