@@ -479,6 +479,30 @@ class P1ControllerImpl(context: Context) : P1Controller {
         }
     }
 
+    override fun refreshRoomAddresses() {
+        val api = _state.value.cloudApiHost
+        val token = accountToken
+        val roomId = _wanTest.value.roomId
+        if (api.isBlank() || token.isBlank() || roomId == null) {
+            _state.update { it.copy(warning = "请先登录并创建 WAN 房间") }
+            return
+        }
+        _state.update { it.copy(addressesBusy = true) }
+        scope.launch {
+            try {
+                val list = withContext(Dispatchers.IO) { accountClient.roomAddresses(api, token, roomId) }
+                _state.update {
+                    it.copy(
+                        addressesBusy = false,
+                        roomAddresses = list.map { a -> RoomAddressUi(a.protocol, a.url, a.status) },
+                    )
+                }
+            } catch (t: Throwable) {
+                _state.update { it.copy(addressesBusy = false, warning = "地址获取失败：${t.message}") }
+            }
+        }
+    }
+
     override fun openAudience() {
         val api = _state.value.cloudApiHost.trim().trimEnd('/')
         if (api.isEmpty()) {

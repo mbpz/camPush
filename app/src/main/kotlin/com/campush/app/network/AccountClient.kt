@@ -14,6 +14,30 @@ class AccountClient {
         val roomLimit: Int,
     )
 
+    data class RoomAddress(val protocol: String, val url: String, val status: String)
+
+    fun roomAddresses(apiBase: String, token: String, roomId: String): List<RoomAddress> {
+        val base = apiBase.trim().trimEnd('/')
+        val connection = URL("$base/api/v1/rooms/$roomId/addresses").openConnection() as HttpURLConnection
+        try {
+            connection.requestMethod = "GET"
+            connection.connectTimeout = 5_000
+            connection.readTimeout = 5_000
+            connection.setRequestProperty("Authorization", "Bearer $token")
+            val code = connection.responseCode
+            val text = (if (code in 200..299) connection.inputStream else connection.errorStream)
+                ?.bufferedReader()?.use { it.readText() }.orEmpty()
+            if (code !in 200..299) throw IllegalStateException("HTTP $code")
+            val arr = JSONObject(text).optJSONArray("addresses") ?: return emptyList()
+            return (0 until arr.length()).map { i ->
+                val o = arr.optJSONObject(i) ?: JSONObject()
+                RoomAddress(o.optString("protocol"), o.optString("url"), o.optString("status"))
+            }
+        } finally {
+            connection.disconnect()
+        }
+    }
+
     data class Byo(
         val whipHost: String = "",
         val playHost: String = "",

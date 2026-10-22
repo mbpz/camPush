@@ -31,6 +31,12 @@ data class StreamSettingsUi(
         get() = "${width}x${height} · ${fps}fps · ${bitrateKbps / 1000.0} Mbps"
 }
 
+data class RoomAddressUi(
+    val protocol: String,
+    val url: String,
+    val status: String,
+)
+
 data class RecordingUi(
     val name: String,
     val path: String,
@@ -65,6 +71,8 @@ data class P1UiState(
     val byoMode: String = "managed",
     val byoStatus: String? = null,
     val byoBusy: Boolean = false,
+    val roomAddresses: List<RoomAddressUi> = emptyList(),
+    val addressesBusy: Boolean = false,
     val streaming: Boolean = false,
     val starting: Boolean = false,
     val cameraFacing: CameraFacingUi = CameraFacingUi.BACK,
@@ -124,6 +132,7 @@ interface P1Controller {
     fun refreshByo()
     fun saveByo(whipHost: String, playHost: String, rtmpHost: String)
     fun testByo()
+    fun refreshRoomAddresses()
     /** P3 T3-A7：打开 App 内观众端。 */
     fun openAudience()
     /** T3-A5：导出脱敏诊断日志（token/PIN/roomId 已移除）。 */

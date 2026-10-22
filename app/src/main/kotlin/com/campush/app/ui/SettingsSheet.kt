@@ -543,6 +543,34 @@ private fun SettingsContent(
                 }) { Text("分享") }
             }
         }
+        if (wan.roomId != null) {
+            Spacer(Modifier.height(6.dp))
+            OutlinedButton(
+                onClick = { controller.refreshRoomAddresses() },
+                enabled = state.accountLoggedIn && !state.addressesBusy,
+            ) { Text(if (state.addressesBusy) "获取中…" else "刷新多地址") }
+            state.roomAddresses.forEach { addr ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "${addr.protocol.uppercase()} · ${addr.status}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = CamPushColors.TextPrimary,
+                        )
+                        Text(
+                            text = addr.url,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = CamPushColors.TextTertiary,
+                            maxLines = 1,
+                        )
+                    }
+                    TextButton(onClick = { context.copyPlayUrlToClipboard(addr.url) }) { Text("复制") }
+                }
+            }
+        }
         Spacer(Modifier.height(14.dp))
         HorizontalDivider(color = CamPushColors.Border.copy(alpha = 0.6f))
 
