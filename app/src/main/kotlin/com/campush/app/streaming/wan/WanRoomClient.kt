@@ -24,6 +24,7 @@ class WanRoomClient(
     accountToken: String = "acct_dev",
 ) {
     private var accountToken: String = accountToken
+    private var watermarkEnabled: Boolean = false
 
     fun setAccountToken(token: String?) {
         accountToken = token?.takeIf { it.isNotBlank() } ?: "acct_dev"
@@ -58,7 +59,8 @@ class WanRoomClient(
         }
     }
 
-    fun start(apiBaseUrl: String) {
+    fun start(apiBaseUrl: String, watermarkEnabled: Boolean = false) {
+        this.watermarkEnabled = watermarkEnabled
         if (_state.value.running && _state.value.roomId != null) return
         val base = apiBaseUrl.trim().trimEnd('/')
         if (!base.startsWith("http://") && !base.startsWith("https://")) {

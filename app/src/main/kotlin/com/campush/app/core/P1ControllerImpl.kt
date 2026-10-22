@@ -163,7 +163,7 @@ class P1ControllerImpl(context: Context) : P1Controller {
             pausePreview()
             com.campush.app.service.WanStreamingService.start(appContext)
             wanClient.setMuted(current.muted)
-            wanClient.start(api)
+            wanClient.start(api, current.settings.watermarkEnabled)
             return
         }
 
@@ -653,7 +653,7 @@ class P1ControllerImpl(context: Context) : P1Controller {
     override fun startWanRoom(apiBase: String) {
         // WAN WHIP 需要独占相机；先释放主界面预览，避免 Camera2 session 被抢。
         pausePreview()
-        wanClient.start(apiBase)
+        wanClient.start(apiBase, _state.value.settings.watermarkEnabled)
     }
 
     override fun stopWanRoom() {

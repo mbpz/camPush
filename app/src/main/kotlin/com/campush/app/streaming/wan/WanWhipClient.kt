@@ -58,6 +58,8 @@ class WanWhipClient(private val context: Context) {
     private var currentCameraId: String? = null
     private var currentFacingFront = true
     private var muted = false
+    private var watermarkEnabled = false
+    private var watermarkProcessor: WanWatermarkProcessor? = null
     private var resourceUrl: String? = null
     private var turnUrls: List<String> = emptyList()
     private var turnUsername: String? = null
@@ -68,8 +70,10 @@ class WanWhipClient(private val context: Context) {
         turnUrls: List<String> = emptyList(),
         turnUsername: String? = null,
         turnCredential: String? = null,
+        watermarkEnabled: Boolean = false,
     ) {
         if (_state.value.running) return
+        this.watermarkEnabled = watermarkEnabled
         this.turnUrls = turnUrls
         this.turnUsername = turnUsername
         this.turnCredential = turnCredential
@@ -208,6 +212,11 @@ class WanWhipClient(private val context: Context) {
         surfaceTextureHelper = helper
         val source = factory!!.createVideoSource(cam.isScreencast)
         videoSource = source
+        if (watermarkEnabled) {
+            val processor = WanWatermarkProcessor("CamPush", true)
+            watermarkProcessor = processor
+            source.setVideoProcessor(processor)
+        }
         cam.initialize(helper, context, source.capturerObserver)
         cam.startCapture(1280, 720, 30)
         DiagLog.i("WanWhip", "camera started ${deviceName} ${cam.isScreencast}")
@@ -290,6 +299,7 @@ class WanWhipClient(private val context: Context) {
         runCatching { videoTrack?.dispose() }; videoTrack = null
         runCatching { audioTrack?.dispose() }; audioTrack = null
         currentCameraId = null
+        watermarkProcessor = null
         runCatching { surfaceTextureHelper?.dispose() }
         surfaceTextureHelper = null
         runCatching { videoSource?.dispose() }
