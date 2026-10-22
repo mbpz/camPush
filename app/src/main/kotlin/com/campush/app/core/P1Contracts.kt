@@ -48,6 +48,12 @@ data class P1UiState(
     val accountPlan: String? = null,
     val accountLoggedIn: Boolean = false,
     val accountBusy: Boolean = false,
+    val byoWhipHost: String = "",
+    val byoPlayHost: String = "",
+    val byoRtmpHost: String = "",
+    val byoMode: String = "managed",
+    val byoStatus: String? = null,
+    val byoBusy: Boolean = false,
     val streaming: Boolean = false,
     val starting: Boolean = false,
     val cameraFacing: CameraFacingUi = CameraFacingUi.BACK,
@@ -104,6 +110,9 @@ interface P1Controller {
     fun setCloudApiHost(host: String)
     fun login(email: String, password: String, register: Boolean)
     fun logout()
+    fun refreshByo()
+    fun saveByo(whipHost: String, playHost: String, rtmpHost: String)
+    fun testByo()
     /** T3-A5：导出脱敏诊断日志（token/PIN/roomId 已移除）。 */
     fun exportDiagnostics(): String
     fun updateSettings(settings: StreamSettingsUi)

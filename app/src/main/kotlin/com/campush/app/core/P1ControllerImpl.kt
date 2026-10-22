@@ -67,6 +67,7 @@ class P1ControllerImpl(context: Context) : P1Controller {
         startLogServiceLoop()
         probeCameraCapabilities()
         wanClient.setAccountToken(accountToken)
+        if (accountToken.isNotBlank()) refreshByo()
         scope.launch {
             wanClient.state.collect { st ->
                 _wanTest.value = WanTestUi(st.running, st.status, st.roomId, st.playUrl, st.error)
@@ -370,6 +371,7 @@ class P1ControllerImpl(context: Context) : P1Controller {
                         warning = "账号已登录：${session.email}（${session.plan}）",
                     )
                 }
+                refreshByo()
             } catch (t: Throwable) {
                 _state.update {
                     it.copy(
@@ -378,6 +380,76 @@ class P1ControllerImpl(context: Context) : P1Controller {
                     )
                 }
             }
+        }
+    }
+
+    override fun refreshByo() {
+        val api = _state.value.cloudApiHost
+        val token = accountToken
+        if (api.isBlank() || token.isBlank()) return
+        scope.launch {
+            try {
+                val byo = withContext(Dispatchers.IO) { accountClient.getByo(api, token) }
+                _state.update {
+                    it.copy(
+                        byoWhipHost = byo.whipHost,
+                        byoPlayHost = byo.playHost,
+                        byoRtmpHost = byo.rtmpHost,
+                        byoMode = byo.mode,
+                    )
+                }
+            } catch (_: Throwable) {
+                // BYO 拉取失败不阻塞账号/推流；状态在保存/测试时反馈。
+            }
+        }
+    }
+
+    override fun saveByo(whipHost: String, playHost: String, rtmpHost: String) {
+        val api = _state.value.cloudApiHost
+        val token = accountToken
+        if (api.isBlank() || token.isBlank()) {
+            _state.update { it.copy(byoStatus = "请先登录账号") }
+            return
+        }
+        _state.update { it.copy(byoBusy = true, byoStatus = "保存中…") }
+        scope.launch {
+            try {
+                val byo = withContext(Dispatchers.IO) { accountClient.saveByo(api, token, whipHost, playHost, rtmpHost) }
+                _state.update {
+                    it.copy(
+                        byoBusy = false,
+                        byoWhipHost = byo.whipHost,
+                        byoPlayHost = byo.playHost,
+                        byoRtmpHost = byo.rtmpHost,
+                        byoMode = byo.mode,
+                        byoStatus = "已保存（${byo.mode}）",
+                    )
+                }
+            } catch (t: Throwable) {
+                _state.update { it.copy(byoBusy = false, byoStatus = "保存失败：${t.message}") }
+            }
+        }
+    }
+
+    override fun testByo() {
+        val hosts = listOf(
+            "WHIP" to _state.value.byoWhipHost,
+            "Play" to _state.value.byoPlayHost,
+            "RTMP" to _state.value.byoRtmpHost,
+        )
+        if (hosts.all { it.second.isBlank() }) {
+            _state.update { it.copy(byoStatus = "请先配置至少一个 BYO 地址") }
+            return
+        }
+        _state.update { it.copy(byoBusy = true, byoStatus = "连通性测试中…") }
+        scope.launch {
+            val results = withContext(Dispatchers.IO) {
+                hosts.joinToString(" · ") { (name, url) ->
+                    if (url.isBlank()) "$name=未配置"
+                    else "$name=${if (accountClient.testReachable(url)) "OK" else "FAIL"}"
+                }
+            }
+            _state.update { it.copy(byoBusy = false, byoStatus = results) }
         }
     }
 
@@ -392,7 +464,17 @@ class P1ControllerImpl(context: Context) : P1Controller {
             .apply()
         wanClient.setAccountToken(null)
         _state.update {
-            it.copy(accountLoggedIn = false, accountEmail = null, accountPlan = null, accountBusy = false)
+            it.copy(
+                accountLoggedIn = false,
+                accountEmail = null,
+                accountPlan = null,
+                accountBusy = false,
+                byoWhipHost = "",
+                byoPlayHost = "",
+                byoRtmpHost = "",
+                byoMode = "managed",
+                byoStatus = null,
+            )
         }
     }
 

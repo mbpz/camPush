@@ -75,6 +75,13 @@ GET  /api/v1/account/usage (Bearer) -> usedSeconds/monthlyMinutes/roomLimit
 - 校验 http(s)/rtmp；`mode=managed|byo`；
 - 待补：T3-A4 App BYO 配置/连通性测试、回源校验、能力降级提示。
 
+## 3.7 T3-A4 BYO 客户端首版
+
+- 设置页「BYO 自定义地址」：WHIP/Play/RTMP host 保存、读取；
+- 账号登录后自动拉取 BYO；保存后 WAN 房间 URL 按 BYO 生成；
+- 「测试连通性」：HTTP(S) GET / RTMP TCP connect，输出 `WHIP=OK · Play=OK · RTMP=FAIL` 形式；
+- 待补：真实 WHIP 回源推流验证、能力降级/错误细分。
+
 ## 4. 首版账号 API（已落地）
 
 ```text
