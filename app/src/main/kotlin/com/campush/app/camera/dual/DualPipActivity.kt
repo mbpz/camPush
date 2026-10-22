@@ -4,7 +4,11 @@ import android.Manifest
 import android.app.Activity
 import android.content.Context
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.Typeface
 import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraDevice
@@ -14,7 +18,9 @@ import android.opengl.EGL14
 import android.opengl.EGLConfig
 import android.opengl.EGLContext
 import android.opengl.EGLDisplay
+import android.opengl.EGLExt
 import android.opengl.EGLSurface
+import android.opengl.GLUtils
 import android.opengl.GLES11Ext
 import android.opengl.GLES20
 import android.os.Build
@@ -22,6 +28,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.PowerManager
+import android.media.MediaRecorder
 import android.util.Log
 import android.view.Gravity
 import android.view.Surface
@@ -56,6 +63,8 @@ class DualPipActivity : Activity(), SurfaceHolder.Callback {
     private var frontSurface: Surface? = null
     private var compositionMode = 0
     private var swapped = false
+    private var mediaRecorder: MediaRecorder? = null
+    private var recording = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -92,8 +101,16 @@ class DualPipActivity : Activity(), SurfaceHolder.Callback {
                 renderer?.let { it.swapped = swapped; it.requestRenderNow() }
             }
         }
+        val recordButton = Button(this).apply {
+            text = "开始合成录制"
+            setOnClickListener {
+                if (recording) stopRecording() else startRecording()
+                text = if (recording) "停止合成录制" else "开始合成录制"
+            }
+        }
         controls.addView(modeButton)
         controls.addView(swapButton)
+        controls.addView(recordButton)
         root.addView(controls, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER or Gravity.BOTTOM).apply { setMargins(0, 0, 0, 48) })
         setContentView(root)
         surfaceView.holder.addCallback(this)
@@ -122,6 +139,44 @@ class DualPipActivity : Activity(), SurfaceHolder.Callback {
         thread?.quitSafely()
         thread = null
         renderer = null
+    }
+
+    private fun startRecording() {
+        val renderer = renderer ?: return
+        if (!renderer.hasTextures()) { status.text = "相机未就绪，稍后再试"; return }
+        val dir = getExternalFilesDir(null) ?: filesDir
+        val file = java.io.File(dir, "dual-${System.currentTimeMillis()}.mp4")
+        runCatching {
+            val recorder = MediaRecorder().apply {
+                setVideoSource(MediaRecorder.VideoSource.SURFACE)
+                setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+                setVideoEncoder(MediaRecorder.VideoEncoder.H264)
+                setVideoSize(1280, 720)
+                setVideoFrameRate(30)
+                setVideoEncodingBitRate(4_000_000)
+                setOutputFile(file.absolutePath)
+                prepare()
+                start()
+            }
+            mediaRecorder = recorder
+            recording = true
+            renderer.attachRecorder(recorder.surface, 1280, 720)
+            status.text = "合成录制中：${file.absolutePath}"
+        }.onFailure {
+            recording = false
+            mediaRecorder?.release()
+            mediaRecorder = null
+            status.text = "录制启动失败：${it.message}"
+        }
+    }
+
+    private fun stopRecording() {
+        renderer?.detachRecorder()
+        runCatching { mediaRecorder?.stop() }
+        mediaRecorder?.release()
+        mediaRecorder = null
+        recording = false
+        status.text = "合成录制已停止（文件在应用外部目录）"
     }
 
     private fun startCameras() {
@@ -209,6 +264,11 @@ class DualPipActivity : Activity(), SurfaceHolder.Callback {
         private var running = false
         private var frames = 0L
         private var startedAt = 0L
+        private var recorderWindow: EGLSurface? = null
+        private var recorderWidth = 0
+        private var recorderHeight = 0
+        private var wmProgram = 0
+        private var wmTexture = 0
         @Volatile var mode: Int = 0
         @Volatile var swapped: Boolean = false
 
@@ -220,6 +280,8 @@ class DualPipActivity : Activity(), SurfaceHolder.Callback {
             window = core.createWindowSurface(surface)
             core.makeCurrent(window!!)
             program = createProgram()
+            wmProgram = createWatermarkProgram()
+            wmTexture = createWatermarkTexture()
             mainTexture = createExternalTexture()
             pipTexture = createExternalTexture()
             backTexture = android.graphics.SurfaceTexture(mainTexture).apply { setDefaultBufferSize(640, 480) }
@@ -240,13 +302,52 @@ class DualPipActivity : Activity(), SurfaceHolder.Callback {
 
         fun requestRenderNow() = requestRender()
 
+        fun attachRecorder(surface: Surface, width: Int, height: Int) {
+            handler?.post {
+                val core = egl ?: return@post
+                runCatching {
+                    core.makeCurrent(window!!)
+                    recorderWindow = core.createWindowSurface(surface)
+                    recorderWidth = width
+                    recorderHeight = height
+                }.onFailure { statusSink("录制 EGL 附着失败：${it.message}") }
+            }
+        }
+
+        fun detachRecorder() {
+            handler?.post {
+                recorderWindow?.let { egl?.releaseSurface(it) }
+                recorderWindow = null
+                runCatching { egl?.makeCurrent(window!!) }
+            }
+        }
+
         fun render() {
             val core = egl ?: return
             if (window == null || !running) return
             core.makeCurrent(window!!)
             runCatching { backTexture.updateTexImage() }
             runCatching { frontTexture.updateTexImage() }
-            GLES20.glViewport(0, 0, surfaceView.width, surfaceView.height)
+            drawFrame(surfaceView.width.coerceAtLeast(1), surfaceView.height.coerceAtLeast(1))
+            core.swapBuffers(window!!)
+            recorderWindow?.let { rw ->
+                core.makeCurrent(rw)
+                drawFrame(recorderWidth.coerceAtLeast(2), recorderHeight.coerceAtLeast(2))
+                core.presentationTime(rw, System.nanoTime())
+                core.swapBuffers(rw)
+            }
+            frames++
+            if (frames % 30L == 0L) {
+                val sec = ((System.currentTimeMillis() - startedAt) / 1000.0).coerceAtLeast(1.0)
+                val thermal = if (Build.VERSION.SDK_INT >= 29) {
+                    (getSystemService(Context.POWER_SERVICE) as PowerManager).currentThermalStatus
+                } else -1
+                statusSink("双摄 ${if (recording) "合成录制" else "PiP"} · ${(frames / sec).toInt()} fps · thermal=$thermal")
+            }
+        }
+
+        private fun drawFrame(w: Int, h: Int) {
+            GLES20.glViewport(0, 0, w, h)
             GLES20.glClearColor(0f, 0f, 0f, 1f)
             GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
             when (mode) {
@@ -255,31 +356,43 @@ class DualPipActivity : Activity(), SurfaceHolder.Callback {
                     drawTexture(if (swapped) mainTexture else pipTexture, fullScreen = false, useFrontMatrix = !swapped)
                 }
                 1 -> {
-                    val w = surfaceView.width.coerceAtLeast(1)
-                    val h = surfaceView.height.coerceAtLeast(1)
                     GLES20.glViewport(0, 0, w / 2, h)
                     drawTexture(if (swapped) pipTexture else mainTexture, fullScreen = true, useFrontMatrix = swapped)
                     GLES20.glViewport(w / 2, 0, w - w / 2, h)
                     drawTexture(if (swapped) mainTexture else pipTexture, fullScreen = true, useFrontMatrix = !swapped)
                 }
                 else -> {
-                    val w = surfaceView.width.coerceAtLeast(1)
-                    val h = surfaceView.height.coerceAtLeast(1)
                     GLES20.glViewport(0, h / 2, w, h - h / 2)
                     drawTexture(if (swapped) pipTexture else mainTexture, fullScreen = true, useFrontMatrix = swapped)
                     GLES20.glViewport(0, 0, w, h / 2)
                     drawTexture(if (swapped) mainTexture else pipTexture, fullScreen = true, useFrontMatrix = !swapped)
                 }
             }
-            core.swapBuffers(window!!)
-            frames++
-            if (frames % 30L == 0L) {
-                val sec = ((System.currentTimeMillis() - startedAt) / 1000.0).coerceAtLeast(1.0)
-                val thermal = if (Build.VERSION.SDK_INT >= 29) {
-                    (getSystemService(Context.POWER_SERVICE) as PowerManager).currentThermalStatus
-                } else -1
-                statusSink("双摄 PiP · ${(frames / sec).toInt()} fps · thermal=$thermal")
-            }
+            drawWatermark(w, h)
+        }
+
+        private fun drawWatermark(w: Int, h: Int) {
+            if (wmProgram == 0 || wmTexture == 0) return
+            GLES20.glViewport(0, 0, w, h)
+            GLES20.glEnable(GLES20.GL_BLEND)
+            GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
+            GLES20.glUseProgram(wmProgram)
+            val pos = GLES20.glGetAttribLocation(wmProgram, "aPos")
+            val tex = GLES20.glGetAttribLocation(wmProgram, "aTex")
+            val x0 = 0.52f; val y0 = -0.98f; val x1 = 0.98f; val y1 = -0.82f
+            val positions = floatArrayOf(x0, y0, x1, y0, x0, y1, x1, y1)
+            val texCoords = floatArrayOf(0f, 1f, 1f, 1f, 0f, 0f, 1f, 0f)
+            val pb = ByteBuffer.allocateDirect(positions.size * 4).order(ByteOrder.nativeOrder()).asFloatBuffer().apply { put(positions); position(0) }
+            val tb = ByteBuffer.allocateDirect(texCoords.size * 4).order(ByteOrder.nativeOrder()).asFloatBuffer().apply { put(texCoords); position(0) }
+            GLES20.glEnableVertexAttribArray(pos)
+            GLES20.glVertexAttribPointer(pos, 2, GLES20.GL_FLOAT, false, 0, pb)
+            GLES20.glEnableVertexAttribArray(tex)
+            GLES20.glVertexAttribPointer(tex, 2, GLES20.GL_FLOAT, false, 0, tb)
+            GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
+            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, wmTexture)
+            GLES20.glUniform1i(GLES20.glGetUniformLocation(wmProgram, "sTexture"), 0)
+            GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
+            GLES20.glDisable(GLES20.GL_BLEND)
         }
 
         private fun drawTexture(texture: Int, fullScreen: Boolean, useFrontMatrix: Boolean = !fullScreen) {
@@ -302,6 +415,10 @@ class DualPipActivity : Activity(), SurfaceHolder.Callback {
 
         fun release() {
             running = false
+            recorderWindow?.let { egl?.releaseSurface(it) }
+            recorderWindow = null
+            if (wmProgram != 0) GLES20.glDeleteProgram(wmProgram)
+            if (wmTexture != 0) GLES20.glDeleteTextures(1, intArrayOf(wmTexture), 0)
             runCatching { backTexture.release() }
             runCatching { frontTexture.release() }
             if (program != 0) GLES20.glDeleteProgram(program)
@@ -340,6 +457,7 @@ class DualPipActivity : Activity(), SurfaceHolder.Callback {
         }
 
         fun makeCurrent(surface: EGLSurface) = EGL14.eglMakeCurrent(display, surface, surface, context)
+        fun presentationTime(surface: EGLSurface, ns: Long) = EGLExt.eglPresentationTimeANDROID(display, surface, ns)
         fun swapBuffers(surface: EGLSurface) = EGL14.eglSwapBuffers(display, surface)
         fun releaseSurface(surface: EGLSurface?) { if (surface != null) EGL14.eglDestroySurface(display, surface) }
         fun release() {
@@ -374,6 +492,40 @@ class DualPipActivity : Activity(), SurfaceHolder.Callback {
             GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
             GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE)
             GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE)
+            return tex[0]
+        }
+
+        private fun createWatermarkProgram(): Int {
+            val vs = compile(GLES20.GL_VERTEX_SHADER, """
+                attribute vec4 aPos; attribute vec4 aTex; varying vec2 vTex;
+                void main(){ gl_Position=aPos; vTex=aTex.xy; }
+            """.trimIndent())
+            val fs = compile(GLES20.GL_FRAGMENT_SHADER, """
+                precision mediump float; uniform sampler2D sTexture; varying vec2 vTex;
+                void main(){ vec4 c=texture2D(sTexture,vTex); gl_FragColor=c; }
+            """.trimIndent())
+            val p = GLES20.glCreateProgram()
+            GLES20.glAttachShader(p, vs); GLES20.glAttachShader(p, fs); GLES20.glLinkProgram(p)
+            return p
+        }
+
+        private fun createWatermarkTexture(): Int {
+            val bmp = Bitmap.createBitmap(512, 128, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bmp)
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.argb(170, 255, 255, 255)
+                textSize = 64f
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                setShadowLayer(4f, 0f, 2f, Color.argb(160, 0, 0, 0))
+            }
+            canvas.drawText("CamPush", 20f, 88f, paint)
+            val tex = IntArray(1)
+            GLES20.glGenTextures(1, tex, 0)
+            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, tex[0])
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR)
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
+            GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, bmp, 0)
+            bmp.recycle()
             return tex[0]
         }
 
