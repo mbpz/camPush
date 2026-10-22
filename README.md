@@ -329,6 +329,7 @@ camPush/
 | v1.10 | 2026-10-20 | Team Lead | 推流瞬间掉 2fps 修复：枚举并优先硬件 H.264 编码器、按能力选择 NV12/I420/ Flexible 输入、YUV 转换复用缓冲、日志输出 encoder choice |
 | v1.11 | 2026-10-20 | Team Lead | 极低帧率救援：1080p 连续 3s 仅 1–4fps 时自动切 720p（播放地址不变），提示语更新；配合硬件编码器选择排查真机 2fps |
 | v1.12 | 2026-10-20 | Team Lead | 低帧率提示携带编码器名称/软硬编与 in/out fps；播放器追帧阈值 1.2s→0.6s 降低观看延迟 |
+| v2.76 | 2026-10-22 | Team Lead | 单摄直播烧录水印可用：开启后走 CameraX YUV 管线，FLV 抽帧可见 CamPush（LAN）；WAN 水印待做 |
 | v2.75 | 2026-10-22 | Team Lead | 回测矩阵 + `tools/regression/run-android-smoke.sh` 自动冒烟（构建/门禁/启动/UI 断言）|
 | v2.74 | 2026-10-22 | Team Lead | P1 多地址 UI 首版：WAN 房间地址列表/复制/刷新；构建通过 |
 | v2.73 | 2026-10-22 | Team Lead | P0 WAN 默认/网络推荐与错误映射：默认 WAN（已配置 API）、记住访问范围、3002/7002/7001 提示 |

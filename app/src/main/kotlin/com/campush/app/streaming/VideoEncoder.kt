@@ -188,6 +188,7 @@ class VideoEncoder(
                 return
             }
             YuvUtils.copyImageToImage(image, dstImage, width, height)
+            if (settings.watermarkEnabled) YuvUtils.overlayWatermark(dstImage, width, height)
             codec.queueInputBuffer(inputIndex, 0, width * height * 3 / 2, ptsUs, 0)
             framesInWindow++
             lastFedAtUs = ptsUs
@@ -209,11 +210,12 @@ class VideoEncoder(
             if (needed <= 0) return
             if (yuvScratch.size < needed) yuvScratch = ByteArray(needed)
             val bytes = yuvScratch
-            when (inputColorFormat) {
-                MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420SemiPlanar ->
-                    YuvUtils.imageToNv12Into(image, width, height, bytes)
+            val semiPlanar = inputColorFormat == MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420SemiPlanar
+            when {
+                semiPlanar -> YuvUtils.imageToNv12Into(image, width, height, bytes)
                 else -> YuvUtils.imageToI420Into(image, width, height, bytes)
             }
+            if (settings.watermarkEnabled) YuvUtils.overlayWatermarkBytes(bytes, width, height, semiPlanar)
             val inputIndex = codec.dequeueInputBuffer(0L)
             if (inputIndex < 0) {
                 droppedInWindow++

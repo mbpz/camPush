@@ -390,7 +390,7 @@ class LanStreamEngine(
         pipelineSettings = settings
         pipelineFacing = facing
         val spec = MediaPipelineSpec(facing, settings, streamMuted)
-        val surfaceWanted = !surfaceDisabled && pipelineFactory.isSurfaceSupported()
+        val surfaceWanted = !surfaceDisabled && pipelineFactory.isSurfaceSupported() && !settings.watermarkEnabled
         val pipeline = if (surfaceWanted) {
             pipelineFactory.createSurface(publisher, pipelineCallbacks(), ::nowUs)
         } else {

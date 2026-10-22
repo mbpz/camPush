@@ -1,5 +1,10 @@
 package com.campush.app.streaming
 
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.Typeface
 import android.media.Image
 
 /**
@@ -56,6 +61,115 @@ internal object YuvUtils {
             for (col in 0 until dstWidth) {
                 val srcCol = (col.toLong() * srcWidth / dstWidth).toInt()
                 dstBuf.put(dstBase + col * dst.pixelStride, srcBuf.get(srcBase + srcCol * src.pixelStride))
+            }
+        }
+    }
+
+    private val watermarkBitmap: Bitmap by lazy {
+        Bitmap.createBitmap(320, 80, Bitmap.Config.ARGB_8888).also { bmp ->
+            val canvas = Canvas(bmp)
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.argb(190, 255, 255, 255)
+                textSize = 44f
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                setShadowLayer(4f, 0f, 2f, Color.argb(180, 0, 0, 0))
+            }
+            canvas.drawText("CamPush", 14f, 56f, paint)
+        }
+    }
+
+    /** 在编码器输入 YUV 图像右下角烧录 CamPush 水印（仅亮度/色度近似，不引入额外编码）。 */
+    fun overlayWatermark(dst: Image, width: Int, height: Int) {
+        val planes = dst.planes
+        if (planes.size < 3 || width <= 0 || height <= 0) return
+        val bmp = watermarkBitmap
+        val wmW = bmp.width.coerceAtMost(width / 2)
+        val wmH = bmp.height.coerceAtMost(height / 2)
+        val x0 = width - wmW - 16
+        val y0 = height - wmH - 16
+        if (x0 < 0 || y0 < 0) return
+        val yPlane = planes[0]
+        val uPlane = planes[1]
+        val vPlane = planes[2]
+        val pixels = IntArray(wmW * wmH)
+        val scaled = Bitmap.createScaledBitmap(bmp, wmW, wmH, true)
+        scaled.getPixels(pixels, 0, wmW, 0, 0, wmW, wmH)
+        if (scaled !== bmp) scaled.recycle()
+        val yBuf = yPlane.buffer
+        val uBuf = uPlane.buffer
+        val vBuf = vPlane.buffer
+        for (row in 0 until wmH) {
+            for (col in 0 until wmW) {
+                val argb = pixels[row * wmW + col]
+                val alpha = (argb ushr 24) and 0xFF
+                if (alpha < 24) continue
+                val gray = (((argb ushr 16) and 0xFF) * 0.299 +
+                    ((argb ushr 8) and 0xFF) * 0.587 +
+                    (argb and 0xFF) * 0.114).toInt().coerceIn(0, 255)
+                val x = x0 + col
+                val y = y0 + row
+                val yIndex = y * yPlane.rowStride + x * yPlane.pixelStride
+                val original = yBuf.get(yIndex).toInt() and 0xFF
+                val blended = (original * (255 - alpha) + gray * alpha) / 255
+                yBuf.put(yIndex, blended.toByte())
+                if ((x and 1) == 0 && (y and 1) == 0) {
+                    val cx = x / 2
+                    val cy = y / 2
+                    val ui = cy * uPlane.rowStride + cx * uPlane.pixelStride
+                    val vi = cy * vPlane.rowStride + cx * vPlane.pixelStride
+                    uBuf.put(ui, 128.toByte())
+                    vBuf.put(vi, 128.toByte())
+                }
+            }
+        }
+    }
+
+    /** 在 I420/NV12 字节数组中烧录水印（ByteBuffer 编码路径）。 */
+    fun overlayWatermarkBytes(bytes: ByteArray, width: Int, height: Int, semiPlanar: Boolean) {
+        if (width <= 0 || height <= 0 || bytes.size < width * height * 3 / 2) return
+        val bmp = watermarkBitmap
+        val wmW = bmp.width.coerceAtMost(width / 2)
+        val wmH = bmp.height.coerceAtMost(height / 2)
+        val x0 = width - wmW - 16
+        val y0 = height - wmH - 16
+        if (x0 < 0 || y0 < 0) return
+        val pixels = IntArray(wmW * wmH)
+        val scaled = Bitmap.createScaledBitmap(bmp, wmW, wmH, true)
+        scaled.getPixels(pixels, 0, wmW, 0, 0, wmW, wmH)
+        if (scaled !== bmp) scaled.recycle()
+        val ySize = width * height
+        val chromaSize = (width / 2) * (height / 2)
+        for (row in 0 until wmH) {
+            for (col in 0 until wmW) {
+                val argb = pixels[row * wmW + col]
+                val alpha = (argb ushr 24) and 0xFF
+                if (alpha < 24) continue
+                val gray = (((argb ushr 16) and 0xFF) * 0.299 +
+                    ((argb ushr 8) and 0xFF) * 0.587 +
+                    (argb and 0xFF) * 0.114).toInt().coerceIn(0, 255)
+                val x = x0 + col
+                val y = y0 + row
+                val yi = y * width + x
+                val original = bytes[yi].toInt() and 0xFF
+                bytes[yi] = ((original * (255 - alpha) + gray * alpha) / 255).toByte()
+                if ((x and 1) == 0 && (y and 1) == 0) {
+                    val cx = x / 2
+                    val cy = y / 2
+                    if (semiPlanar) {
+                        val uv = ySize + cy * width + cx * 2
+                        if (uv + 1 < bytes.size) {
+                            bytes[uv] = 128.toByte()
+                            bytes[uv + 1] = 128.toByte()
+                        }
+                    } else {
+                        val u = ySize + cy * (width / 2) + cx
+                        val v = ySize + chromaSize + cy * (width / 2) + cx
+                        if (v < bytes.size) {
+                            bytes[u] = 128.toByte()
+                            bytes[v] = 128.toByte()
+                        }
+                    }
+                }
             }
         }
     }
