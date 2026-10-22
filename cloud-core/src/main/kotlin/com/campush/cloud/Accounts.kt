@@ -12,8 +12,9 @@ internal class AccountStore {
         val email: String,
         val passwordSalt: String,
         val passwordHash: String,
-        val plan: String = "free",
+        var plan: String = "free",
         val devices: MutableSet<String> = mutableSetOf(),
+        var usedSeconds: Long = 0L,
         val createdAt: Long = System.currentTimeMillis(),
     )
 
@@ -62,6 +63,29 @@ internal class AccountStore {
         "pro" -> 10
         "proplus" -> 50
         else -> 1
+    }
+
+    fun monthlyMinutes(plan: String): Int = when (plan) {
+        "pro" -> 1_000
+        "proplus" -> 5_000
+        else -> 60
+    }
+
+    fun setPlan(accountId: String, plan: String): Account? {
+        if (plan !in setOf("free", "pro", "proplus")) return null
+        val account = byId[accountId] ?: return null
+        account.plan = plan
+        return account
+    }
+
+    fun recordUsage(accountId: String, seconds: Long) {
+        val account = byId[accountId] ?: return
+        account.usedSeconds += seconds.coerceAtLeast(0)
+    }
+
+    fun usageExceeded(accountId: String, additionalSeconds: Long): Boolean {
+        val account = byId[accountId] ?: return false
+        return account.usedSeconds + additionalSeconds > monthlyMinutes(account.plan) * 60L
     }
 
     private fun hash(password: String, salt: String): String {

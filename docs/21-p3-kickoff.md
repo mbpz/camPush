@@ -17,7 +17,7 @@
 | 序 | 任务 | 说明 | 状态 |
 |---|---|---|---|
 | 1 | T3-S1 | 账号注册/登录/设备绑定/账号 token/额度骨架 | ✅ 首版（cloud-core 15/15） |
-| 2 | T3-S2 | 套餐/额度/计费（free/pro/proplus、房间分钟数、2004） | 待做 |
+| 2 | T3-S2 | 套餐/额度/计费（free/pro/proplus、房间分钟数、2004） | ✅ 首版（cloud-core 16/16） |
 | 3 | T3-A3 | App 登录/套餐入口/额度展示 | 待做 |
 | 4 | T3-W1/T3-S5 | 观众端 Web + 房间列表/进入权限 API | 待做 |
 | 5 | T3-S3/T3-A4 | BYO 自定义地址/连通性测试 | 待做 |
@@ -30,6 +30,17 @@
 - 本地 Docker/SRS 已清理；本轮先完成**纯 JVM/Android 代码与单测**，不依赖媒体环境；
 - 真机/公网验收按 P2 边界处理：开发完成≠G3 通过；
 - D-3 双摄仍实验性；T3-A1 双路独立按 D-3 结论延后/裁剪。
+
+## 3.1 T3-S2 套餐/额度首版
+
+```text
+POST /api/v1/account/plan  {plan:"free|pro|proplus"} (Bearer) -> 更新套餐
+GET  /api/v1/account/usage (Bearer) -> usedSeconds/monthlyMinutes/roomLimit
+```
+
+- free: 1 房间/60 min；pro: 10/1000 min；proplus: 50/5000 min；
+- 房间创建按账号套餐限额；关闭房间累计 usedSeconds；超限 `429/2004`；
+- 当前无支付链路（T3-W2/计费对账后续）。
 
 ## 4. 首版账号 API（已落地）
 

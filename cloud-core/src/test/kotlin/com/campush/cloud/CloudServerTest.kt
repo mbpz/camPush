@@ -159,6 +159,31 @@ class CloudServerTest {
     }
 
     @Test
+    fun planUpgradeAndUsage() {
+        val (_, base) = start()
+        val reg = post(base, "/api/v1/auth/register", """{"email":"b@example.com","password":"secret123"}""")
+        val token = Regex("\"token\":\"([^\"]+)\"").find(reg.body())!!.groupValues[1]
+        val auth = mapOf("Authorization" to "Bearer $token")
+
+        val upgrade = post(base, "/api/v1/account/plan", """{"plan":"pro"}""", auth)
+        assertEquals(200, upgrade.statusCode())
+        assertTrue(upgrade.body().contains("\"roomLimit\":10"))
+
+        val first = post(base, "/api/v1/rooms", """{"accessScope":"wan"}""", auth)
+        assertEquals(201, first.statusCode())
+        val roomId = Regex("\"roomId\":\"([^\"]+)\"").find(first.body())!!.groupValues[1]
+        val ingestToken = Regex("\"ingest\":\\{[^}]*\"token\":\"([^\"]+)\"").find(first.body())!!.groupValues[1]
+        Thread.sleep(1_100)
+        val del = java.net.URI.create("$base/api/v1/rooms/$roomId").toURL().openConnection() as java.net.HttpURLConnection
+        del.requestMethod = "DELETE"; del.setRequestProperty("Authorization", "Bearer $ingestToken")
+        assertEquals(202, del.responseCode); del.disconnect()
+
+        val usage = get(base, "/api/v1/account/usage", auth)
+        assertEquals(200, usage.statusCode())
+        assertTrue(usage.body().contains("\"usedSeconds\":1") || usage.body().contains("\"usedSeconds\":2"))
+    }
+
+    @Test
     fun telemetryFirstFrameMetrics() {
         val (_, base) = start()
         repeat(3) { i ->

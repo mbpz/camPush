@@ -325,6 +325,7 @@ camPush/
 | v1.10 | 2026-10-20 | Team Lead | 推流瞬间掉 2fps 修复：枚举并优先硬件 H.264 编码器、按能力选择 NV12/I420/ Flexible 输入、YUV 转换复用缓冲、日志输出 encoder choice |
 | v1.11 | 2026-10-20 | Team Lead | 极低帧率救援：1080p 连续 3s 仅 1–4fps 时自动切 720p（播放地址不变），提示语更新；配合硬件编码器选择排查真机 2fps |
 | v1.12 | 2026-10-20 | Team Lead | 低帧率提示携带编码器名称/软硬编与 in/out fps；播放器追帧阈值 1.2s→0.6s 降低观看延迟 |
+| v2.51 | 2026-10-22 | Team Lead | T3-S2 套餐/额度首版：free/pro/proplus、房间限额、usedSeconds 累计、plan/usage API；cloud-core 16/16 |
 | v2.50 | 2026-10-22 | Team Lead | P2 里程碑确认完成，进入 P3；新增 docs/21；T3-S1 账号注册/登录/设备绑定/额度首版（cloud-core 15/15） |
 | v2.49 | 2026-10-22 | Team Lead | 新增 P2 开发完成报告（docs/20）：功能矩阵/测试/G2 验收边界；WAN 主流程落地 |
 | v2.48 | 2026-10-22 | Team Lead | 主界面 WAN 模式：LAN/WAN 切换、Cloud API 配置、开始/停止走房间+WHIP、地址卡公网信息；构建/测试通过 |

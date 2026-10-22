@@ -97,6 +97,8 @@ class CloudServer(
                 method == "POST" && path == "/api/v1/auth/login" -> login(ex)
                 method == "POST" && path == "/api/v1/devices/bind" -> bindDevice(ex)
                 method == "GET" && path == "/api/v1/account" -> accountInfo(ex)
+                method == "POST" && path == "/api/v1/account/plan" -> updatePlan(ex)
+                method == "GET" && path == "/api/v1/account/usage" -> accountUsage(ex)
                 method == "POST" && path == "/api/v1/rooms" -> createRoom(ex)
                 method == "GET" && Regex("^/api/v1/rooms/[^/]+$").matches(path) -> getRoom(ex, path.removePrefix("/api/v1/rooms/"))
                 method == "DELETE" && Regex("^/api/v1/rooms/[^/]+$").matches(path) -> deleteRoom(ex, path.removePrefix("/api/v1/rooms/"))
@@ -143,6 +145,20 @@ class CloudServer(
         send(ex, 200, accountJson(account, null))
     }
 
+    private fun updatePlan(ex: HttpExchange) {
+        val id = accountId(ex) ?: return send(ex, 401, error(3001, "token_missing", "account bearer required"))
+        val body = ex.requestBody.bufferedReader().readText()
+        val plan = field(body, "plan") ?: return send(ex, 400, error(2007, "invalid_argument", "plan required"))
+        val account = accounts.setPlan(id, plan) ?: return send(ex, 400, error(2007, "invalid_argument", "unknown plan"))
+        send(ex, 200, accountJson(account, null))
+    }
+
+    private fun accountUsage(ex: HttpExchange) {
+        val id = accountId(ex) ?: return send(ex, 401, error(3001, "token_missing", "account bearer required"))
+        val account = accounts.byId(id) ?: return send(ex, 404, error(2001, "not_found", "account not found"))
+        send(ex, 200, """{"accountId":"${account.id}","plan":"${account.plan}","usedSeconds":${account.usedSeconds},"monthlyMinutes":${accounts.monthlyMinutes(account.plan)},"roomLimit":${accounts.roomLimit(account.plan)}}""")
+    }
+
     private fun bindDevice(ex: HttpExchange) {
         val id = accountId(ex) ?: return send(ex, 401, error(3001, "token_missing", "account bearer required"))
         val body = ex.requestBody.bufferedReader().readText()
@@ -153,7 +169,7 @@ class CloudServer(
 
     private fun accountJson(account: AccountStore.Account, token: String?): String {
         val tokenPart = if (token == null) "" else ",\"token\":\"$token\""
-        return """{"accountId":"${account.id}","email":"${account.email}","plan":"${account.plan}","devices":${account.devices.size},"roomLimit":${accounts.roomLimit(account.plan)}$tokenPart}"""
+        return """{"accountId":"${account.id}","email":"${account.email}","plan":"${account.plan}","devices":${account.devices.size},"roomLimit":${accounts.roomLimit(account.plan)},"usedSeconds":${account.usedSeconds},"monthlyMinutes":${accounts.monthlyMinutes(account.plan)}$tokenPart}"""
     }
 
     private fun createRoom(ex: HttpExchange) {
@@ -179,6 +195,9 @@ class CloudServer(
         val now = clock()
         val id = "r" + (1..9).map { CROCKFORD[Random.nextInt(CROCKFORD.length)] }.joinToString("")
         val maxDuration = field(body, "maxDurationSec")?.toIntOrNull()?.coerceIn(60, config.maxDurationSec) ?: config.maxDurationSec
+        if (account != null && accounts.usageExceeded(accountId, 0L)) {
+            return send(ex, 429, error(2004, "room_quota_exceeded", "monthly minutes exceeded"))
+        }
         val pinRequired = body.contains("\"pinRequired\"") && body.contains("true")
         val pin = field(body, "pin")
         if (pinRequired && (pin == null || !Regex("^\\d{4,6}$").matches(pin))) {
@@ -207,6 +226,9 @@ class CloudServer(
         }
         room.state = "stopping"
         room.state = "closed"
+        if (room.accountId != "dev") {
+            accounts.recordUsage(room.accountId, (clock() - room.createdAt) / 1000)
+        }
         send(ex, 202, """{"roomId":"${room.id}","state":"closed"}""")
     }
 
