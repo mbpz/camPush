@@ -27,7 +27,9 @@ import android.view.Gravity
 import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.SurfaceView
+import android.widget.Button
 import android.widget.FrameLayout
+import android.widget.LinearLayout
 import android.widget.TextView
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -52,6 +54,8 @@ class DualPipActivity : Activity(), SurfaceHolder.Callback {
     private var frontSession: CameraCaptureSession? = null
     private var backSurface: Surface? = null
     private var frontSurface: Surface? = null
+    private var compositionMode = 0
+    private var swapped = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -65,6 +69,32 @@ class DualPipActivity : Activity(), SurfaceHolder.Callback {
             text = "双摄 PiP：等待相机权限…"
         }
         root.addView(status, FrameLayout.LayoutParams(-2, -2, Gravity.START or Gravity.TOP).apply { setMargins(24, 48, 24, 24) })
+        val controls = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+        }
+        val modeButton = Button(this).apply {
+            text = "合成：PiP"
+            setOnClickListener {
+                compositionMode = (compositionMode + 1) % 3
+                text = when (compositionMode) {
+                    0 -> "合成：PiP"
+                    1 -> "合成：左右分屏"
+                    else -> "合成：上下分屏"
+                }
+                renderer?.let { it.mode = compositionMode; it.swapped = swapped; it.requestRenderNow() }
+            }
+        }
+        val swapButton = Button(this).apply {
+            text = "交换主次"
+            setOnClickListener {
+                swapped = !swapped
+                renderer?.let { it.swapped = swapped; it.requestRenderNow() }
+            }
+        }
+        controls.addView(modeButton)
+        controls.addView(swapButton)
+        root.addView(controls, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER or Gravity.BOTTOM).apply { setMargins(0, 0, 0, 48) })
         setContentView(root)
         surfaceView.holder.addCallback(this)
         if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
@@ -179,6 +209,8 @@ class DualPipActivity : Activity(), SurfaceHolder.Callback {
         private var running = false
         private var frames = 0L
         private var startedAt = 0L
+        @Volatile var mode: Int = 0
+        @Volatile var swapped: Boolean = false
 
         fun hasTextures(): Boolean = ::backTexture.isInitialized && ::frontTexture.isInitialized
 
@@ -206,6 +238,8 @@ class DualPipActivity : Activity(), SurfaceHolder.Callback {
             handler?.post { render() }
         }
 
+        fun requestRenderNow() = requestRender()
+
         fun render() {
             val core = egl ?: return
             if (window == null || !running) return
@@ -215,8 +249,28 @@ class DualPipActivity : Activity(), SurfaceHolder.Callback {
             GLES20.glViewport(0, 0, surfaceView.width, surfaceView.height)
             GLES20.glClearColor(0f, 0f, 0f, 1f)
             GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
-            drawTexture(mainTexture, fullScreen = true)
-            drawTexture(pipTexture, fullScreen = false)
+            when (mode) {
+                0 -> {
+                    drawTexture(if (swapped) pipTexture else mainTexture, fullScreen = true, useFrontMatrix = swapped)
+                    drawTexture(if (swapped) mainTexture else pipTexture, fullScreen = false, useFrontMatrix = !swapped)
+                }
+                1 -> {
+                    val w = surfaceView.width.coerceAtLeast(1)
+                    val h = surfaceView.height.coerceAtLeast(1)
+                    GLES20.glViewport(0, 0, w / 2, h)
+                    drawTexture(if (swapped) pipTexture else mainTexture, fullScreen = true, useFrontMatrix = swapped)
+                    GLES20.glViewport(w / 2, 0, w - w / 2, h)
+                    drawTexture(if (swapped) mainTexture else pipTexture, fullScreen = true, useFrontMatrix = !swapped)
+                }
+                else -> {
+                    val w = surfaceView.width.coerceAtLeast(1)
+                    val h = surfaceView.height.coerceAtLeast(1)
+                    GLES20.glViewport(0, h / 2, w, h - h / 2)
+                    drawTexture(if (swapped) pipTexture else mainTexture, fullScreen = true, useFrontMatrix = swapped)
+                    GLES20.glViewport(0, 0, w, h / 2)
+                    drawTexture(if (swapped) mainTexture else pipTexture, fullScreen = true, useFrontMatrix = !swapped)
+                }
+            }
             core.swapBuffers(window!!)
             frames++
             if (frames % 30L == 0L) {
@@ -228,12 +282,12 @@ class DualPipActivity : Activity(), SurfaceHolder.Callback {
             }
         }
 
-        private fun drawTexture(texture: Int, fullScreen: Boolean) {
+        private fun drawTexture(texture: Int, fullScreen: Boolean, useFrontMatrix: Boolean = !fullScreen) {
             GLES20.glUseProgram(program)
             val pos = GLES20.glGetAttribLocation(program, "aPos")
             val tex = GLES20.glGetAttribLocation(program, "aTex")
             val matrix = FloatArray(16)
-            if (fullScreen) backTexture.getTransformMatrix(matrix) else frontTexture.getTransformMatrix(matrix)
+            if (useFrontMatrix) frontTexture.getTransformMatrix(matrix) else backTexture.getTransformMatrix(matrix)
             GLES20.glUniformMatrix4fv(GLES20.glGetUniformLocation(program, "uMatrix"), 1, false, matrix, 0)
             GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
             GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, texture)
