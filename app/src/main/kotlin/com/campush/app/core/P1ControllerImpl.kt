@@ -838,6 +838,8 @@ class P1ControllerImpl(context: Context) : P1Controller {
     private fun wanError(message: String): P1Error {
         val lower = message.lowercase()
         return when {
+            lower.contains("1985") || lower.contains("whip") ->
+                P1Error(7003, "WHIP 推流连接失败", "检查 SRS/WHIP 地址与端口，或确认媒体服务已启动")
             lower.contains("401") || lower.contains("403") || lower.contains("token") ->
                 P1Error(3002, "WAN 账号鉴权失败", "请重新登录账号或检查 Cloud API")
             lower.contains("timeout") || lower.contains("connect") || lower.contains("failed to connect") ->

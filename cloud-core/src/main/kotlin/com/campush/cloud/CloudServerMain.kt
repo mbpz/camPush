@@ -4,7 +4,7 @@ package com.campush.cloud
 fun main() {
     val config = CloudConfig.fromEnv()
     val server = CloudServer(config)
-    val port = server.start(18090)
+    val port = server.start(System.getenv("CAMPUSH_PORT")?.toIntOrNull() ?: 18090)
     println("CamPush CloudServer listening on http://127.0.0.1:$port")
     println("  config page: http://127.0.0.1:$port/config")
     println("  whip backend: ${config.whipHost}:${config.whipApiPort}")

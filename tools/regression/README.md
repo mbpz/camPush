@@ -13,6 +13,13 @@ python3 tools/regression/lan_e2e.py
 覆盖：安装/授权、设置水印/录制、开始推流、读取 FLV（2MB）、水印像素抽检、停止、MP4 录制文件拉取。
 实测：`FLV bytes=2000000`、`watermark bright pixels bottom-right=2214`、`recording bytes=12039384`、`LAN E2E OK`。
 
+## WAN 房间控制面 E2E（无需 SRS）
+```bash
+python3 tools/regression/wan_room_e2e.py
+```
+本机启动 cloud-core（端口 18092），模拟器配置 API 后进入 WAN；WHIP 无媒体服务时预期失败并**自动清理房间**。
+实测：`WAN ROOM E2E OK: create/stop`，停止后无活跃房间。
+
 ## 手工/环境矩阵
 
 | 场景 | 步骤 | 期望 |

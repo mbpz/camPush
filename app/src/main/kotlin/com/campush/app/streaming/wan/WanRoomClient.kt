@@ -44,6 +44,7 @@ class WanRoomClient(
     private val whip = WanWhipClient(context)
     private var apiBase: String? = null
     private var ingestToken: String? = null
+    private var cleanupOnError = false
 
     init {
         scope.launch {
@@ -54,6 +55,18 @@ class WanRoomClient(
                         status = s.status,
                         error = s.error ?: _state.value.error,
                     )
+                    if (s.error != null && !cleanupOnError) {
+                        cleanupOnError = true
+                        val base = apiBase
+                        val roomId = _state.value.roomId
+                        val token = ingestToken
+                        if (base != null && roomId != null && token != null) {
+                            scope.launch(Dispatchers.IO) {
+                                runCatching { deleteRoom(base, roomId, token) }
+                                DiagLog.i("WanRoom", "room cleanup after failure room=$roomId")
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -61,6 +74,7 @@ class WanRoomClient(
 
     fun start(apiBaseUrl: String, watermarkEnabled: Boolean = false) {
         this.watermarkEnabled = watermarkEnabled
+        cleanupOnError = false
         if (_state.value.running && _state.value.roomId != null) return
         val base = apiBaseUrl.trim().trimEnd('/')
         if (!base.startsWith("http://") && !base.startsWith("https://")) {
