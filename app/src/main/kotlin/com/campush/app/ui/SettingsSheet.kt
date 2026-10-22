@@ -244,6 +244,12 @@ private fun SettingsContent(
             onCheckedChange = { applySettings(settings.copy(powerSave = it)) },
         )
         SwitchRow(
+            title = "本地录制 MP4",
+            subtitle = "推流同时录制到应用私有目录（含音频；不额外占用相机）",
+            checked = settings.recordEnabled,
+            onCheckedChange = { applySettings(settings.copy(recordEnabled = it)) },
+        )
+        SwitchRow(
             title = "采集音频",
             subtitle = "关闭后推流不含声音，可随时用主界面静音按钮切换",
             checked = settings.audioEnabled,

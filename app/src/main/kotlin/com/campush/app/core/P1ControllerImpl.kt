@@ -224,6 +224,13 @@ class P1ControllerImpl(context: Context) : P1Controller {
             muted = currentAfterUpdate.muted,
             requestedAtMs = requestedAtMs,
             rtmpUrl = currentAfterUpdate.settings.rtmpUrl,
+            recordFile = if (currentAfterUpdate.settings.recordEnabled) {
+                java.io.File(
+                    java.io.File(appContext.filesDir, "recordings").apply { mkdirs() },
+                    "campush-${System.currentTimeMillis()}.mp4",
+                ).absolutePath
+            } else null,
+            recordAudio = !currentAfterUpdate.muted && currentAfterUpdate.settings.audioEnabled,
         )
         Telemetry.event(
             "push_start_clicked",
@@ -767,6 +774,7 @@ class P1ControllerImpl(context: Context) : P1Controller {
             powerSave = prefs.getBoolean(KEY_POWER_SAVE, false),
             adaptiveBitrate = prefs.getBoolean(KEY_ADAPTIVE_BITRATE, true),
             rtmpUrl = prefs.getString(KEY_RTMP_URL, "") ?: "",
+            recordEnabled = prefs.getBoolean(KEY_RECORD_ENABLED, false),
         )
         val facing = runCatching {
             CameraFacingUi.valueOf(prefs.getString(KEY_FACING, CameraFacingUi.BACK.name) ?: "BACK")
@@ -803,6 +811,7 @@ class P1ControllerImpl(context: Context) : P1Controller {
             .putBoolean(KEY_POWER_SAVE, settings.powerSave)
             .putBoolean(KEY_ADAPTIVE_BITRATE, settings.adaptiveBitrate)
             .putString(KEY_RTMP_URL, settings.rtmpUrl)
+            .putBoolean(KEY_RECORD_ENABLED, settings.recordEnabled)
             .apply()
     }
 
@@ -819,6 +828,7 @@ class P1ControllerImpl(context: Context) : P1Controller {
         const val KEY_POWER_SAVE = "settings_power_save"
         const val KEY_ADAPTIVE_BITRATE = "settings_adaptive_bitrate"
         const val KEY_RTMP_URL = "settings_rtmp_url"
+        const val KEY_RECORD_ENABLED = "settings_record_enabled"
         const val KEY_CLOUD_API = "settings_cloud_api"
         const val KEY_ACCOUNT_TOKEN = "account_token"
         const val KEY_ACCOUNT_EMAIL = "account_email"

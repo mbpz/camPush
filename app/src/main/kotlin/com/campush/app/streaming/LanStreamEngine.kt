@@ -44,6 +44,9 @@ data class StreamStartOptions(
     val requestedAtMs: Long = System.currentTimeMillis(),
     /** P2 D-4：可选 RTMP 旁路地址；空字符串关闭。 */
     val rtmpUrl: String = "",
+    /** P3 T2-A7：本地 MP4 输出路径；null 关闭。 */
+    val recordFile: String? = null,
+    val recordAudio: Boolean = true,
 )
 
 /**
@@ -89,6 +92,7 @@ class LanStreamEngine(
     @Volatile
     private var audioEncoder: AudioEncoder? = null
     private var rtmpPublishers: List<com.campush.app.streaming.rtmp.AsyncRtmpPublisher> = emptyList()
+    private var recorder: com.campush.app.streaming.recording.Mp4Recorder? = null
 
     private var statsJob: Job? = null
 
@@ -224,7 +228,33 @@ class LanStreamEngine(
         }
         val activeFacing = if (baseSettings.powerSave) CameraFacingUi.BACK else options.facing
 
-        publisherRef = publisher
+        val rec = options.recordFile?.takeIf { it.isNotBlank() }?.let { path ->
+            runCatching {
+                val file = java.io.File(path)
+                file.parentFile?.mkdirs()
+                com.campush.app.streaming.recording.Mp4Recorder(
+                    file,
+                    options.recordAudio,
+                    options.settings.width,
+                    options.settings.height,
+                ).also { recorder = it }
+            }.getOrNull()
+        }
+        val recordedPublisher: LanMediaPublisher = if (rec == null) publisher else object : LanMediaPublisher {
+            override fun publishJpeg(jpeg: ByteArray) = publisher.publishJpeg(jpeg)
+            override fun publishH264(unit: com.campush.lan.H264AccessUnit) {
+                runCatching { rec.onVideo(unit) }
+                publisher.publishH264(unit)
+            }
+            override fun publishAac(unit: com.campush.lan.AacAccessUnit) {
+                runCatching { rec.onAudio(unit) }
+                publisher.publishAac(unit)
+            }
+            override fun stats(): com.campush.lan.MediaStats = publisher.stats()
+            override fun requestKeyFrame() = publisher.requestKeyFrame()
+            override fun isMjpegWanted(): Boolean = publisher.isMjpegWanted()
+        }
+        publisherRef = recordedPublisher
         streamMuted = options.muted
         pipelineSettings = activeSettings
         pipelineFacing = activeFacing
@@ -638,6 +668,8 @@ class LanStreamEngine(
         pipelineJob?.cancel()
         pipelineJob = null
         stopMediaPipeline()
+        recorder?.stop()
+        recorder = null
         publisherRef = null
         val lanServer = server
         server = null

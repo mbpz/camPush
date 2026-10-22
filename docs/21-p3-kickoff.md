@@ -24,6 +24,7 @@
 | 5 | T3-S3/T3-A4 | BYO 自定义地址/连通性测试 | 待做 |
 | 6 | T3-A1/T3-A2 | 双路独立/高级合成（受 D-3 实验性约束） | 待做 |
 | 7 | T3-A5 | 日志导出与脱敏 | ✅ 首版（LogRedactor + 导出分享） |
+| 7f | T2-A7 本地录制 | ✅ 首版（H264/AAC→MP4，视频+音频） |
 | 8 | 合规/灰度/压测 | T3-S8/T3-Q2/Q3/P4 等 | 待做 |
 
 ## 3. 当前约束
@@ -108,6 +109,14 @@ GET  /api/v1/account/usage (Bearer) -> usedSeconds/monthlyMinutes/roomLimit
 - `GET /api/v1/compliance/reports`：管理员查看（Bearer admin token）；
 - `POST /api/v1/compliance/rooms/{id}/suspend`：审核封禁，媒体统一 410；
 - 待补：审核回调/工单系统、举报限流、留存任务。
+
+## 3.12 T2-A7 本地录制首版
+
+- 设置页「本地录制 MP4」开关；推流同时把已编码 H264/AAC 写入 MP4；
+- 不新增相机/编码器，录制失败只记日志，不影响推流；
+- 输出：`/data/data/<pkg>/files/recordings/campush-<ts>.mp4`；
+- 提取：`adb pull /data/data/com.campush.app/files/recordings/`（debug）；
+- 待补：水印、录制中状态/文件列表、MediaStore 导出。
 
 ## 4. 首版账号 API（已落地）
 

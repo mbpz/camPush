@@ -22,6 +22,8 @@ data class StreamSettingsUi(
     val adaptiveBitrate: Boolean = true,
     /** P2 D-4：可选 RTMP 旁路推流地址（rtmp://host/app/stream）；空 = 关闭。 */
     val rtmpUrl: String = "",
+    /** P3 T2-A7：开始推流时同时本地录制 MP4（应用私有目录）。 */
+    val recordEnabled: Boolean = false,
 ) {
     val label: String
         get() = "${width}x${height} · ${fps}fps · ${bitrateKbps / 1000.0} Mbps"
