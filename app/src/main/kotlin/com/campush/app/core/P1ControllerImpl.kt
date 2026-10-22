@@ -161,6 +161,7 @@ class P1ControllerImpl(context: Context) : P1Controller {
             _state.update { it.copy(streaming = false, playUrl = null) }
             pausePreview()
             com.campush.app.service.WanStreamingService.start(appContext)
+            wanClient.setMuted(current.muted)
             wanClient.start(api)
             return
         }
@@ -301,8 +302,13 @@ class P1ControllerImpl(context: Context) : P1Controller {
         }
         prefs.edit().putString(KEY_FACING, next.name).apply()
         if (hasPermission(Manifest.permission.CAMERA)) {
-            if (_state.value.streaming) StreamingBridge.engine?.switchCameraSurface(next)
-            else CameraHost.get(appContext).switchCamera(next)
+            if (_state.value.accessScope == AccessScopeUi.WAN) {
+                wanClient.switchCamera()
+            } else if (_state.value.streaming) {
+                StreamingBridge.engine?.switchCameraSurface(next)
+            } else {
+                CameraHost.get(appContext).switchCamera(next)
+            }
         }
     }
 
@@ -313,14 +319,20 @@ class P1ControllerImpl(context: Context) : P1Controller {
         }
         _state.update { it.copy(torchOn = on) }
         if (hasPermission(Manifest.permission.CAMERA)) {
-            if (_state.value.streaming) StreamingBridge.engine?.setTorchSurface(on)
-            else CameraHost.get(appContext).setTorch(on)
+            if (_state.value.accessScope == AccessScopeUi.WAN) {
+                wanClient.setTorch(on)
+            } else if (_state.value.streaming) {
+                StreamingBridge.engine?.setTorchSurface(on)
+            } else {
+                CameraHost.get(appContext).setTorch(on)
+            }
         }
     }
 
     override fun setMuted(muted: Boolean) {
         _state.update { it.copy(muted = muted) }
         prefs.edit().putBoolean(KEY_MUTED, muted).apply()
+        if (_state.value.accessScope == AccessScopeUi.WAN) wanClient.setMuted(muted)
         StreamingBridge.engine?.setMuted(muted)
     }
 

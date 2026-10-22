@@ -95,6 +95,12 @@ class WanRoomClient(
         }
     }
 
+    fun switchCamera() = whip.switchCamera()
+
+    fun setTorch(on: Boolean) = whip.setTorch(on)
+
+    fun setMuted(muted: Boolean) = whip.setMuted(muted)
+
     fun stop() {
         val base = apiBase
         val roomId = _state.value.roomId

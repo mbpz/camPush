@@ -53,6 +53,11 @@ class WanWhipClient(private val context: Context) {
     private var surfaceTextureHelper: SurfaceTextureHelper? = null
     private var videoSource: VideoSource? = null
     private var audioSource: AudioSource? = null
+    private var videoTrack: VideoTrack? = null
+    private var audioTrack: AudioTrack? = null
+    private var currentCameraId: String? = null
+    private var currentFacingFront = true
+    private var muted = false
     private var resourceUrl: String? = null
     private var turnUrls: List<String> = emptyList()
     private var turnUsername: String? = null
@@ -88,6 +93,46 @@ class WanWhipClient(private val context: Context) {
                 cleanup()
             }
         }
+    }
+
+    /** P0：WAN 推流中切换前后摄，复用同一 VideoSource/VideoTrack。 */
+    fun switchCamera() {
+        if (!_state.value.running) return
+        scope.launch {
+            runCatching {
+                val enumerator = Camera2Enumerator(context)
+                val targetFront = !currentFacingFront
+                val deviceName = enumerator.deviceNames.firstOrNull {
+                    if (targetFront) enumerator.isFrontFacing(it) else enumerator.isBackFacing(it)
+                } ?: enumerator.deviceNames.firstOrNull { it != currentCameraId } ?: return@launch
+                val helper = surfaceTextureHelper ?: return@launch
+                val source = videoSource ?: return@launch
+                runCatching { capturer?.stopCapture() }
+                runCatching { capturer?.dispose() }
+                val cam = enumerator.createCapturer(deviceName, null) ?: return@launch
+                cam.initialize(helper, context, source.capturerObserver)
+                cam.startCapture(1280, 720, 30)
+                capturer = cam
+                currentCameraId = deviceName
+                currentFacingFront = enumerator.isFrontFacing(deviceName)
+                _state.value = _state.value.copy(status = if (currentFacingFront) "前摄" else "后摄")
+                DiagLog.i("WanWhip", "camera switched $deviceName")
+            }.onFailure { DiagLog.e("WanWhip", "switch camera failed: ${it.message}") }
+        }
+    }
+
+    fun setTorch(on: Boolean) {
+        val id = currentCameraId ?: return
+        if (currentFacingFront) return
+        runCatching {
+            val manager = context.getSystemService(android.content.Context.CAMERA_SERVICE) as android.hardware.camera2.CameraManager
+            manager.setTorchMode(id, on)
+        }.onFailure { Log.w(TAG, "torch failed", it) }
+    }
+
+    fun setMuted(muted: Boolean) {
+        this.muted = muted
+        audioTrack?.setEnabled(!muted)
     }
 
     fun stop() {
@@ -154,6 +199,8 @@ class WanWhipClient(private val context: Context) {
             ?: enumerator.deviceNames.firstOrNull { enumerator.isBackFacing(it) }
             ?: enumerator.deviceNames.firstOrNull()
             ?: throw IllegalStateException("no camera")
+        currentCameraId = deviceName
+        currentFacingFront = enumerator.isFrontFacing(deviceName)
         val cam = enumerator.createCapturer(deviceName, null)
             ?: throw IllegalStateException("createCapturer failed")
         capturer = cam
@@ -164,14 +211,17 @@ class WanWhipClient(private val context: Context) {
         cam.initialize(helper, context, source.capturerObserver)
         cam.startCapture(1280, 720, 30)
         DiagLog.i("WanWhip", "camera started ${deviceName} ${cam.isScreencast}")
-        val videoTrack: VideoTrack = factory!!.createVideoTrack("video0", source)
-        pc.addTrack(videoTrack, listOf("campush"))
+        val track: VideoTrack = factory!!.createVideoTrack("video0", source)
+        videoTrack = track
+        pc.addTrack(track, listOf("campush"))
 
         runCatching {
             val audio = factory!!.createAudioSource(MediaConstraints())
             audioSource = audio
-            val audioTrack: AudioTrack = factory!!.createAudioTrack("audio0", audio)
-            pc.addTrack(audioTrack, listOf("campush"))
+            val track: AudioTrack = factory!!.createAudioTrack("audio0", audio)
+            track.setEnabled(!muted)
+            audioTrack = track
+            pc.addTrack(track, listOf("campush"))
         }.onFailure { Log.w(TAG, "audio track failed", it) }
     }
 
@@ -237,6 +287,9 @@ class WanWhipClient(private val context: Context) {
         runCatching { capturer?.stopCapture() }
         runCatching { capturer?.dispose() }
         capturer = null
+        runCatching { videoTrack?.dispose() }; videoTrack = null
+        runCatching { audioTrack?.dispose() }; audioTrack = null
+        currentCameraId = null
         runCatching { surfaceTextureHelper?.dispose() }
         surfaceTextureHelper = null
         runCatching { videoSource?.dispose() }
