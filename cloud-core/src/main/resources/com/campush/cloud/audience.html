@@ -39,6 +39,7 @@ async function refresh() {
       return `<a class="card" href="${room.playUrl}">
         <div class="row"><strong>${room.roomId}</strong><span class="state ${live ? 'live' : ''}">${live ? '直播中' : room.state}</span></div>
         <div class="sub">观看 ${room.viewers ?? 0}${room.pinRequired ? ' · 需要 PIN' : ''}</div>
+        <div class="sub">公开房间 · 进入后可举报</div>
       </a>`;
     }).join('');
   } catch (e) {

@@ -133,6 +133,12 @@ GET  /api/v1/account/usage (Bearer) -> usedSeconds/monthlyMinutes/roomLimit
 - 「交换主次」交换主画面/PiP 源；
 - 仅 OpenGL 预览（D-3 仍实验性），未接入编码/推流；正式合成编码待 D-3。
 
+## 3.15 播放页举报入口
+
+- 播放页「举报」按钮：选择 abuse/illegal/privacy/other，POST `/api/v1/rooms/{id}/report`；
+- 观众端列表提示进入后可举报；
+- 审核列表/封禁仍由管理员 API 承担。
+
 ## 4. 首版账号 API（已落地）
 
 ```text

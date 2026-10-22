@@ -25,6 +25,7 @@
     <span id="stats"></span>
     <span id="proto">—</span>
     <button id="switch" type="button">切换协议</button>
+    <button id="report" type="button">举报</button>
     <button id="retry" type="button">重试</button>
   </div>
   <div id="err"></div>
@@ -242,6 +243,19 @@
   }
 
   document.getElementById('retry').onclick = start;
+  document.getElementById('report').onclick = async () => {
+    const roomId = location.pathname.split('/').filter(Boolean).pop() || '';
+    const reason = prompt('举报原因：abuse / illegal / privacy / other', 'abuse');
+    if (!reason || !roomId) return;
+    try {
+      const r = await fetch('/api/v1/rooms/' + encodeURIComponent(roomId) + '/report', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason }),
+      });
+      const data = await r.json().catch(() => ({}));
+      setStatus(r.ok ? '已提交举报' : '举报失败：' + (data.message || r.status), r.ok ? 'ok' : 'error');
+    } catch (e) { setStatus('举报失败：' + e.message, 'error'); }
+  };
   document.getElementById('switch').onclick = () => {
     const order = ['whep', 'flv', 'hls'];
     const now = order.indexOf(currentProtocol || forced || 'whep');

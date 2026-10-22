@@ -175,6 +175,7 @@ class CloudServerTest {
         val player = get(base, "/player.html")
         assertEquals(200, player.statusCode())
         assertTrue(player.body().contains("id=\"wm\""))
+        assertTrue(player.body().contains("id=\"report\""))
     }
 
     @Test
