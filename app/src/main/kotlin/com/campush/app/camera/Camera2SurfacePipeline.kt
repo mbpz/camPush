@@ -195,10 +195,12 @@ class Camera2SurfacePipeline(
         rec.setOutputFile(pipeWrite!!.fileDescriptor)
         rec.prepare()
         recorder = rec
+        // 先启动编码器，再取输入 Surface，最后创建 GL 输出。
+        runCatching { rec.start(); started = true }
         recorderSurface = rec.surface
         if (watermark) {
             val renderer = com.campush.app.streaming.watermark.GlWatermarkRenderer(
-                rec.surface, actualWidth, actualHeight, "CamPush",
+                recorderSurface!!, actualWidth, actualHeight, "CamPush", context,
             )
             cameraOutputSurface = renderer.start()
             watermarkRenderer = renderer

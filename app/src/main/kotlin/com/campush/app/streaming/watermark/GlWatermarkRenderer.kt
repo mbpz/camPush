@@ -1,5 +1,6 @@
 package com.campush.app.streaming.watermark
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
@@ -32,6 +33,7 @@ class GlWatermarkRenderer(
     private val width: Int,
     private val height: Int,
     private val text: String = "CamPush",
+    private val debugContext: Context? = null,
 ) {
     private val thread = HandlerThread("campush-gl-watermark").apply { start() }
     private val handler = Handler(thread.looper)
@@ -115,6 +117,7 @@ class GlWatermarkRenderer(
     }
 
     private var renderLogged = false
+    private var frameCount = 0
     private fun render() {
         if (!running) return
         if (!renderLogged) { renderLogged = true; Log.i(TAG, "render first frame ${width}x$height") }
