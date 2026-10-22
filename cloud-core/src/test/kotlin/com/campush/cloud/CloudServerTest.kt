@@ -159,6 +159,14 @@ class CloudServerTest {
     }
 
     @Test
+    fun accountPageServes() {
+        val (_, base) = start()
+        val page = get(base, "/account")
+        assertEquals(200, page.statusCode())
+        assertTrue(page.body().contains("CamPush 账号与套餐"))
+    }
+
+    @Test
     fun audienceRoomListAndPage() {
         val (_, base) = start()
         val created = post(base, "/api/v1/rooms", """{"accessScope":"wan"}""", mapOf("Authorization" to "Bearer acct_test"))

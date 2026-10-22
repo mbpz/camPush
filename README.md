@@ -325,6 +325,7 @@ camPush/
 | v1.10 | 2026-10-20 | Team Lead | 推流瞬间掉 2fps 修复：枚举并优先硬件 H.264 编码器、按能力选择 NV12/I420/ Flexible 输入、YUV 转换复用缓冲、日志输出 encoder choice |
 | v1.11 | 2026-10-20 | Team Lead | 极低帧率救援：1080p 连续 3s 仅 1–4fps 时自动切 720p（播放地址不变），提示语更新；配合硬件编码器选择排查真机 2fps |
 | v1.12 | 2026-10-20 | Team Lead | 低帧率提示携带编码器名称/软硬编与 in/out fps；播放器追帧阈值 1.2s→0.6s 降低观看延迟 |
+| v2.55 | 2026-10-22 | Team Lead | T3-W2 账号/套餐 Web 首版（`/account`：登录/注册/额度/套餐切换）；cloud-core 18/18 |
 | v2.54 | 2026-10-22 | Team Lead | T3-A5 日志脱敏/导出：LogRedactor（token/PIN/roomId）、设置页导出分享；lan-core 53/53 |
 | v2.53 | 2026-10-22 | Team Lead | T3-W1/T3-S5 观众端首版：`/rooms` 列表页 + `GET /api/v1/rooms`，复用播放页；cloud-core 17/17 |
 | v2.52 | 2026-10-22 | Team Lead | T3-A3 App 账号入口：登录/注册/退出/套餐展示，token 持久化并用于 WAN 房间 |

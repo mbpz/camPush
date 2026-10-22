@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CamPush 账号与套餐</title>
+<style>
+  :root{color-scheme:dark}body{margin:0;background:#0b0f14;color:#e8eef6;font:14px/1.5 system-ui,"PingFang SC",sans-serif}
+  main{max-width:680px;margin:0 auto;padding:28px 18px 60px}h1{font-size:22px;margin:0 0 18px}
+  .card{border:1px solid #1e2a38;background:#121a24;border-radius:12px;padding:16px;margin-bottom:14px}
+  label{display:block;color:#93a4b8;font-size:12px;margin:10px 0 4px}
+  input{width:100%;box-sizing:border-box;padding:10px;background:#0b0f14;color:#e8eef6;border:1px solid #26364a;border-radius:8px}
+  button{padding:9px 14px;border:1px solid #26364a;border-radius:8px;background:#182331;color:#e8eef6;margin:8px 6px 0 0;cursor:pointer}
+  button.primary{background:#34d399;color:#06251a;border-color:#34d399;font-weight:600}
+  button:disabled{opacity:.5;cursor:default}
+  .muted{color:#93a4b8;font-size:12px}.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .pill{display:inline-block;padding:2px 8px;border-radius:999px;background:#182331;color:#93a4b8;font-size:12px}
+  #msg{color:#93a4b8;font-size:12px;min-height:18px;margin-top:8px}#msg.err{color:#fca5a5}
+  .plans{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}
+  .plan{border:1px solid #1e2a38;border-radius:10px;padding:12px;background:#0b0f14}.plan h3{margin:0 0 6px;font-size:15px}
+  .price{color:#34d399;font-weight:700;margin:6px 0}.plan ul{margin:8px 0 0 18px;padding:0;color:#93a4b8;font-size:12px}
+  .hidden{display:none}
+</style>
+</head>
+<body>
+<main>
+  <h1>CamPush 账号与套餐</h1>
+
+  <section id="loginCard" class="card">
+    <div class="muted">登录后可创建 WAN 房间、查看额度与升级套餐。</div>
+    <label>邮箱</label><input id="email" type="email" autocomplete="username" placeholder="you@example.com">
+    <label>密码</label><input id="password" type="password" autocomplete="current-password" placeholder="至少 6 位">
+    <div class="row">
+      <button class="primary" id="login">登录</button>
+      <button id="register">注册</button>
+    </div>
+    <div id="msg"></div>
+  </section>
+
+  <section id="accountCard" class="card hidden">
+    <div class="row"><strong id="accountEmail"></strong><span class="pill" id="planPill"></span></div>
+    <div class="muted" style="margin-top:6px" id="quota"></div>
+    <div class="plans">
+      <div class="plan"><h3>Free</h3><div class="price">¥0</div><ul><li>1 房间</li><li>60 分钟/月</li></ul><button data-plan="free">选择 Free</button></div>
+      <div class="plan"><h3>Pro</h3><div class="price">¥29/月</div><ul><li>10 房间</li><li>1000 分钟/月</li></ul><button data-plan="pro" class="primary">选择 Pro</button></div>
+      <div class="plan"><h3>Pro+</h3><div class="price">¥99/月</div><ul><li>50 房间</li><li>5000 分钟/月</li></ul><button data-plan="proplus">选择 Pro+</button></div>
+    </div>
+    <div class="row" style="margin-top:12px"><button id="logout">退出登录</button></div>
+    <div id="accountMsg" class="muted" style="margin-top:8px"></div>
+    <div class="muted" style="margin-top:8px">当前为额度演示，支付链路待接入（T3-W2 后续）。</div>
+  </section>
+</main>
+<script>
+const KEY = 'campush_account_token';
+const $ = id => document.getElementById(id);
+const token = () => localStorage.getItem(KEY) || '';
+const msg = (el, text, err) => { el.textContent = text || ''; el.className = err ? 'err' : ''; };
+
+async function call(path, opts) {
+  const r = await fetch(path, opts);
+  const text = await r.text();
+  let data = {}; try { data = text ? JSON.parse(text) : {}; } catch (_) {}
+  if (!r.ok) throw new Error(data.message || ('HTTP ' + r.status));
+  return data;
+}
+
+async function auth(register) {
+  const email = $('email').value.trim();
+  const password = $('password').value;
+  msg($('msg'), '请求中…');
+  try {
+    const data = await call(register ? '/api/v1/auth/register' : '/api/v1/auth/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    localStorage.setItem(KEY, data.token);
+    await refresh();
+  } catch (e) { msg($('msg'), e.message, true); }
+}
+
+async function refresh() {
+  if (!token()) { $('loginCard').classList.remove('hidden'); $('accountCard').classList.add('hidden'); return; }
+  try {
+    const data = await call('/api/v1/account', { headers: { 'Authorization': 'Bearer ' + token() } });
+    $('loginCard').classList.add('hidden');
+    $('accountCard').classList.remove('hidden');
+    $('accountEmail').textContent = data.email || '';
+    $('planPill').textContent = (data.plan || 'free').toUpperCase();
+    $('quota').textContent = `房间额度 ${data.roomLimit} · 本月已用 ${Math.round((data.usedSeconds||0)/60)} / ${data.monthlyMinutes} 分钟 · 设备 ${data.devices} 台`;
+  } catch (e) {
+    localStorage.removeItem(KEY);
+    $('loginCard').classList.remove('hidden'); $('accountCard').classList.add('hidden');
+    msg($('msg'), e.message, true);
+  }
+}
+
+async function setPlan(plan) {
+  msg($('accountMsg'), '更新套餐…');
+  try {
+    await call('/api/v1/account/plan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token() },
+      body: JSON.stringify({ plan }),
+    });
+    await refresh();
+    msg($('accountMsg'), '套餐已更新为 ' + plan);
+  } catch (e) { msg($('accountMsg'), e.message, true); }
+}
+
+$('login').onclick = () => auth(false);
+$('register').onclick = () => auth(true);
+$('logout').onclick = () => { localStorage.removeItem(KEY); refresh(); };
+document.querySelectorAll('[data-plan]').forEach(b => b.onclick = () => setPlan(b.dataset.plan));
+refresh();
+</script>
+</body>
+</html>

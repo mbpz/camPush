@@ -20,6 +20,7 @@
 | 2 | T3-S2 | 套餐/额度/计费（free/pro/proplus、房间分钟数、2004） | ✅ 首版（cloud-core 16/16） |
 | 3 | T3-A3 | App 登录/注册/套餐展示；账号 token 用于 WAN 房间 | ⚠️ 部分（无购买跳转） |
 | 4 | T3-W1/T3-S5 | 观众端 Web + 房间列表/进入权限 API | ✅ 首版（公开列表/播放页复用） |
+| 4b | T3-W2 | 账号/套餐 Web 页（登录/套餐展示/切换） | ✅ 首版（无支付） |
 | 5 | T3-S3/T3-A4 | BYO 自定义地址/连通性测试 | 待做 |
 | 6 | T3-A1/T3-A2 | 双路独立/高级合成（受 D-3 实验性约束） | 待做 |
 | 7 | T3-A5 | 日志导出与脱敏 | ✅ 首版（LogRedactor + 导出分享） |
@@ -60,6 +61,12 @@ GET  /api/v1/account/usage (Bearer) -> usedSeconds/monthlyMinutes/roomLimit
 - 设置页「诊断日志 → 导出脱敏日志」系统分享；
 - `lan-core` 新增 `LogRedactorTest`；
 - 待补：导出文件/邮件模板、服务端留存样本抽检。
+
+## 3.5 T3-W2 账号/套餐页首版
+
+- `GET /account`：Web 登录/注册、套餐/额度展示、套餐切换；
+- 复用 `/api/v1/auth/*`、`/account`、`/account/plan`、`/account/usage`；
+- 支付链路未接（额度演示）；待补 T3-W2 购买/对账。
 
 ## 4. 首版账号 API（已落地）
 
