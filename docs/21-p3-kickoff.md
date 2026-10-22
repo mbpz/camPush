@@ -25,6 +25,8 @@
 | 6 | T3-A1/T3-A2 | 双路独立/高级合成（受 D-3 实验性约束） | 待做 |
 | 7 | T3-A5 | 日志导出与脱敏 | ✅ 首版（LogRedactor + 导出分享） |
 | 7f | T2-A7 本地录制 | ✅ 首版（H264/AAC→MP4，视频+音频） |
+| 7g | T2-S7 可观测性看板 | ✅ 首版（`/metrics` 房间/首帧/切换） |
+| 7h | 播放水印 | ⚠️ 播放页覆盖层（非编码烧录） |
 | 8 | 合规/灰度/压测 | T3-S8/T3-Q2/Q3/P4 等 | 待做 |
 
 ## 3. 当前约束
@@ -117,6 +119,12 @@ GET  /api/v1/account/usage (Bearer) -> usedSeconds/monthlyMinutes/roomLimit
 - 输出：`/data/data/<pkg>/files/recordings/campush-<ts>.mp4`；
 - 提取：`adb pull /data/data/com.campush.app/files/recordings/`（debug）；
 - 待补：水印、录制中状态/文件列表、MediaStore 导出。
+
+## 3.13 可观测性看板 + 播放水印首版
+
+- `GET /metrics`：房间数、首帧样本、协议切换、首帧分位、原始指标，5s 刷新；
+- 播放页右下角水印，默认 `CamPush`，支持 `?wm=` 覆盖；
+- 说明：水印为播放页覆盖层，尚未烧录进录制/转码流。
 
 ## 4. 首版账号 API（已落地）
 

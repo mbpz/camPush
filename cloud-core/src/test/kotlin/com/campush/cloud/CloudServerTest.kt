@@ -167,6 +167,17 @@ class CloudServerTest {
     }
 
     @Test
+    fun metricsDashboardAndPlayerWatermark() {
+        val (_, base) = start()
+        val metrics = get(base, "/metrics")
+        assertEquals(200, metrics.statusCode())
+        assertTrue(metrics.body().contains("CamPush 可观测性"))
+        val player = get(base, "/player.html")
+        assertEquals(200, player.statusCode())
+        assertTrue(player.body().contains("id=\"wm\""))
+    }
+
+    @Test
     fun complianceReportAndSuspend() {
         val (_, base) = start()
         val created = post(base, "/api/v1/rooms", """{"accessScope":"wan"}""", mapOf("Authorization" to "Bearer acct_test"))

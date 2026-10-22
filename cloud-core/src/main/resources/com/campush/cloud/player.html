@@ -18,7 +18,8 @@
 <body>
 <div id="wrap">
   <video id="v" autoplay playsinline muted></video>
-  <div id="bar">
+  <div id="wm">CamPush</div>
+<div id="bar">
     <span id="dot" class="dot"></span>
     <span id="status">准备中…</span>
     <span id="stats"></span>
@@ -34,6 +35,8 @@
 (() => {
   const roomId = location.pathname.split('/').filter(Boolean).pop();
   const params = new URLSearchParams(location.search);
+  const wm = (params.get('wm') || 'CamPush').slice(0, 32);
+  document.getElementById('wm').textContent = wm;
   let forced = params.get('force') || '';
   let currentProtocol = '';
 

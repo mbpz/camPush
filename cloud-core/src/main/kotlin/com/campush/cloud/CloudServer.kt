@@ -83,6 +83,8 @@ class CloudServer(
                 method == "GET" && path == "/healthz" -> send(ex, 200, """{"ok":true}""")
                 method == "GET" && path == "/rooms" -> staticAsset(ex, "audience.html", "text/html; charset=utf-8")
                 method == "GET" && path == "/account" -> staticAsset(ex, "account.html", "text/html; charset=utf-8")
+                method == "GET" && path == "/metrics" -> staticAsset(ex, "metrics.html", "text/html; charset=utf-8")
+                method == "GET" && path == "/player.html" -> staticAsset(ex, "player.html", "text/html; charset=utf-8")
                 method == "GET" && path == "/api/v1/rooms" -> listRooms(ex)
                 method == "OPTIONS" -> corsOptions(ex)
                 method == "GET" && path == "/assets/hls.min.js" -> staticAsset(ex, "hls.min.js", "application/javascript; charset=utf-8")
