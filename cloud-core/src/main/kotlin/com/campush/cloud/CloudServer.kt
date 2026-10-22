@@ -106,6 +106,8 @@ class CloudServer(
                 (method == "PUT" || method == "POST") && path == "/api/v1/account/byo" -> updateByo(ex)
                 method == "POST" && path == "/api/v1/rooms" -> createRoom(ex)
                 method == "GET" && Regex("^/api/v1/rooms/[^/]+$").matches(path) -> getRoom(ex, path.removePrefix("/api/v1/rooms/"))
+                method == "GET" && path.endsWith("/addresses") ->
+                    roomAddresses(ex, path.removePrefix("/api/v1/rooms/").removeSuffix("/addresses"))
                 method == "DELETE" && Regex("^/api/v1/rooms/[^/]+$").matches(path) -> deleteRoom(ex, path.removePrefix("/api/v1/rooms/"))
                 method == "POST" && path.endsWith("/play-session") ->
                     playSession(ex, path.removePrefix("/api/v1/rooms/").removeSuffix("/play-session"))
@@ -258,6 +260,24 @@ class CloudServer(
         rooms[id] = room
         if (idem != null) idempotency[idem] = id
         send(ex, 201, roomJson(room))
+    }
+
+    /** T3-S4：多 ingest 地址（每路线路独立状态骨架）。 */
+    private fun roomAddresses(ex: HttpExchange, id: String) {
+        if (!isAccount(ex)) return send(ex, 401, error(3001, "token_missing", "account bearer required"))
+        val room = rooms[id] ?: return send(ex, 404, error(2001, "not_found", "room not found"))
+        if (room.state == "closed" || room.state == "failed") return send(ex, 410, error(2002, "room_closed", "room closed"))
+        val account = accounts.byId(room.accountId)
+        val whip = (account?.byoWhipHost?.takeIf { it.isNotBlank() } ?: config.whipHost) + ":${config.whipApiPort}"
+        val rtmp = account?.byoRtmpHost?.takeIf { it.isNotBlank() } ?: config.rtmpHost
+        val play = playHostFor(room.accountId)
+        val state = if (room.state == "live") "active" else "idle"
+        val addresses = """[
+            {"protocol":"whip","url":"$whip/rtc/v1/whip/?app=live&stream=${room.id}","token":"${room.ingestToken}","status":"$state"},
+            {"protocol":"rtmp","url":"$rtmp/live/${room.id}","token":"${room.ingestToken}","status":"$state"},
+            {"protocol":"srt","url":"srt://$play:10080?streamid=#!::r=${room.id}","token":"${room.ingestToken}","status":"$state"}
+        ]"""
+        send(ex, 200, """{"roomId":"${room.id}","addresses":$addresses}""")
     }
 
     private fun getRoom(ex: HttpExchange, id: String) {

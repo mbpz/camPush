@@ -95,6 +95,12 @@ GET  /api/v1/account/usage (Bearer) -> usedSeconds/monthlyMinutes/roomLimit
 - 每路独立 `AsyncRtmpPublisher`；单路连接/发送失败不影响 LAN 主链路与其他路；
 - App 端多路 E2E 需 SRS/RTMP 环境；服务端多 ingest 会话（T3-S4）未做。
 
+## 3.10 T3-S4 服务端多 ingest 地址首版
+
+- `GET /api/v1/rooms/{id}/addresses`：返回 WHIP/RTMP/SRT 三路地址、ingest token、状态（idle/active）；
+- 支持账号 BYO host 覆盖；关闭房间 `410/2002`；
+- 真实多路媒体会话/每路独立失败隔离仍由接入网关/SRS 承担，本接口为控制面骨架。
+
 ## 4. 首版账号 API（已落地）
 
 ```text

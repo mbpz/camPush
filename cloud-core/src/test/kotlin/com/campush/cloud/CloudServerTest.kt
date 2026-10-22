@@ -167,6 +167,19 @@ class CloudServerTest {
     }
 
     @Test
+    fun roomExposesMultiIngestAddresses() {
+        val (_, base) = start()
+        val created = post(base, "/api/v1/rooms", """{"accessScope":"wan"}""", mapOf("Authorization" to "Bearer acct_test"))
+        val roomId = Regex("\"roomId\":\"([^\"]+)\"").find(created.body())!!.groupValues[1]
+        val addresses = get(base, "/api/v1/rooms/$roomId/addresses", mapOf("Authorization" to "Bearer acct_test"))
+        assertEquals(200, addresses.statusCode())
+        assertTrue(addresses.body().contains("\"protocol\":\"whip\""))
+        assertTrue(addresses.body().contains("\"protocol\":\"rtmp\""))
+        assertTrue(addresses.body().contains("\"protocol\":\"srt\""))
+        assertTrue(addresses.body().contains("\"status\":\"idle\""))
+    }
+
+    @Test
     fun byoHostsOverrideRoomUrls() {
         val (_, base) = start()
         val reg = post(base, "/api/v1/auth/register", """{"email":"byo@example.com","password":"secret123"}""")
