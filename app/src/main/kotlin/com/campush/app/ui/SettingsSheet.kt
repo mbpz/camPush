@@ -252,14 +252,15 @@ private fun SettingsContent(
         Spacer(Modifier.height(8.dp))
         OutlinedTextField(
             value = settings.rtmpUrl,
-            onValueChange = { applySettings(settings.copy(rtmpUrl = it.trim())) },
-            label = { Text("RTMP 旁路（可选）") },
-            placeholder = { Text("rtmp://host/app/stream") },
-            singleLine = true,
+            onValueChange = { applySettings(settings.copy(rtmpUrl = it)) },
+            label = { Text("RTMP 旁路（可多行，最多 3 路）") },
+            placeholder = { Text("rtmp://host/app/stream\nrtmp://host2/app/stream") },
+            minLines = 2,
+            maxLines = 4,
             modifier = Modifier.fillMaxWidth(),
         )
         Text(
-            text = "P2 D-4：开始局域网推流时同时向该 RTMP 地址推送；旁路失败不影响 LAN 观看。",
+            text = "P3 T3-A6：每行一个 RTMP 地址（最多 3 路）；单路失败不影响 LAN 与其他路。",
             style = MaterialTheme.typography.bodySmall,
             color = CamPushColors.TextSecondary,
         )

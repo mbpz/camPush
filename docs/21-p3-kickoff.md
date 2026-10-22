@@ -89,6 +89,12 @@ GET  /api/v1/account/usage (Bearer) -> usedSeconds/monthlyMinutes/roomLimit
 - 返回键优先 WebView 历史；离开销毁 WebView；
 - 待补：原生列表/播放、账号态与观看限制提示。
 
+## 3.9 T3-A6 App 多路 RTMP 首版
+
+- 设置页 RTMP 旁路支持多行，最多 3 路；
+- 每路独立 `AsyncRtmpPublisher`；单路连接/发送失败不影响 LAN 主链路与其他路；
+- App 端多路 E2E 需 SRS/RTMP 环境；服务端多 ingest 会话（T3-S4）未做。
+
 ## 4. 首版账号 API（已落地）
 
 ```text

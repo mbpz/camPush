@@ -88,7 +88,7 @@ class LanStreamEngine(
 
     @Volatile
     private var audioEncoder: AudioEncoder? = null
-    private var rtmpPublisher: com.campush.app.streaming.rtmp.AsyncRtmpPublisher? = null
+    private var rtmpPublishers: List<com.campush.app.streaming.rtmp.AsyncRtmpPublisher> = emptyList()
 
     private var statsJob: Job? = null
 
@@ -180,15 +180,31 @@ class LanStreamEngine(
             fail(6001)
             return
         }
-        val rtmpUrl = options.rtmpUrl.trim().takeIf { it.isNotEmpty() }
-        val rtmp = rtmpUrl?.let {
-            com.campush.app.streaming.rtmp.AsyncRtmpPublisher(it).also { publisher -> publisher.start() }
+        val rtmpUrls = options.rtmpUrl.split(',', '\n', '\r')
+            .map { it.trim() }
+            .filter { it.startsWith("rtmp://") }
+            .distinct()
+            .take(3)
+        val rtms = rtmpUrls.map { url ->
+            com.campush.app.streaming.rtmp.AsyncRtmpPublisher(url).also { it.start() }
         }
-        this.rtmpPublisher = rtmp
-        val publisher: LanMediaPublisher = if (rtmp == null) {
+        this.rtmpPublishers = rtms
+        val publisher: LanMediaPublisher = if (rtms.isEmpty()) {
             basePublisher
         } else {
-            com.campush.lan.TeeLanMediaPublisher(basePublisher, rtmp)
+            val multiRtmp = object : LanMediaPublisher {
+                override fun publishJpeg(jpeg: ByteArray) = Unit
+                override fun publishH264(unit: com.campush.lan.H264AccessUnit) {
+                    rtms.forEach { runCatching { it.publishH264(unit) } }
+                }
+                override fun publishAac(unit: com.campush.lan.AacAccessUnit) {
+                    rtms.forEach { runCatching { it.publishAac(unit) } }
+                }
+                override fun stats(): com.campush.lan.MediaStats = basePublisher.stats()
+                override fun requestKeyFrame() = Unit
+                override fun isMjpegWanted(): Boolean = false
+            }
+            com.campush.lan.TeeLanMediaPublisher(basePublisher, multiRtmp)
         }
 
         originNs = System.nanoTime()
@@ -276,8 +292,8 @@ class LanStreamEngine(
 
     fun stop() {
         DiagLog.i("Engine", "stop requested phase=$phase")
-        runCatching { rtmpPublisher?.close() }
-        rtmpPublisher = null
+        rtmpPublishers.forEach { runCatching { it.close() } }
+        rtmpPublishers = emptyList()
         Telemetry.flush()
         if (phase == EnginePhase.IDLE) {
             StreamingBridge.engine = null
