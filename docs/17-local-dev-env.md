@@ -123,6 +123,33 @@ curl -H "X-Page-Token: <pageToken>" http://127.0.0.1:<forwardedPort>/api/v1/stat
 
 实测 2026-10-21：`rtmpFrames:60`。
 
+## 3.4 手机/平板同一 Wi-Fi 访问（WAN 联调）
+
+```bash
+# Mac 局域网 IP
+ipconfig getifaddr en1   # 或 en0
+
+# 启动 cloud-core（绑定 0.0.0.0，API/WHIP/TURN 都指向 Mac IP）
+CANDIDATE=192.168.3.184 TURN_EXTERNAL_IP=192.168.3.184 \
+  docker compose -f tools/m0-wan/docker-compose.yml up -d --force-recreate srs coturn
+tools/m0-wan/run-cloud-lan.sh
+```
+
+手机/平板：
+1. 与 Mac 连同一个 Wi-Fi（关闭 AP 隔离/访客网络隔离）；
+2. 设置页 WAN Cloud API 填 `http://<Mac-IP>:18090`；
+3. 创建房间并推流。
+
+> **macOS 防火墙**：若 `http://<Mac-IP>:18090` 可访问但 SRS/TURN 端口（1985/18080/1935/3478/8000）
+> 不可达，通常是 **OrbStack Helper 的入站连接被防火墙阻止**：
+> `系统设置 → 网络 → 防火墙 → 选项`，允许 OrbStack Helper；
+> 或（需管理员）：
+> ```bash
+> sudo /usr/libexec/ApplicationFirewall/socketfilterfw --unblockapp \
+>   "/Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper"
+> ```
+> 这一步由用户确认后执行；未放行时云 API 可连、但 WHIP/TURN 媒体会失败。
+
 ## 4. 规则
 
 1. **不要**修改宿主/OrbStack 网络、域名解析、端口映射；只用上表现值。

@@ -54,10 +54,21 @@ class WanWhipClient(private val context: Context) {
     private var videoSource: VideoSource? = null
     private var audioSource: AudioSource? = null
     private var resourceUrl: String? = null
+    private var turnUrls: List<String> = emptyList()
+    private var turnUsername: String? = null
+    private var turnCredential: String? = null
 
-    fun start(whipUrl: String) {
+    fun start(
+        whipUrl: String,
+        turnUrls: List<String> = emptyList(),
+        turnUsername: String? = null,
+        turnCredential: String? = null,
+    ) {
         if (_state.value.running) return
-        DiagLog.i("WanWhip", "start url=$whipUrl")
+        this.turnUrls = turnUrls
+        this.turnUsername = turnUsername
+        this.turnCredential = turnCredential
+        DiagLog.i("WanWhip", "start url=$whipUrl turn=${turnUrls.size}")
         _state.value = State(running = true, status = "初始化 WebRTC…")
         scope.launch {
             try {
@@ -123,7 +134,15 @@ class WanWhipClient(private val context: Context) {
             override fun onRenegotiationNeeded() = Unit
             override fun onAddTrack(receiver: org.webrtc.RtpReceiver?, streams: Array<out MediaStream>?) = Unit
         }
-        val pc = factory!!.createPeerConnection(emptyList(), observer)
+        val iceServers = turnUrls.mapNotNull { url ->
+            runCatching {
+                PeerConnection.IceServer.builder(url)
+                    .setUsername(turnUsername ?: "")
+                    .setPassword(turnCredential ?: "")
+                    .createIceServer()
+            }.getOrNull()
+        }
+        val pc = factory!!.createPeerConnection(iceServers, observer)
             ?: throw IllegalStateException("createPeerConnection failed")
         return pc
     }

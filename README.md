@@ -321,6 +321,7 @@ camPush/
 | v1.10 | 2026-10-20 | Team Lead | 推流瞬间掉 2fps 修复：枚举并优先硬件 H.264 编码器、按能力选择 NV12/I420/ Flexible 输入、YUV 转换复用缓冲、日志输出 encoder choice |
 | v1.11 | 2026-10-20 | Team Lead | 极低帧率救援：1080p 连续 3s 仅 1–4fps 时自动切 720p（播放地址不变），提示语更新；配合硬件编码器选择排查真机 2fps |
 | v1.12 | 2026-10-20 | Team Lead | 低帧率提示携带编码器名称/软硬编与 in/out fps；播放器追帧阈值 1.2s→0.6s 降低观看延迟 |
+| v2.47 | 2026-10-22 | Team Lead | 手机同 Wi-Fi 联调：cloud 绑定 0.0.0.0、LAN 启动脚本、Android WHIP 接入 TURN、macOS OrbStack 防火墙说明 |
 | v2.46 | 2026-10-21 | Team Lead | AC 本地证据：WHEP 首帧 1513ms、协议切换 URL 不变、双摄入门禁、FLV/HLS 兜底、停止 410 |
 | v2.45 | 2026-10-21 | Team Lead | 播放页协议切换 FLV→HLS，页面 URL 不变、readyState=4；上报 protocol_switch |
 | v2.44 | 2026-10-21 | Team Lead | WAN 房间播放地址支持复制/分享（H5 唯一地址）；cloud-core 14/14 |

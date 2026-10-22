@@ -18,6 +18,8 @@ data class CloudConfig(
     val accountToken: String = "acct_dev",
     val maxViewers: Int = 100,
     val maxRooms: Int = 20,
+    /** 监听地址；0.0.0.0 允许同一局域网手机访问，仅 127.0.0.1 会拒绝手机。 */
+    val bindHost: String = "0.0.0.0",
     val playSessionPerMinute: Int = 60,
     val pinFailuresBeforeLock: Int = 10,
     val pinLockMs: Long = 10 * 60 * 1000L,

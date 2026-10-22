@@ -74,8 +74,14 @@ class WanRoomClient(
                 ingestToken = room.optJSONObject("ingest")?.optString("token")
                 val whipUrl = room.optJSONObject("ingest")?.optString("whipUrl")
                     ?: throw IllegalStateException("room has no ingest.whipUrl")
-                DiagLog.i("WanRoom", "room=${room.optString("roomId")} whip=$whipUrl")
-                whip.start(whipUrl)
+                val turn = room.optJSONObject("turn")
+                val turnUrls = turn?.optJSONArray("urls")?.let { arr ->
+                    (0 until arr.length()).mapNotNull { i -> arr.optString(i).takeIf { it.isNotBlank() } }
+                }.orEmpty()
+                val turnUser = turn?.optString("username")
+                val turnCred = turn?.optString("credential")
+                DiagLog.i("WanRoom", "room=${room.optString("roomId")} whip=$whipUrl turn=${turnUrls.size}")
+                whip.start(whipUrl, turnUrls, turnUser, turnCred)
             } catch (t: Throwable) {
                 Log.w(TAG, "create room failed", t)
                 DiagLog.e("WanRoom", "create failed: ${t.message}")

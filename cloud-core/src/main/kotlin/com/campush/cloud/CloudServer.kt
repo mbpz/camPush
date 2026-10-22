@@ -57,7 +57,7 @@ class CloudServer(
     val port: Int get() = server?.address?.port ?: -1
 
     fun start(port: Int = 0): Int {
-        val s = HttpServer.create(InetSocketAddress("127.0.0.1", port), 0)
+        val s = HttpServer.create(InetSocketAddress(config.bindHost, port), 0)
         s.createContext("/") { ex -> handle(ex) }
         s.executor = Executors.newFixedThreadPool(4)
         s.start()
