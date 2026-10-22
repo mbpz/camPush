@@ -108,7 +108,8 @@ PRD 定义 **What / Why**；本集定义 **How / 边界 / 验收 / 排期 / 风�
 | 21 | [p3-kickoff](./docs/21-p3-kickoff.md) | **P3 Kickoff**：账号/套餐/BYO/观众端/合规执行顺序与首版账号 API | 全员 |
 | 22 | [p3-completion](./docs/22-p3-completion.md) | **P3 功能完成报告**：功能矩阵、质量门禁、按用户裁剪项（商业化付费/双摄编码） | 全员 |
 | 23 | [android-completion-regression](./docs/23-android-completion-and-regression.md) | **Android 功能收口 + 回测方案**；免费云资源（Cloudflare TURN/Workers、Oracle、国内试用） | 全员 |
-| 24 | [regression README](./tools/regression/README.md) | **回测矩阵**与自动冒烟脚本 | QA / 全员 |
+| 24 | [p4-android-status](./docs/24-p4-android-status.md) | **P4 Android 状态**：功能矩阵、自动回测、外部阻塞 | 全员 |
+| 25 | [regression README](./tools/regression/README.md) | **回测矩阵**与自动冒烟脚本 | QA / 全员 |
 | — | [PRD v1.0](./docs/PRD-v1.0.md) | 用户提供的需求原文（不改写，仅引用） | 全员 |
 | — | [scripts/check_docs.py](./scripts/check_docs.py) | 8 类文档一致性 CI 门禁 | 全员 |
 
