@@ -38,6 +38,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.campush.app.core.AccessScopeUi
 import com.campush.app.core.P1UiState
 import com.campush.app.ui.theme.CamPushColors
 
@@ -97,13 +98,16 @@ fun AddressCard(
                         )
                         Spacer(Modifier.width(6.dp))
                         StatusPill(
-                            text = "仅局域网",
+                            text = if (state.accessScope == AccessScopeUi.WAN) "公网可访问" else "仅局域网",
                             containerColor = CamPushColors.Primary.copy(alpha = 0.14f),
                             contentColor = CamPushColors.Primary,
                         )
                     }
                     Text(
-                        text = if (expanded) "同一局域网内的设备打开即可观看" else playUrl,
+                        text = if (expanded) {
+                            if (state.accessScope == AccessScopeUi.WAN) "公网 H5 地址，复制到浏览器即可观看"
+                            else "同一局域网内的设备打开即可观看"
+                        } else playUrl,
                         style = MaterialTheme.typography.labelSmall,
                         color = CamPushColors.TextSecondary,
                         maxLines = 1,

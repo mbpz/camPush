@@ -65,6 +65,16 @@ class P1ControllerImpl(context: Context) : P1Controller {
         scope.launch {
             wanClient.state.collect { st ->
                 _wanTest.value = WanTestUi(st.running, st.status, st.roomId, st.playUrl, st.error)
+                if (_state.value.accessScope == AccessScopeUi.WAN) {
+                    _state.update { cur ->
+                        cur.copy(
+                            starting = cur.starting && !st.running && st.error == null && st.roomId == null,
+                            streaming = st.running,
+                            playUrl = st.playUrl ?: cur.playUrl,
+                            error = st.error?.let { P1Error(7001, it) } ?: cur.error,
+                        )
+                    }
+                }
             }
         }
     }
@@ -128,6 +138,20 @@ class P1ControllerImpl(context: Context) : P1Controller {
                     "请在系统设置中允许相机权限后重试",
                 )
             )
+            return
+        }
+
+        if (current.accessScope == AccessScopeUi.WAN) {
+            val api = _state.value.cloudApiHost.trim()
+            if (api.isEmpty()) {
+                _state.update { it.copy(starting = false) }
+                showError(P1Error(2009, "请先配置 Cloud API", "设置 → WAN 房间联调填写 Mac 局域网 IP"))
+                return
+            }
+            Telemetry.event("push_start_clicked", mapOf("accessScope" to "wan"))
+            _state.update { it.copy(streaming = false, playUrl = null) }
+            pausePreview()
+            wanClient.start(api)
             return
         }
 
@@ -222,6 +246,15 @@ class P1ControllerImpl(context: Context) : P1Controller {
     }
 
     override fun stop() {
+        if (_state.value.accessScope == AccessScopeUi.WAN) {
+            Telemetry.event("push_stop", mapOf("reason" to "wan"))
+            wanClient.stop()
+            resumePreview()
+            _state.update {
+                it.copy(starting = false, streaming = false, playUrl = null, viewers = 0, bitrateKbps = 0, fps = 0)
+            }
+            return
+        }
         Telemetry.event("push_stop", mapOf("reason" to "user"))
         _state.update {
             it.copy(
@@ -274,18 +307,33 @@ class P1ControllerImpl(context: Context) : P1Controller {
     }
 
     override fun selectAccessScope(scope: AccessScopeUi) {
-        if (scope == AccessScopeUi.WAN) {
-            // P1 仅局域网；WAN 阶段二开放，保持 LAN 并提示。
-            _state.update {
-                it.copy(
-                    accessScope = AccessScopeUi.LAN,
-                    wanLocked = true,
-                    warning = "公网可访问将在阶段二开放，当前保持局域网模式",
-                )
-            }
-        } else {
-            _state.update { it.copy(accessScope = AccessScopeUi.LAN, wanLocked = true) }
+        if (_state.value.streaming || _state.value.starting) {
+            _state.update { it.copy(warning = "推流中不可切换访问范围，请先停止推流") }
+            return
         }
+        if (scope == AccessScopeUi.WAN && _state.value.cloudApiHost.isBlank()) {
+            _state.update { it.copy(warning = "请先在设置中填写 WAN Cloud API") }
+            return
+        }
+        _state.update {
+            it.copy(
+                accessScope = scope,
+                wanLocked = scope == AccessScopeUi.WAN && it.cloudApiHost.isBlank(),
+                warning = null,
+                playUrl = null,
+            )
+        }
+    }
+
+    override fun setCloudApiHost(host: String) {
+        val normalized = host.trim().trimEnd('/')
+        _state.update {
+            it.copy(
+                cloudApiHost = normalized,
+                wanLocked = normalized.isBlank(),
+            )
+        }
+        prefs.edit().putString(KEY_CLOUD_API, normalized).apply()
     }
 
     override fun updateSettings(settings: StreamSettingsUi) {
@@ -567,9 +615,11 @@ class P1ControllerImpl(context: Context) : P1Controller {
             CameraFacingUi.valueOf(prefs.getString(KEY_FACING, CameraFacingUi.BACK.name) ?: "BACK")
         }.getOrDefault(CameraFacingUi.BACK)
         val network = runCatching { networkMonitor.current() }.getOrNull()
+        val cloudApi = prefs.getString(KEY_CLOUD_API, "") ?: ""
         return P1UiState(
             accessScope = AccessScopeUi.LAN,
-            wanLocked = true,
+            wanLocked = cloudApi.isBlank(),
+            cloudApiHost = cloudApi,
             settings = settings,
             cameraFacing = facing,
             cameraMode = if (facing == CameraFacingUi.FRONT) CameraModeUi.SINGLE_FRONT
@@ -609,6 +659,7 @@ class P1ControllerImpl(context: Context) : P1Controller {
         const val KEY_POWER_SAVE = "settings_power_save"
         const val KEY_ADAPTIVE_BITRATE = "settings_adaptive_bitrate"
         const val KEY_RTMP_URL = "settings_rtmp_url"
+        const val KEY_CLOUD_API = "settings_cloud_api"
         const val KEY_FACING = "camera_facing"
         const val KEY_MUTED = "muted"
         const val KEY_PORT = "lan_port"

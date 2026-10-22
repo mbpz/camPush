@@ -215,7 +215,15 @@ fun MainScreen(controller: P1Controller) {
                     controller.selectAccessScope(AccessScopeUi.LAN)
                 }
             },
-            onWanLockedClick = { notify("公网可访问 · 阶段二开放") },
+            onWanSelected = {
+                if (state.streaming || state.starting) {
+                    notify("推流中不可切换，请先停止推流后切换访问范围")
+                } else if (state.cloudApiHost.isBlank()) {
+                    notify("请先在设置中填写 WAN Cloud API")
+                } else {
+                    controller.selectAccessScope(AccessScopeUi.WAN)
+                }
+            },
             onSettings = { showSettings = true },
             onNotify = ::notify,
             modifier = Modifier.align(Alignment.BottomCenter),
@@ -375,7 +383,7 @@ private fun BottomControls(
     onPreview: () -> Unit,
     onShare: () -> Unit,
     onLanSelected: () -> Unit,
-    onWanLockedClick: () -> Unit,
+    onWanSelected: () -> Unit,
     onSettings: () -> Unit,
     onNotify: (String) -> Unit,
     modifier: Modifier = Modifier,
@@ -447,7 +455,7 @@ private fun BottomControls(
                 AccessScopeSelector(
                     state = state,
                     onLanSelected = onLanSelected,
-                    onWanLockedClick = onWanLockedClick,
+                    onWanSelected = onWanSelected,
                     compact = true,
                 )
                 Spacer(Modifier.weight(1f))
@@ -487,7 +495,7 @@ private fun BottomControls(
             AccessScopeSelector(
                 state = state,
                 onLanSelected = onLanSelected,
-                onWanLockedClick = onWanLockedClick,
+                onWanSelected = onWanSelected,
             )
             Spacer(Modifier.height(12.dp))
             Box(modifier = Modifier.fillMaxWidth()) {

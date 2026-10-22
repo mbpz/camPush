@@ -156,14 +156,14 @@ fun MetricDivider(modifier: Modifier = Modifier) {
 }
 
 /**
- * 访问范围分段控件：P1 仅局域网可选，公网选项置灰并标注“阶段二开放”；
+ * 访问范围分段控件：P2 支持 LAN/WAN 切换；未配置 Cloud API 时 WAN 标注“未配置”。
  * 推流中整体锁定并提示先停止推流。
  */
 @Composable
 fun AccessScopeSelector(
     state: P1UiState,
     onLanSelected: () -> Unit,
-    onWanLockedClick: () -> Unit,
+    onWanSelected: () -> Unit,
     modifier: Modifier = Modifier,
     compact: Boolean = false,
 ) {
@@ -184,10 +184,14 @@ fun AccessScopeSelector(
                 Spacer(Modifier.width(2.dp))
                 ScopeSegment(
                     label = "公网可访问",
-                    badge = if (compact) null else "阶段二开放",
-                    selected = false,
-                    enabled = false,
-                    onClick = onWanLockedClick,
+                    badge = when {
+                        state.wanLocked -> "未配置"
+                        compact -> null
+                        else -> "公网"
+                    },
+                    selected = state.accessScope == AccessScopeUi.WAN,
+                    enabled = !locked,
+                    onClick = onWanSelected,
                 )
             }
         }

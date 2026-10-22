@@ -188,6 +188,8 @@
 - 模拟器实测：WHIP offer 已到达 SRS（日志 `RTC whip publish /live/campush-dev`），
   但 SRS 返回 `5018 RtcSdpNegotiate: no found valid H.264 payload type`；
   原因是模拟器没有硬件 H.264 编码器，WebRTC SDK 只提供 VP8/VP9（SRS RTC 只收 H264）；
+- **主界面已接入 WAN 模式（P2）**：访问范围可切「公网可访问」，开始推流走
+  cloud-core 创建房间 → WHIP；停止时回收房间；地址卡显示公网地址，支持复制/QR/分享；
 - 设置页已接入 **WAN 房间流程**：填 cloud-core API → 创建房间 → 取 `ingest.whipUrl` → WHIP 推流 → 停止时 DELETE 房间；
 - **软件 H264 编码器**（`MediaCodecH264Encoder` + `HybridH264EncoderFactory`）：真机优先硬件 H264，
   无硬件时用 MediaCodec 软件编码；

@@ -41,6 +41,8 @@ data class WanTestUi(
 data class P1UiState(
     val accessScope: AccessScopeUi = AccessScopeUi.LAN,
     val wanLocked: Boolean = true,
+    /** P2 WAN Cloud API 地址（设置页配置，主界面 WAN 模式使用）。 */
+    val cloudApiHost: String = "",
     val streaming: Boolean = false,
     val starting: Boolean = false,
     val cameraFacing: CameraFacingUi = CameraFacingUi.BACK,
@@ -94,6 +96,7 @@ interface P1Controller {
     fun setTorch(on: Boolean)
     fun setMuted(muted: Boolean)
     fun selectAccessScope(scope: AccessScopeUi)
+    fun setCloudApiHost(host: String)
     fun updateSettings(settings: StreamSettingsUi)
     fun setPin(required: Boolean, pin: String?)
     fun setPort(port: Int)
