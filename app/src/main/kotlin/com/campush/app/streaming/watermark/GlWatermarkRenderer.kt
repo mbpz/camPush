@@ -130,6 +130,20 @@ class GlWatermarkRenderer(
         val m = FloatArray(16)
         st.getTransformMatrix(m)
         drawExternal(m)
+        frameCount++
+        if (frameCount == 30) {
+            runCatching {
+                val ctx = debugContext
+                if (ctx != null) {
+                    val buf = ByteBuffer.allocateDirect(width * height * 4)
+                    GLES20.glReadPixels(0, 0, width, height, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, buf)
+                    val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                    buf.position(0); bmp.copyPixelsFromBuffer(buf)
+                    val flipped = Bitmap.createBitmap(bmp, 0, 0, width, height, android.graphics.Matrix().apply { postScale(1f, -1f) }, false)
+                    java.io.FileOutputStream(java.io.File(ctx.filesDir, "gl_debug.png")).use { flipped.compress(Bitmap.CompressFormat.PNG, 90, it) }
+                }
+            }
+        }
         EGLExt.eglPresentationTimeANDROID(display, window, System.nanoTime())
         EGL14.eglSwapBuffers(display, window)
     }
@@ -221,8 +235,8 @@ class GlWatermarkRenderer(
         void main(){
             vec4 base = texture2D(sTexture, vTex);
             float w = 280.0; float h = 70.0;
-            float x0 = uViewport.x - w - 24.0;
-            float y0 = 24.0;
+            float x0 = (uViewport.x - w) * 0.5;
+            float y0 = (uViewport.y - h) * 0.5;
             vec2 p = gl_FragCoord.xy;
             if (p.x >= x0 && p.x <= x0 + w && p.y >= y0 && p.y <= y0 + h) {
                 vec2 uv = vec2((p.x - x0) / w, (p.y - y0) / h);

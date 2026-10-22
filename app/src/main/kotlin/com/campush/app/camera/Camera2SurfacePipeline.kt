@@ -11,7 +11,10 @@ import android.hardware.camera2.CaptureRequest
 import android.hardware.camera2.params.StreamConfigurationMap
 import android.media.Image
 import android.media.ImageReader
+import android.media.MediaCodec
+import android.media.MediaFormat
 import android.media.MediaRecorder
+import android.media.MediaCodecInfo
 import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
@@ -60,6 +63,11 @@ class Camera2SurfacePipeline(
     private var pipeWrite: ParcelFileDescriptor? = null
     private var recorderSurface: Surface? = null
     private var cameraOutputSurface: Surface? = null
+    private var codec: MediaCodec? = null
+    private var codecInputSurface: Surface? = null
+    private var codecThread: Thread? = null
+    private var codecSps: ByteArray? = null
+    private var codecPps: ByteArray? = null
     private var watermarkRenderer: com.campush.app.streaming.watermark.GlWatermarkRenderer? = null
     private var previewSurface: Surface? = null
     private var imageReader: ImageReader? = null
@@ -109,6 +117,13 @@ class Camera2SurfacePipeline(
         readerThread = null
         runCatching { session?.close() }
         session = null
+        runCatching { codec?.stop() }
+        runCatching { codec?.release() }
+        codec = null
+        codecThread?.interrupt()
+        codecThread = null
+        runCatching { codecInputSurface?.release() }
+        codecInputSurface = null
         runCatching { recorder?.let { if (started) it.stop(); it.reset(); it.release() } }
         recorder = null
         started = false
@@ -173,7 +188,96 @@ class Camera2SurfacePipeline(
         }
     }
 
+    private fun setupEncoder() {
+        val format = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, actualWidth, actualHeight).apply {
+            setInteger(MediaFormat.KEY_BIT_RATE, (bitrateKbps.coerceIn(500, 20_000)) * 1000)
+            setInteger(MediaFormat.KEY_FRAME_RATE, fps)
+            setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 2)
+            setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
+        }
+        val encoder = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
+        encoder.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+        val input = encoder.createInputSurface()
+        encoder.start()
+        codec = encoder
+        codecInputSurface = input
+        val renderer = com.campush.app.streaming.watermark.GlWatermarkRenderer(
+            input, actualWidth, actualHeight, "CamPush", context,
+        )
+        cameraOutputSurface = renderer.start()
+        watermarkRenderer = renderer
+        started = true
+        DiagLog.i("Surface", "watermark MediaCodec enabled ${actualWidth}x$actualHeight")
+        codecThread = Thread({ drainEncoder(encoder) }, "campush-encoder-drain").apply { start() }
+    }
+
+    private fun drainEncoder(encoder: MediaCodec) {
+        val info = MediaCodec.BufferInfo()
+        while (running) {
+            val index = runCatching { encoder.dequeueOutputBuffer(info, 10_000L) }.getOrElse { -1 }
+            if (index == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) continue
+            if (index < 0) continue
+            runCatching {
+                val buffer = encoder.getOutputBuffer(index) ?: return@runCatching
+                if (info.size > 0) {
+                    val data = ByteArray(info.size)
+                    buffer.position(info.offset)
+                    buffer.get(data)
+                    if (info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0) {
+                        parseConfig(data)
+                    } else {
+                        val nals = splitAnnexB(data)
+                        if (nals.isNotEmpty()) {
+                            val key = info.flags and MediaCodec.BUFFER_FLAG_KEY_FRAME != 0
+                            val withConfig = if (key) {
+                                listOfNotNull(codecSps, codecPps) + nals
+                            } else nals
+                            onAccessUnit(info.presentationTimeUs, key, withConfig)
+                        }
+                    }
+                }
+            }
+            runCatching { encoder.releaseOutputBuffer(index, false) }
+        }
+    }
+
+    private fun parseConfig(data: ByteArray) {
+        for (nal in splitAnnexB(data)) {
+            if (nal.isEmpty()) continue
+            when (nal[0].toInt() and 0x1F) {
+                7 -> codecSps = nal
+                8 -> codecPps = nal
+            }
+        }
+    }
+
+    private fun splitAnnexB(data: ByteArray): List<ByteArray> {
+        val out = ArrayList<ByteArray>()
+        var start = -1
+        var i = 0
+        while (i + 3 <= data.size) {
+            val four = i + 4 <= data.size && data[i] == 0.toByte() && data[i + 1] == 0.toByte() &&
+                data[i + 2] == 0.toByte() && data[i + 3] == 1.toByte()
+            val three = !four && data[i] == 0.toByte() && data[i + 1] == 0.toByte() && data[i + 2] == 1.toByte()
+            if (four || three) {
+                if (start >= 0) out.add(data.copyOfRange(start, i))
+                start = i + if (four) 4 else 3
+                i = start
+            } else {
+                i++
+            }
+        }
+        if (start >= 0 && start < data.size) out.add(data.copyOfRange(start, data.size))
+        return out
+    }
+
     private fun setupRecorder() {
+        if (watermark) {
+            setupEncoder()
+            setupJpegReader()
+            onActualSize(actualWidth, actualHeight)
+            return
+        }
         val pipe = ParcelFileDescriptor.createPipe()
         pipeRead = pipe[0]
         pipeWrite = pipe[1]
