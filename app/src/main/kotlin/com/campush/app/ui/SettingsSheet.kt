@@ -106,9 +106,7 @@ private fun SettingsContent(
     var portMenuOpen by remember { mutableStateOf(false) }
     var checklistOpen by remember { mutableStateOf(false) }
     var logCopied by remember { mutableStateOf(false) }
-    var wanApi by remember {
-        mutableStateOf(state.cloudApiHost.ifBlank { "http://192.168.3.184:18090" })
-    }
+    var wanApi by remember { mutableStateOf(state.cloudApiHost) }
     val wan by controller.wanTest.collectAsStateWithLifecycle()
 
     fun applySettings(updated: StreamSettingsUi) {
@@ -500,6 +498,7 @@ private fun SettingsContent(
                 controller.setCloudApiHost(it)
             },
             label = { Text("Cloud API") },
+            placeholder = { Text("http://<Mac-IP>:18090") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )

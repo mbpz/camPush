@@ -81,7 +81,7 @@ class P1ControllerImpl(context: Context) : P1Controller {
                             starting = cur.starting && !st.running && st.error == null && st.roomId == null,
                             streaming = st.running,
                             playUrl = st.playUrl ?: cur.playUrl,
-                            error = st.error?.let { P1Error(7001, it) } ?: cur.error,
+                            error = st.error?.let { wanError(it) } ?: cur.error,
                         )
                     }
                 }
@@ -174,8 +174,8 @@ class P1ControllerImpl(context: Context) : P1Controller {
             showError(
                 P1Error(
                     6003,
-                    "仅局域网需要连接同一 Wi-Fi 或开启热点",
-                    "请连接 Wi-Fi 或开启热点后重新开始推流",
+                    "当前网络不适合局域网推流",
+                    "连接同一 Wi-Fi/热点，或在设置配置 Cloud API 后切换「公网可访问」",
                 )
             )
             return
@@ -346,6 +346,7 @@ class P1ControllerImpl(context: Context) : P1Controller {
             _state.update { it.copy(warning = "请先在设置中填写 WAN Cloud API") }
             return
         }
+        prefs.edit().putString(KEY_ACCESS_SCOPE, scope.name).apply()
         _state.update {
             it.copy(
                 accessScope = scope,
@@ -805,6 +806,17 @@ class P1ControllerImpl(context: Context) : P1Controller {
         }
     }
 
+    private fun wanError(message: String): P1Error {
+        val lower = message.lowercase()
+        return when {
+            lower.contains("401") || lower.contains("403") || lower.contains("token") ->
+                P1Error(3002, "WAN 账号鉴权失败", "请重新登录账号或检查 Cloud API")
+            lower.contains("timeout") || lower.contains("connect") || lower.contains("failed to connect") ->
+                P1Error(7002, "无法连接 Cloud API", "检查手机与 Cloud API 是否互通、地址/端口是否正确")
+            else -> P1Error(7001, message, "请检查网络与 Cloud API 后重试")
+        }
+    }
+
     private fun showError(error: P1Error) {
         _state.update {
             it.copy(error = error, starting = false, streaming = false)
@@ -829,8 +841,16 @@ class P1ControllerImpl(context: Context) : P1Controller {
         }.getOrDefault(CameraFacingUi.BACK)
         val network = runCatching { networkMonitor.current() }.getOrNull()
         val cloudApi = prefs.getString(KEY_CLOUD_API, "") ?: ""
+        val savedScope = prefs.getString(KEY_ACCESS_SCOPE, null)
+            ?.let { runCatching { AccessScopeUi.valueOf(it) }.getOrNull() }
+        val defaultScope = when {
+            savedScope == AccessScopeUi.WAN && cloudApi.isNotBlank() -> AccessScopeUi.WAN
+            savedScope == AccessScopeUi.LAN -> AccessScopeUi.LAN
+            cloudApi.isNotBlank() -> AccessScopeUi.WAN
+            else -> AccessScopeUi.LAN
+        }
         return P1UiState(
-            accessScope = AccessScopeUi.LAN,
+            accessScope = defaultScope,
             wanLocked = cloudApi.isBlank(),
             cloudApiHost = cloudApi,
             accountEmail = prefs.getString(KEY_ACCOUNT_EMAIL, null),
@@ -881,6 +901,7 @@ class P1ControllerImpl(context: Context) : P1Controller {
         const val KEY_WATERMARK_ENABLED = "settings_watermark_enabled"
         const val KEY_CLOUD_API = "settings_cloud_api"
         const val KEY_ACCOUNT_TOKEN = "account_token"
+        const val KEY_ACCESS_SCOPE = "access_scope"
         const val KEY_ACCOUNT_EMAIL = "account_email"
         const val KEY_ACCOUNT_PLAN = "account_plan"
         const val KEY_FACING = "camera_facing"
