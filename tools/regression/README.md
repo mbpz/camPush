@@ -1,5 +1,12 @@
 # 回测矩阵（Android）
 
+## 一键全量
+```bash
+tools/regression/run-all.sh
+```
+依次执行：构建/单测/文档 → 启动冒烟 → LAN 推流/水印/录制 → WAN 房间控制面 → 双摄合成直播。
+实测：`ALL ANDROID REGRESSION OK`。
+
 ## 自动冒烟
 ```bash
 tools/regression/run-android-smoke.sh

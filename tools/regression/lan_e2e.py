@@ -52,11 +52,29 @@ def set_prefs(values):
     adb("shell", "run-as", "com.campush.app", "cp", "/data/local/tmp/campush-prefs.xml",
         "/data/data/com.campush.app/shared_prefs/campush_p1_prefs.xml")
 
+def set_string_pref(key, value):
+    adb("shell", "am", "force-stop", "com.campush.app")
+    prefs = OUT / "prefs.xml"
+    raw = subprocess.run([ADB, "exec-out", "run-as", "com.campush.app", "cat",
+                          "/data/data/com.campush.app/shared_prefs/campush_p1_prefs.xml"],
+                         capture_output=True, text=True)
+    text = raw.stdout if raw.returncode == 0 and raw.stdout.strip() else "<map>\n</map>"
+    if f'name="{key}"' in text:
+        text = re.sub(rf'<string name="{key}">[^<]*</string>', f'<string name="{key}">{value}</string>', text)
+    else:
+        text = text.replace("</map>", f'    <string name="{key}">{value}</string>\n</map>')
+    prefs.write_text(text, encoding="utf-8")
+    adb("push", str(prefs), "/data/local/tmp/campush-prefs.xml")
+    adb("shell", "run-as", "com.campush.app", "cp", "/data/local/tmp/campush-prefs.xml",
+        "/data/data/com.campush.app/shared_prefs/campush_p1_prefs.xml")
+
 def main():
     adb("install", "-r", str(ROOT / "app/build/outputs/apk/debug/app-debug.apk"))
     adb("shell", "pm", "grant", "com.campush.app", "android.permission.CAMERA")
     adb("shell", "pm", "grant", "com.campush.app", "android.permission.RECORD_AUDIO")
     set_prefs({"settings_watermark_enabled": "true", "settings_record_enabled": "true"})
+    set_string_pref("access_scope", "LAN")
+    set_string_pref("settings_cloud_api", "")
     adb("shell", "am", "start", "-W", "-n", "com.campush.app/.MainActivity")
     time.sleep(4)
 
