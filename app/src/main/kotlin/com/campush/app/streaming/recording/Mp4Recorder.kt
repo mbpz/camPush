@@ -33,8 +33,17 @@ class Mp4Recorder(
         if (stopped) return
         runCatching {
             if (videoTrack < 0) {
-                val sps = unit.sps ?: return
-                val pps = unit.pps ?: return
+                var inlineSps: ByteArray? = null
+                var inlinePps: ByteArray? = null
+                for (nal in unit.nalUnits) {
+                    if (nal.isEmpty()) continue
+                    when (nal[0].toInt() and 0x1F) {
+                        7 -> inlineSps = nal
+                        8 -> inlinePps = nal
+                    }
+                }
+                val sps = unit.sps ?: inlineSps ?: return
+                val pps = unit.pps ?: inlinePps ?: return
                 val mux = muxer ?: MediaMuxer(output.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4).also { muxer = it }
                 val format = MediaFormat.createVideoFormat(
                     MediaFormat.MIMETYPE_VIDEO_AVC,

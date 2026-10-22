@@ -258,7 +258,7 @@ class LanStreamEngine(
         streamMuted = options.muted
         pipelineSettings = activeSettings
         pipelineFacing = activeFacing
-        val micDenied = startMediaPipeline(activeSettings, activeFacing, publisher)
+        val micDenied = startMediaPipeline(activeSettings, activeFacing, recordedPublisher)
 
         phase = EnginePhase.STREAMING
         val startDurationMs = System.currentTimeMillis() - options.requestedAtMs

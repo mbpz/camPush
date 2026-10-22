@@ -15,7 +15,7 @@
 | WAN 前台服务/后台稳定 | ✅ 首版：`WanStreamingService` camera\|microphone 前台服务，WAN 开始即启动、停止/失败回收 | 退后台不断流（待真机） |
 | WAN 摄像头切换/闪光灯/静音 | ✅ 首版：WanWhipClient 前后摄切换、后摄闪光灯、AudioTrack 静音；主界面按钮在 WAN 下生效 | 真机验证 |
 | 单摄直播烧录水印 | ✅ LAN 首版：启用后走 CameraX YUV 兼容管线，在 YUV 输入前烧录 CamPush；FLV 抽帧实测可见（2026-10-22）。WAN/WebRTC 水印待做 | 真机性能验证 |
-| 本地录制文件管理 | ✅ 首版：设置页录制列表、大小/时间、分享（FileProvider）、删除；文件仍在应用私有目录 | 真机验证分享 |
+| 本地录制文件管理 | ✅ E2E：LAN 推流 9.12s 生成 12MB MP4（1280×720 H264 + AAC），列表/分享/删除已接入 | 真机分享验证 |
 | WAN 默认/网络推荐 | ✅ 首版：已配置 Cloud API 默认 WAN；记住上次 LAN/WAN；非 LAN 启动提示配置 WAN | 真机验证 |
 | 错误与回退 | ✅ 首版：WAN 鉴权/连接/其他错误统一 3002/7002/7001；LAN 非局域网提示 WAN 引导 | 真机验证 |
 

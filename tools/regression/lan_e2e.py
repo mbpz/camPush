@@ -34,11 +34,29 @@ def tap_bounds(b):
     x, y = (b[0] + b[2]) // 2, (b[1] + b[3]) // 2
     adb("shell", "input", "tap", str(x), str(y))
 
+def set_prefs(values):
+    adb("shell", "am", "force-stop", "com.campush.app")
+    prefs = OUT / "prefs.xml"
+    raw = subprocess.run([ADB, "exec-out", "run-as", "com.campush.app", "cat",
+                          "/data/data/com.campush.app/shared_prefs/campush_p1_prefs.xml"],
+                         capture_output=True, text=True)
+    text = raw.stdout if raw.returncode == 0 and raw.stdout.strip() else "<map>\n</map>"
+    for key, value in values.items():
+        entry = f'name="{key}" value="{value}"'
+        if f'name="{key}"' in text:
+            text = re.sub(rf'<boolean name="{key}" value="[^"]*" />', f'<boolean {entry} />', text)
+        else:
+            text = text.replace("</map>", f'    <boolean {entry} />\n</map>')
+    prefs.write_text(text, encoding="utf-8")
+    adb("push", str(prefs), "/data/local/tmp/campush-prefs.xml")
+    adb("shell", "run-as", "com.campush.app", "cp", "/data/local/tmp/campush-prefs.xml",
+        "/data/data/com.campush.app/shared_prefs/campush_p1_prefs.xml")
+
 def main():
     adb("install", "-r", str(ROOT / "app/build/outputs/apk/debug/app-debug.apk"))
     adb("shell", "pm", "grant", "com.campush.app", "android.permission.CAMERA")
     adb("shell", "pm", "grant", "com.campush.app", "android.permission.RECORD_AUDIO")
-    adb("shell", "am", "force-stop", "com.campush.app")
+    set_prefs({"settings_watermark_enabled": "true", "settings_record_enabled": "true"})
     adb("shell", "am", "start", "-W", "-n", "com.campush.app/.MainActivity")
     time.sleep(4)
 
@@ -75,6 +93,19 @@ def main():
     if flv.stat().st_size < 10_000:
         print("FAIL: FLV too small", file=sys.stderr); return 1
 
+    if os.environ.get("FFMPEG"):
+        subprocess.run([os.environ["FFMPEG"], "-y", "-loglevel", "error", "-i", str(flv),
+                        "-frames:v", "1", str(OUT / "frame.png")], check=False)
+        try:
+            from PIL import Image
+            im = Image.open(OUT / "frame.png").convert("RGB")
+            w, h = im.size
+            crop = im.crop((w - 360, h - 140, w, h))
+            bright = sum(1 for px in crop.getdata() if px[0] > 200 and px[1] > 200 and px[2] > 200)
+            print(f"watermark bright pixels bottom-right={bright}")
+        except Exception as e:
+            print(f"watermark check skipped: {e}")
+
     b = bounds(xml, "停止推流")
     if not b:
         print("FAIL: stop button not found", file=sys.stderr); return 1
@@ -83,6 +114,17 @@ def main():
     xml = ui_dump()
     if "局域网推流中" in xml:
         print("FAIL: stream still active after stop", file=sys.stderr); return 1
+    rec = subprocess.run([ADB, "shell", "run-as", "com.campush.app", "ls", "-t", "files/recordings"],
+                         capture_output=True, text=True)
+    names = [n for n in rec.stdout.strip().splitlines() if n.endswith(".mp4")]
+    if names:
+        remote = f"/data/data/com.campush.app/files/recordings/{names[0]}"
+        local = OUT / names[0]
+        with open(local, "wb") as f:
+            subprocess.run([ADB, "exec-out", "run-as", "com.campush.app", "cat", remote], stdout=f, check=False)
+        print(f"recording={local} bytes={local.stat().st_size}")
+    else:
+        print("WARN: no recording file found")
     print("LAN E2E OK: start/FLV/stop")
     return 0
 

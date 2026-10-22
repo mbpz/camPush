@@ -10,7 +10,8 @@ tools/regression/run-android-smoke.sh
 ```bash
 python3 tools/regression/lan_e2e.py
 ```
-覆盖：安装/授权、开始推流、读取 FLV（2MB）、停止推流；实测通过 `LAN E2E OK: start/FLV/stop`。
+覆盖：安装/授权、设置水印/录制、开始推流、读取 FLV（2MB）、水印像素抽检、停止、MP4 录制文件拉取。
+实测：`FLV bytes=2000000`、`watermark bright pixels bottom-right=2214`、`recording bytes=12039384`、`LAN E2E OK`。
 
 ## 手工/环境矩阵
 
