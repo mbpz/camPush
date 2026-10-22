@@ -26,6 +26,11 @@ import android.opengl.GLES20
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
+import android.os.ParcelFileDescriptor
+import com.campush.app.streaming.TsDemuxer
+import com.campush.lan.H264AccessUnit
+import com.campush.lan.RtmpPushClient
+import java.io.InputStream
 import android.os.HandlerThread
 import android.os.PowerManager
 import android.media.MediaRecorder
@@ -65,9 +70,16 @@ class DualPipActivity : Activity(), SurfaceHolder.Callback {
     private var swapped = false
     private var mediaRecorder: MediaRecorder? = null
     private var recording = false
+    private var live = false
+    private var rtmpUrl = ""
+    private var liveThread: Thread? = null
+    private var liveClient: RtmpPushClient? = null
+    private var liveRead: ParcelFileDescriptor? = null
+    private var liveWrite: ParcelFileDescriptor? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        rtmpUrl = intent.getStringExtra(EXTRA_RTMP)?.trim().orEmpty()
         val root = FrameLayout(this)
         surfaceView = SurfaceView(this)
         root.addView(surfaceView, FrameLayout.LayoutParams(-1, -1))
@@ -108,9 +120,17 @@ class DualPipActivity : Activity(), SurfaceHolder.Callback {
                 text = if (recording) "停止合成录制" else "开始合成录制"
             }
         }
+        val liveButton = Button(this).apply {
+            text = "开始合成直播"
+            setOnClickListener {
+                if (live) stopCompositionLive() else startCompositionLive()
+                text = if (live) "停止合成直播" else "开始合成直播"
+            }
+        }
         controls.addView(modeButton)
         controls.addView(swapButton)
         controls.addView(recordButton)
+        controls.addView(liveButton)
         root.addView(controls, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER or Gravity.BOTTOM).apply { setMargins(0, 0, 0, 48) })
         setContentView(root)
         surfaceView.holder.addCallback(this)
@@ -134,6 +154,8 @@ class DualPipActivity : Activity(), SurfaceHolder.Callback {
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) = Unit
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
+        if (live) stopCompositionLive()
+        if (recording) stopRecording()
         closeCameras()
         handler?.post { renderer?.release() }
         thread?.quitSafely()
@@ -141,7 +163,87 @@ class DualPipActivity : Activity(), SurfaceHolder.Callback {
         renderer = null
     }
 
+    private fun startCompositionLive() {
+        if (recording) { status.text = "合成录制中，请先停止录制"; return }
+        if (rtmpUrl.isBlank()) { status.text = "未配置 RTMP 地址"; return }
+        val renderer = renderer ?: return
+        if (!renderer.hasTextures()) { status.text = "相机未就绪，稍后再试"; return }
+        runCatching {
+            val pipe = ParcelFileDescriptor.createPipe()
+            liveRead = pipe[0]
+            liveWrite = pipe[1]
+            val recorder = MediaRecorder().apply {
+                setVideoSource(MediaRecorder.VideoSource.SURFACE)
+                setOutputFormat(MediaRecorder.OutputFormat.MPEG_2_TS)
+                setVideoEncoder(MediaRecorder.VideoEncoder.H264)
+                setVideoSize(1280, 720)
+                setVideoFrameRate(30)
+                setVideoEncodingBitRate(4_000_000)
+                setOutputFile(pipe[1].fileDescriptor)
+                prepare()
+                start()
+            }
+            mediaRecorder = recorder
+            live = true
+            renderer.attachRecorder(recorder.surface, 1280, 720)
+            val input = ParcelFileDescriptor.AutoCloseInputStream(pipe[0])
+            liveThread = Thread({
+                val client = RtmpPushClient(rtmpUrl)
+                runCatching { client.connect() }
+                    .onFailure {
+                        runOnUiThread { status.text = "RTMP 连接失败：${it.message}" }
+                        live = false
+                        return@Thread
+                    }
+                liveClient = client
+                val demux = TsDemuxer { ptsUs, isKey, nals ->
+                    runCatching {
+                        client.sendVideo(H264AccessUnit(nals, ptsUs, isKey))
+                    }
+                }
+                val buffer = ByteArray(64 * 1024)
+                try {
+                    while (live) {
+                        val read = input.read(buffer)
+                        if (read < 0) break
+                        demux.feed(buffer, 0, read)
+                    }
+                } catch (_: Throwable) {
+                } finally {
+                    runCatching { input.close() }
+                    runCatching { client.close() }
+                }
+            }, "dual-rtmp").apply { start() }
+            status.text = "合成直播中：$rtmpUrl"
+        }.onFailure {
+            live = false
+            status.text = "合成直播启动失败：${it.message}"
+            runCatching { mediaRecorder?.release() }
+            mediaRecorder = null
+            runCatching { liveRead?.close() }
+            runCatching { liveWrite?.close() }
+            liveRead = null; liveWrite = null
+        }
+    }
+
+    private fun stopCompositionLive() {
+        live = false
+        renderer?.detachRecorder()
+        runCatching { mediaRecorder?.stop() }
+        runCatching { mediaRecorder?.release() }
+        mediaRecorder = null
+        runCatching { liveRead?.close() }
+        runCatching { liveWrite?.close() }
+        liveRead = null; liveWrite = null
+        liveThread?.interrupt()
+        liveThread = null
+        runCatching { liveClient?.close() }
+        liveClient = null
+        status.text = "合成直播已停止"
+    }
+
     private fun startRecording() {
+        if (live) { status.text = "合成直播中，请先停止直播"; return }
         val renderer = renderer ?: return
         if (!renderer.hasTextures()) { status.text = "相机未就绪，稍后再试"; return }
         val dir = getExternalFilesDir(null) ?: filesDir
@@ -469,6 +571,7 @@ class DualPipActivity : Activity(), SurfaceHolder.Callback {
 
     companion object {
         private const val TAG = "DualPip"
+        const val EXTRA_RTMP = "dual_rtmp"
         private val FULL: Pair<FloatBuffer, FloatBuffer> = buffers(
             floatArrayOf(-1f, -1f, 1f, -1f, -1f, 1f, 1f, 1f),
             floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f, 1f, 1f),

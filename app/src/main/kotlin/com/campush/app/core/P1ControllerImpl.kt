@@ -663,8 +663,13 @@ class P1ControllerImpl(context: Context) : P1Controller {
 
     override fun openDualPipPreview() {
         runCatching {
+            val rtmp = _state.value.settings.rtmpUrl.lineSequence()
+                .map { it.trim() }
+                .firstOrNull { it.startsWith("rtmp://") }
+                .orEmpty()
             appContext.startActivity(
                 android.content.Intent(appContext, com.campush.app.camera.dual.DualPipActivity::class.java)
+                    .putExtra(com.campush.app.camera.dual.DualPipActivity.EXTRA_RTMP, rtmp)
                     .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
             )
         }

@@ -56,8 +56,17 @@ class RtmpPushClient(
     }
 
     fun sendVideo(unit: H264AccessUnit, timestampMs: Long = unit.ptsUs / 1000) {
-        val sps = unit.sps
-        val pps = unit.pps
+        var inlineSps: ByteArray? = null
+        var inlinePps: ByteArray? = null
+        unit.nalUnits.forEach { nal ->
+            if (nal.isEmpty()) return@forEach
+            when (nal[0].toInt() and 0x1F) {
+                7 -> inlineSps = nal
+                8 -> inlinePps = nal
+            }
+        }
+        val sps = unit.sps ?: inlineSps
+        val pps = unit.pps ?: inlinePps
         if (sps != null && pps != null && (!sps.contentEquals(spsSent ?: ByteArray(0)) || !pps.contentEquals(ppsSent ?: ByteArray(0)))) {
             val cfg = avcConfig(sps, pps)
             sendMessage(9, timestampMs.toInt(), ByteArrayOutputStream().apply {

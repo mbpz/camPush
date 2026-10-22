@@ -329,6 +329,7 @@ camPush/
 | v1.10 | 2026-10-20 | Team Lead | 推流瞬间掉 2fps 修复：枚举并优先硬件 H.264 编码器、按能力选择 NV12/I420/ Flexible 输入、YUV 转换复用缓冲、日志输出 encoder choice |
 | v1.11 | 2026-10-20 | Team Lead | 极低帧率救援：1080p 连续 3s 仅 1–4fps 时自动切 720p（播放地址不变），提示语更新；配合硬件编码器选择排查真机 2fps |
 | v1.12 | 2026-10-20 | Team Lead | 低帧率提示携带编码器名称/软硬编与 in/out fps；播放器追帧阈值 1.2s→0.6s 降低观看延迟 |
+| v2.79 | 2026-10-22 | Team Lead | P1 双摄合成直播首版：合成画面 → TS → RTMP 推流（视频，E2E 待环境）|
 | v2.78 | 2026-10-22 | Team Lead | P1 原生观众端列表：AudienceListActivity 拉取 `/api/v1/rooms`，点击进播放页 |
 | v2.77 | 2026-10-22 | Team Lead | P1 WAN/WebRTC 水印：VideoProcessor 在 I420 帧叠加 CamPush；LAN/WAN 水印能力齐备（E2E 待环境）|
 | v2.76 | 2026-10-22 | Team Lead | 单摄直播烧录水印可用：开启后走 CameraX YUV 管线，FLV 抽帧可见 CamPush（LAN）；WAN 水印待做 |
