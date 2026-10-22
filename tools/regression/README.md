@@ -20,6 +20,12 @@ python3 tools/regression/wan_room_e2e.py
 本机启动 cloud-core（端口 18092），模拟器配置 API 后进入 WAN；WHIP 无媒体服务时预期失败并**自动清理房间**。
 实测：`WAN ROOM E2E OK: create/stop`，停止后无活跃房间。
 
+## 双摄合成直播 E2E（本机 ffmpeg RTMP 监听）
+```bash
+FFMPEG=/path/to/ffmpeg python3 tools/regression/dual_live_e2e.py
+```
+实测：`DUAL LIVE E2E OK: bytes=4168011`；FLV 9.54s、1280×720、合成分屏可见。
+
 ## 手工/环境矩阵
 
 | 场景 | 步骤 | 期望 |
