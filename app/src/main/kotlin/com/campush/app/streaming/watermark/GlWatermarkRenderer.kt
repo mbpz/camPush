@@ -103,7 +103,10 @@ class GlWatermarkRenderer(
         val ctx = intArrayOf(EGL14.EGL_CONTEXT_CLIENT_VERSION, 2, EGL14.EGL_NONE)
         context = EGL14.eglCreateContext(display, config, EGL14.EGL_NO_CONTEXT, ctx, 0)
         window = EGL14.eglCreateWindowSurface(display, config, output, intArrayOf(EGL14.EGL_NONE), 0)
-        check(EGL14.eglMakeCurrent(display, window, window, context))
+        Log.i(TAG, "egl surface=${window != EGL14.EGL_NO_SURFACE} err=${EGL14.eglGetError()}")
+        val current = EGL14.eglMakeCurrent(display, window, window, context)
+        Log.i(TAG, "egl current=$current err=${EGL14.eglGetError()}")
+        check(current)
         program = createExternalProgram()
         wmProgram = createTextureProgram()
         texture = createExternalTexture()
@@ -118,6 +121,7 @@ class GlWatermarkRenderer(
 
     private var renderLogged = false
     private var frameCount = 0
+    private var uniformLogged = false
     private fun render() {
         if (!running) return
         if (!renderLogged) { renderLogged = true; Log.i(TAG, "render first frame ${width}x$height") }
@@ -148,8 +152,14 @@ class GlWatermarkRenderer(
         GLES20.glUniform1i(GLES20.glGetUniformLocation(program, "sTexture"), 0)
         GLES20.glActiveTexture(GLES20.GL_TEXTURE1)
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, wmTexture)
-        GLES20.glUniform1i(GLES20.glGetUniformLocation(program, "uWm"), 1)
-        GLES20.glUniform2f(GLES20.glGetUniformLocation(program, "uViewport"), width.toFloat(), height.toFloat())
+        val wmLoc = GLES20.glGetUniformLocation(program, "uWm")
+        val vpLoc = GLES20.glGetUniformLocation(program, "uViewport")
+        if (debugContext != null && !uniformLogged) {
+            uniformLogged = true
+            Log.i(TAG, "uniforms uWm=$wmLoc uViewport=$vpLoc")
+        }
+        GLES20.glUniform1i(wmLoc, 1)
+        GLES20.glUniform2f(vpLoc, width.toFloat(), height.toFloat())
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
     }
 

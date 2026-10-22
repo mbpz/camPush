@@ -68,6 +68,7 @@ class Camera2SurfacePipeline(
     private var codecThread: Thread? = null
     private var codecSps: ByteArray? = null
     private var codecPps: ByteArray? = null
+    private var codecDrainLogs = 0
     private var watermarkRenderer: com.campush.app.streaming.watermark.GlWatermarkRenderer? = null
     private var previewSurface: Surface? = null
     private var imageReader: ImageReader? = null
@@ -207,6 +208,7 @@ class Camera2SurfacePipeline(
         cameraOutputSurface = renderer.start()
         watermarkRenderer = renderer
         started = true
+        Log.i(TAG, "surfaces codecInput=${input} cameraOut=$cameraOutputSurface same=${cameraOutputSurface === input}")
         DiagLog.i("Surface", "watermark MediaCodec enabled ${actualWidth}x$actualHeight")
         codecThread = Thread({ drainEncoder(encoder) }, "campush-encoder-drain").apply { start() }
     }
@@ -228,6 +230,7 @@ class Camera2SurfacePipeline(
                     } else {
                         val nals = splitAnnexB(data)
                         if (nals.isNotEmpty()) {
+                            if (codecDrainLogs++ < 3) Log.i(TAG, "codec AU nals=${nals.size} key=${info.flags and MediaCodec.BUFFER_FLAG_KEY_FRAME != 0} bytes=${data.size}")
                             val key = info.flags and MediaCodec.BUFFER_FLAG_KEY_FRAME != 0
                             val withConfig = if (key) {
                                 listOfNotNull(codecSps, codecPps) + nals
@@ -490,6 +493,7 @@ class Camera2SurfacePipeline(
     }
 
     private fun startReader() {
+        Log.i(TAG, "startReader pipeRead=$pipeRead watermark=$watermark")
         if (readerThread != null) return
         val input: InputStream = ParcelFileDescriptor.AutoCloseInputStream(pipeRead ?: return)
         val demux = TsDemuxer { ptsUs, isKey, nals ->
