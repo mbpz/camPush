@@ -104,6 +104,8 @@ interface P1Controller {
     fun setCloudApiHost(host: String)
     fun login(email: String, password: String, register: Boolean)
     fun logout()
+    /** T3-A5：导出脱敏诊断日志（token/PIN/roomId 已移除）。 */
+    fun exportDiagnostics(): String
     fun updateSettings(settings: StreamSettingsUi)
     fun setPin(required: Boolean, pin: String?)
     fun setPort(port: Int)

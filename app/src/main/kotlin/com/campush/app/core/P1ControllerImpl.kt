@@ -381,6 +381,8 @@ class P1ControllerImpl(context: Context) : P1Controller {
         }
     }
 
+    override fun exportDiagnostics(): String = DiagLog.downloadTextRedacted()
+
     override fun logout() {
         accountToken = ""
         prefs.edit()

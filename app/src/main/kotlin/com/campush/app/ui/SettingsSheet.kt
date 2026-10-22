@@ -581,6 +581,20 @@ private fun SettingsContent(
                 color = CamPushColors.TextTertiary,
             )
         }
+        Spacer(Modifier.height(8.dp))
+        OutlinedButton(onClick = {
+            val text = controller.exportDiagnostics()
+            val send = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, text)
+            }
+            context.startActivity(Intent.createChooser(send, "导出脱敏日志"))
+        }) { Text("导出脱敏日志") }
+        Text(
+            text = "导出前已移除 token / PIN / 明文 roomId。",
+            style = MaterialTheme.typography.bodySmall,
+            color = CamPushColors.TextTertiary,
+        )
         Spacer(Modifier.height(14.dp))
         HorizontalDivider(color = CamPushColors.Border.copy(alpha = 0.6f))
 

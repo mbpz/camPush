@@ -384,7 +384,7 @@ class LanServerE2ETest {
 
     @Test
     fun allPortsBusyReturns6002() {
-        val blockers = (18090..18099).map { port ->
+        val blockers = (18092..18099).map { port ->
             java.net.ServerSocket().apply {
                 reuseAddress = true
                 bind(java.net.InetSocketAddress("0.0.0.0", port))

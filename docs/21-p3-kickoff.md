@@ -22,7 +22,7 @@
 | 4 | T3-W1/T3-S5 | 观众端 Web + 房间列表/进入权限 API | ✅ 首版（公开列表/播放页复用） |
 | 5 | T3-S3/T3-A4 | BYO 自定义地址/连通性测试 | 待做 |
 | 6 | T3-A1/T3-A2 | 双路独立/高级合成（受 D-3 实验性约束） | 待做 |
-| 7 | T3-A5 | 日志导出与脱敏 | 待做 |
+| 7 | T3-A5 | 日志导出与脱敏 | ✅ 首版（LogRedactor + 导出分享） |
 | 8 | 合规/灰度/压测 | T3-S8/T3-Q2/Q3/P4 等 | 待做 |
 
 ## 3. 当前约束
@@ -53,6 +53,13 @@ GET  /api/v1/account/usage (Bearer) -> usedSeconds/monthlyMinutes/roomLimit
 - `GET /api/v1/rooms`：公开房间列表（roomId/state/viewers/pinRequired/playUrl），过滤 closed/failed；
 - `GET /rooms`：观众端 Web 列表页，5s 轮询，点击进入复用 `/s/{room}` 播放页；
 - 待补：进入权限/观看限制、账号登录、列表分页/搜索、App 观众端 T3-A7。
+
+## 3.4 T3-A5 日志导出/脱敏首版
+
+- `LogRedactor`：移除 JWT/token query、PIN、明文 roomId；
+- 设置页「诊断日志 → 导出脱敏日志」系统分享；
+- `lan-core` 新增 `LogRedactorTest`；
+- 待补：导出文件/邮件模板、服务端留存样本抽检。
 
 ## 4. 首版账号 API（已落地）
 

@@ -98,6 +98,8 @@ object DiagLog {
     }
 
     /** 供局域网日志服务下载：设备信息 + 崩溃 + 累计落盘日志 + 当前状态。 */
+    fun downloadTextRedacted(): String = com.campush.lan.LogRedactor.redact(downloadText())
+
     fun downloadText(extra: String? = null): String {
         val history = synchronized(fileLock) {
             buildString {
