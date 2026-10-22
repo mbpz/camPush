@@ -47,5 +47,9 @@
             android:name=".service.LanStreamingService"
             android:exported="false"
             android:foregroundServiceType="camera|microphone" />
+        <service
+            android:name=".service.WanStreamingService"
+            android:exported="false"
+            android:foregroundServiceType="camera|microphone" />
     </application>
 </manifest>

@@ -12,7 +12,7 @@
 
 | 项 | 现状 | 收口标准 |
 |---|---|---|
-| WAN 前台服务/后台稳定 | WAN 推流在 Activity/Controller 内，退后台可能停 | 独立 ForegroundService + 通知；退后台不断流 |
+| WAN 前台服务/后台稳定 | ✅ 首版：`WanStreamingService` camera\|microphone 前台服务，WAN 开始即启动、停止/失败回收 | 退后台不断流（待真机） |
 | WAN 摄像头切换/闪光灯/静音 | 目前前摄固定，能力不完整 | 与 LAN 一致的切换/闪光灯/静音 |
 | 单摄直播烧录水印 | GL 输出正确，但 FLV 不反映 GL；当前阻塞 | 采用 CameraX YUV+Canvas 管线或编码后处理，FLV 抽帧可见水印 |
 | 本地录制文件管理 | 录制文件在私有目录，无列表/分享 | 列表、播放、分享/导出（MediaStore） |

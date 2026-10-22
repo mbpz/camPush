@@ -72,6 +72,9 @@ class P1ControllerImpl(context: Context) : P1Controller {
             wanClient.state.collect { st ->
                 _wanTest.value = WanTestUi(st.running, st.status, st.roomId, st.playUrl, st.error)
                 if (_state.value.accessScope == AccessScopeUi.WAN) {
+                    if (st.error != null) {
+                        com.campush.app.service.WanStreamingService.stop(appContext)
+                    }
                     _state.update { cur ->
                         cur.copy(
                             starting = cur.starting && !st.running && st.error == null && st.roomId == null,
@@ -157,6 +160,7 @@ class P1ControllerImpl(context: Context) : P1Controller {
             Telemetry.event("push_start_clicked", mapOf("accessScope" to "wan"))
             _state.update { it.copy(streaming = false, playUrl = null) }
             pausePreview()
+            com.campush.app.service.WanStreamingService.start(appContext)
             wanClient.start(api)
             return
         }
@@ -262,6 +266,7 @@ class P1ControllerImpl(context: Context) : P1Controller {
         if (_state.value.accessScope == AccessScopeUi.WAN) {
             Telemetry.event("push_stop", mapOf("reason" to "wan"))
             wanClient.stop()
+            com.campush.app.service.WanStreamingService.stop(appContext)
             resumePreview()
             _state.update {
                 it.copy(starting = false, streaming = false, playUrl = null, viewers = 0, bitrateKbps = 0, fps = 0)
