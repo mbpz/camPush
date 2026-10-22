@@ -547,6 +547,40 @@ private fun SettingsContent(
         Spacer(Modifier.height(14.dp))
         HorizontalDivider(color = CamPushColors.Border.copy(alpha = 0.6f))
 
+        // ---------- 本地录制管理 ----------
+        SettingsSectionTitle("本地录制")
+        var recordings by remember { mutableStateOf(controller.listRecordings()) }
+        if (recordings.isEmpty()) {
+            Text(
+                text = "暂无录制文件；开启上方「本地录制 MP4」后推流生成。",
+                style = MaterialTheme.typography.bodySmall,
+                color = CamPushColors.TextTertiary,
+            )
+        } else {
+            recordings.take(10).forEach { rec ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(rec.name, style = MaterialTheme.typography.bodySmall, color = CamPushColors.TextPrimary)
+                        Text(
+                            text = "${formatBytes(rec.sizeBytes)} · ${java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date(rec.modifiedAt))}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = CamPushColors.TextTertiary,
+                        )
+                    }
+                    TextButton(onClick = { controller.shareRecording(rec.path) }) { Text("分享") }
+                    TextButton(onClick = {
+                        controller.deleteRecording(rec.path)
+                        recordings = controller.listRecordings()
+                    }) { Text("删除") }
+                }
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+        HorizontalDivider(color = CamPushColors.Border.copy(alpha = 0.6f))
+
         // ---------- 诊断日志服务 ----------
         SettingsSectionTitle("诊断日志")
         Text(
@@ -737,3 +771,11 @@ private fun apIsolationChecklist(port: Int): List<String> = listOf(
     "换一台观看设备（另一部手机/电脑）复测，排除单设备问题。",
     "若仍失败：建议切换公网模式（阶段二开放）。",
 )
+
+
+private fun formatBytes(bytes: Long): String = when {
+    bytes >= 1024L * 1024L * 1024L -> String.format(java.util.Locale.US, "%.1f GB", bytes / 1024.0 / 1024.0 / 1024.0)
+    bytes >= 1024L * 1024L -> String.format(java.util.Locale.US, "%.1f MB", bytes / 1024.0 / 1024.0)
+    bytes >= 1024L -> String.format(java.util.Locale.US, "%.0f KB", bytes / 1024.0)
+    else -> "$bytes B"
+}

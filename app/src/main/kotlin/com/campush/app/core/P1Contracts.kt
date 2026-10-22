@@ -31,6 +31,13 @@ data class StreamSettingsUi(
         get() = "${width}x${height} · ${fps}fps · ${bitrateKbps / 1000.0} Mbps"
 }
 
+data class RecordingUi(
+    val name: String,
+    val path: String,
+    val sizeBytes: Long,
+    val modifiedAt: Long,
+)
+
 data class P1Error(val code: Int, val message: String, val hint: String? = null)
 
 /** P2 WAN WHIP 联调状态（原型；正式 WAN 房间流程接入后替换）。 */
@@ -121,6 +128,10 @@ interface P1Controller {
     fun openAudience()
     /** T3-A5：导出脱敏诊断日志（token/PIN/roomId 已移除）。 */
     fun exportDiagnostics(): String
+
+    fun listRecordings(): List<RecordingUi>
+    fun shareRecording(path: String)
+    fun deleteRecording(path: String)
     fun updateSettings(settings: StreamSettingsUi)
     fun setPin(required: Boolean, pin: String?)
     fun setPort(port: Int)

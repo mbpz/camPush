@@ -2,6 +2,7 @@ package com.campush.app.core
 
 import android.Manifest
 import android.content.Context
+import androidx.core.content.FileProvider
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.camera.view.PreviewView
@@ -493,6 +494,35 @@ class P1ControllerImpl(context: Context) : P1Controller {
     }
 
     override fun exportDiagnostics(): String = DiagLog.downloadTextRedacted()
+
+    override fun listRecordings(): List<RecordingUi> {
+        val dir = java.io.File(appContext.filesDir, "recordings")
+        return dir.listFiles { f -> f.isFile && f.extension == "mp4" }
+            ?.sortedByDescending { it.lastModified() }
+            ?.map { RecordingUi(it.name, it.absolutePath, it.length(), it.lastModified()) }
+            .orEmpty()
+    }
+
+    override fun shareRecording(path: String) {
+        runCatching {
+            val file = java.io.File(path)
+            if (!file.exists()) return
+            val uri = FileProvider.getUriForFile(appContext, "${appContext.packageName}.fileprovider", file)
+            val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                type = "video/mp4"
+                putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            appContext.startActivity(
+                android.content.Intent.createChooser(intent, "分享录制")
+                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+        }
+    }
+
+    override fun deleteRecording(path: String) {
+        runCatching { java.io.File(path).delete() }
+    }
 
     override fun logout() {
         accountToken = ""
