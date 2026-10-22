@@ -107,6 +107,7 @@ PRD 定义 **What / Why**；本集定义 **How / 边界 / 验收 / 排期 / 风�
 | 20 | [p2-completion](./docs/20-p2-completion.md) | **P2 开发完成报告**：功能矩阵、质量门禁、G2 验收边界 | 全员 |
 | 21 | [p3-kickoff](./docs/21-p3-kickoff.md) | **P3 Kickoff**：账号/套餐/BYO/观众端/合规执行顺序与首版账号 API | 全员 |
 | 22 | [p3-completion](./docs/22-p3-completion.md) | **P3 功能完成报告**：功能矩阵、质量门禁、按用户裁剪项（商业化付费/双摄编码） | 全员 |
+| 23 | [android-completion-regression](./docs/23-android-completion-and-regression.md) | **Android 功能收口 + 回测方案**；免费云资源（Cloudflare TURN/Workers、Oracle、国内试用） | 全员 |
 | — | [PRD v1.0](./docs/PRD-v1.0.md) | 用户提供的需求原文（不改写，仅引用） | 全员 |
 | — | [scripts/check_docs.py](./scripts/check_docs.py) | 8 类文档一致性 CI 门禁 | 全员 |
 
@@ -327,6 +328,7 @@ camPush/
 | v1.10 | 2026-10-20 | Team Lead | 推流瞬间掉 2fps 修复：枚举并优先硬件 H.264 编码器、按能力选择 NV12/I420/ Flexible 输入、YUV 转换复用缓冲、日志输出 encoder choice |
 | v1.11 | 2026-10-20 | Team Lead | 极低帧率救援：1080p 连续 3s 仅 1–4fps 时自动切 720p（播放地址不变），提示语更新；配合硬件编码器选择排查真机 2fps |
 | v1.12 | 2026-10-20 | Team Lead | 低帧率提示携带编码器名称/软硬编与 in/out fps；播放器追帧阈值 1.2s→0.6s 降低观看延迟 |
+| v2.69 | 2026-10-22 | Team Lead | 新方案：Android 功能收口后转回测；免费云资源结论（Cloudflare TURN 1TB/月、Oracle Always Free、国内试用）|
 | v2.68 | 2026-10-22 | Team Lead | WIP：单摄直播 GL 水印管线（实验开关）；E2E 输出异常，未验收 |
 | v2.67 | 2026-10-22 | Team Lead | T3-A2 合成编码首版：分屏/交换 + MediaRecorder MP4 + 烧录水印；构建通过 |
 | v2.66 | 2026-10-22 | Team Lead | P3 功能完成报告（docs/22）：账号/BYO/多地址/观众端/录制/看板/合规；商业化按用户裁剪 |
