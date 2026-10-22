@@ -105,6 +105,7 @@ PRD 定义 **What / Why**；本集定义 **How / 边界 / 验收 / 排期 / 风�
 | 18 | [p2-acceptance](./docs/18-p2-acceptance.md) | **P2 滚动验收**：任务状态/证据/阻塞（真机 WHIP、TURN、双摄），可复现命令 | 全员 |
 | 19 | [dual-camera-decision](./docs/19-dual-camera-decision.md) | **D-3 结论**：双摄保持实验性（支持率证据不足），PiP 预览原型，编码延后 | 产品 / 全员 |
 | 20 | [p2-completion](./docs/20-p2-completion.md) | **P2 开发完成报告**：功能矩阵、质量门禁、G2 验收边界 | 全员 |
+| 21 | [p3-kickoff](./docs/21-p3-kickoff.md) | **P3 Kickoff**：账号/套餐/BYO/观众端/合规执行顺序与首版账号 API | 全员 |
 | — | [PRD v1.0](./docs/PRD-v1.0.md) | 用户提供的需求原文（不改写，仅引用） | 全员 |
 | — | [scripts/check_docs.py](./scripts/check_docs.py) | 8 类文档一致性 CI 门禁 | 全员 |
 
@@ -245,6 +246,7 @@ python3 scripts/check_docs.py --strict
 | 18 p2-acceptance |       59 | 0 | P2 验收 v1.0 |
 | 19 dual-camera-decision |       32 | 0 | D-3 结论 v1.0 |
 | 20 p2-completion |       45 | 0 | P2 完成报告 v1.0 |
+| 21 p3-kickoff |       45 | 0 | P3 Kickoff v1.0 |
 | PRD v1.0 | 643 | 0 | 需求基线（原文） |
 
 > 子文档中 “00 v1.1/v1.2” 的引用为其写作时点；以 00 当前版本 v1.5 为准。
@@ -323,6 +325,7 @@ camPush/
 | v1.10 | 2026-10-20 | Team Lead | 推流瞬间掉 2fps 修复：枚举并优先硬件 H.264 编码器、按能力选择 NV12/I420/ Flexible 输入、YUV 转换复用缓冲、日志输出 encoder choice |
 | v1.11 | 2026-10-20 | Team Lead | 极低帧率救援：1080p 连续 3s 仅 1–4fps 时自动切 720p（播放地址不变），提示语更新；配合硬件编码器选择排查真机 2fps |
 | v1.12 | 2026-10-20 | Team Lead | 低帧率提示携带编码器名称/软硬编与 in/out fps；播放器追帧阈值 1.2s→0.6s 降低观看延迟 |
+| v2.50 | 2026-10-22 | Team Lead | P2 里程碑确认完成，进入 P3；新增 docs/21；T3-S1 账号注册/登录/设备绑定/额度首版（cloud-core 15/15） |
 | v2.49 | 2026-10-22 | Team Lead | 新增 P2 开发完成报告（docs/20）：功能矩阵/测试/G2 验收边界；WAN 主流程落地 |
 | v2.48 | 2026-10-22 | Team Lead | 主界面 WAN 模式：LAN/WAN 切换、Cloud API 配置、开始/停止走房间+WHIP、地址卡公网信息；构建/测试通过 |
 | v2.47 | 2026-10-22 | Team Lead | 手机同 Wi-Fi 联调：cloud 绑定 0.0.0.0、LAN 启动脚本、Android WHIP 接入 TURN、macOS OrbStack 防火墙说明 |

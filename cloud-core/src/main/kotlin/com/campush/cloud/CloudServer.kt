@@ -29,6 +29,7 @@ class CloudServer(
     private var config: CloudConfig = initialConfig
     data class Room(
         val id: String,
+        val accountId: String = "dev",
         val createdAt: Long,
         val expireAt: Long,
         val pageToken: String,
@@ -44,6 +45,7 @@ class CloudServer(
 
     private val tokens = Tokens(UUID.randomUUID().toString().replace("-", "").toByteArray())
     private val rooms = ConcurrentHashMap<String, Room>()
+    private val accounts = AccountStore()
     private val httpClient = HttpClient.newHttpClient()
     private val idempotency = ConcurrentHashMap<String, String>()
     private val playRates = ConcurrentHashMap<String, ArrayDeque<Long>>()
@@ -91,6 +93,10 @@ class CloudServer(
                 method == "POST" && path == "/api/v1/config" -> updateConfig(ex)
                 method == "POST" && path == "/api/v1/telemetry" -> ingestTelemetry(ex)
                 method == "GET" && path == "/api/v1/metrics" -> metrics(ex)
+                method == "POST" && path == "/api/v1/auth/register" -> register(ex)
+                method == "POST" && path == "/api/v1/auth/login" -> login(ex)
+                method == "POST" && path == "/api/v1/devices/bind" -> bindDevice(ex)
+                method == "GET" && path == "/api/v1/account" -> accountInfo(ex)
                 method == "POST" && path == "/api/v1/rooms" -> createRoom(ex)
                 method == "GET" && Regex("^/api/v1/rooms/[^/]+$").matches(path) -> getRoom(ex, path.removePrefix("/api/v1/rooms/"))
                 method == "DELETE" && Regex("^/api/v1/rooms/[^/]+$").matches(path) -> deleteRoom(ex, path.removePrefix("/api/v1/rooms/"))
@@ -107,12 +113,57 @@ class CloudServer(
         }
     }
 
-    private fun createRoom(ex: HttpExchange) {
-        if (!isAccount(ex)) return send(ex, 401, error(3001, "token_missing", "account bearer required"))
+    private fun accountId(ex: HttpExchange): String? {
+        val token = bearer(ex) ?: return null
+        if (token == config.accountToken || token.startsWith("acct_")) return "dev"
+        val claims = tokens.verify(token) ?: return null
+        if (claims.aud != "account") return null
+        return claims.sub.takeIf { accounts.byId(it) != null }
+    }
+
+    private fun register(ex: HttpExchange) {
         val body = ex.requestBody.bufferedReader().readText()
-        val activeRooms = rooms.values.count { it.state != "closed" && it.state != "failed" }
-        if (activeRooms >= config.maxRooms) {
-            return send(ex, 429, error(2004, "room_quota_exceeded", "max rooms ${config.maxRooms}"))
+        val account = accounts.register(field(body, "email") ?: "", field(body, "password") ?: "", field(body, "deviceId"))
+            ?: return send(ex, 400, error(2007, "invalid_argument", "email/password/duplicate invalid"))
+        val token = tokens.issue(account.id, "account", 7 * 24 * 3600, listOf("account"), false)
+        send(ex, 201, accountJson(account, token))
+    }
+
+    private fun login(ex: HttpExchange) {
+        val body = ex.requestBody.bufferedReader().readText()
+        val account = accounts.login(field(body, "email") ?: "", field(body, "password") ?: "", field(body, "deviceId"))
+            ?: return send(ex, 401, error(3002, "token_invalid", "email/password/device invalid"))
+        val token = tokens.issue(account.id, "account", 7 * 24 * 3600, listOf("account"), false)
+        send(ex, 200, accountJson(account, token))
+    }
+
+    private fun accountInfo(ex: HttpExchange) {
+        val id = accountId(ex) ?: return send(ex, 401, error(3001, "token_missing", "account bearer required"))
+        val account = accounts.byId(id) ?: return send(ex, 404, error(2001, "not_found", "account not found"))
+        send(ex, 200, accountJson(account, null))
+    }
+
+    private fun bindDevice(ex: HttpExchange) {
+        val id = accountId(ex) ?: return send(ex, 401, error(3001, "token_missing", "account bearer required"))
+        val body = ex.requestBody.bufferedReader().readText()
+        val deviceId = field(body, "deviceId") ?: return send(ex, 400, error(2007, "invalid_argument", "deviceId required"))
+        if (!accounts.bind(id, deviceId)) return send(ex, 409, error(2009, "device_limit", "device bind limit"))
+        send(ex, 200, """{"bound":true,"deviceId":"$deviceId"}""")
+    }
+
+    private fun accountJson(account: AccountStore.Account, token: String?): String {
+        val tokenPart = if (token == null) "" else ",\"token\":\"$token\""
+        return """{"accountId":"${account.id}","email":"${account.email}","plan":"${account.plan}","devices":${account.devices.size},"roomLimit":${accounts.roomLimit(account.plan)}$tokenPart}"""
+    }
+
+    private fun createRoom(ex: HttpExchange) {
+        val accountId = accountId(ex) ?: return send(ex, 401, error(3001, "token_missing", "account bearer required"))
+        val account = accounts.byId(accountId)
+        val limit = if (account == null) config.maxRooms else minOf(config.maxRooms, accounts.roomLimit(account.plan))
+        val body = ex.requestBody.bufferedReader().readText()
+        val activeRooms = rooms.values.count { it.accountId == accountId && it.state != "closed" && it.state != "failed" }
+        if (activeRooms >= limit) {
+            return send(ex, 429, error(2004, "room_quota_exceeded", "max rooms $limit"))
         }
         val scope = field(body, "accessScope")
         if (scope != null && scope != "wan") {
@@ -135,7 +186,7 @@ class CloudServer(
         }
         val pageToken = tokens.issue(id, "page", 3600, listOf("play"), pinRequired, now)
         val ingestToken = tokens.issue(id, "ingest", maxDuration.toLong(), listOf("ingest"), false, now)
-        val room = Room(id, now, now + maxDuration * 1000L, pageToken, ingestToken, pinRequired, pin)
+        val room = Room(id, accountId, now, now + maxDuration * 1000L, pageToken, ingestToken, pinRequired, pin)
         rooms[id] = room
         if (idem != null) idempotency[idem] = id
         send(ex, 201, roomJson(room))

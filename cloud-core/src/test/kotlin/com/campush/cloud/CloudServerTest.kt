@@ -132,6 +132,33 @@ class CloudServerTest {
     }
 
     @Test
+    fun accountRegisterLoginAndPlanQuota() {
+        val (_, base) = start()
+        val reg = post(base, "/api/v1/auth/register", """{"email":"a@example.com","password":"secret123","deviceId":"dev-1"}""")
+        assertEquals(201, reg.statusCode())
+        val token = Regex("\"token\":\"([^\"]+)\"").find(reg.body())!!.groupValues[1]
+
+        val dup = post(base, "/api/v1/auth/register", """{"email":"a@example.com","password":"secret123"}""")
+        assertEquals(400, dup.statusCode())
+
+        val bad = post(base, "/api/v1/auth/login", """{"email":"a@example.com","password":"wrong"}""")
+        assertEquals(401, bad.statusCode())
+
+        val login = post(base, "/api/v1/auth/login", """{"email":"a@example.com","password":"secret123","deviceId":"dev-1"}""")
+        assertEquals(200, login.statusCode())
+
+        val info = get(base, "/api/v1/account", mapOf("Authorization" to "Bearer $token"))
+        assertEquals(200, info.statusCode())
+        assertTrue(info.body().contains("\"plan\":\"free\""))
+
+        val first = post(base, "/api/v1/rooms", """{"accessScope":"wan"}""", mapOf("Authorization" to "Bearer $token"))
+        assertEquals(201, first.statusCode())
+        val second = post(base, "/api/v1/rooms", """{"accessScope":"wan"}""", mapOf("Authorization" to "Bearer $token"))
+        assertEquals(429, second.statusCode())
+        assertTrue(second.body().contains("2004"))
+    }
+
+    @Test
     fun telemetryFirstFrameMetrics() {
         val (_, base) = start()
         repeat(3) { i ->
