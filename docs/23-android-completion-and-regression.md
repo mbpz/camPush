@@ -24,7 +24,8 @@
 - WAN/WebRTC 烧录水印：✅ 首版（VideoProcessor I420 叠加 CamPush，待媒体环境 E2E）；
 - 双摄 PiP 合成直播：✅ E2E（本机 ffmpeg RTMP 监听，9.54s/4.1MB/1280×720，分屏合成可见）；
 - 多地址配置 UI：✅ 首版（WAN 房间 WHIP/RTMP/SRT 地址列表、复制、刷新）；
-- App 观众端原生列表：✅ 首版（原生房间列表，点击进 WebView 播放页）；
+- App 观众端原生列表：✅ 首版（原生房间列表）；
+- 原生 WHEP 播放器：✅ 首版（WebRTC 收流；获取播放会话失败时回退 WebView；待 WHEP E2E）；
 - 录制水印：单摄本地 MP4 已带水印（实测）；双摄合成水印待接入。
 
 ### P2（打磨）

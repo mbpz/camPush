@@ -101,14 +101,39 @@ class AudienceListActivity : Activity() {
             setBackgroundColor(Color.rgb(18, 26, 36))
             gravity = Gravity.START
             setOnClickListener {
-                startActivity(
-                    Intent(this@AudienceListActivity, AudienceActivity::class.java)
-                        .putExtra(AudienceActivity.EXTRA_URL, playUrl),
-                )
+                Thread {
+                    val whep = runCatching { fetchWhep(room.optString("roomId"), playUrl) }.getOrNull()
+                    runOnUiThread {
+                        val target = if (whep.isNullOrBlank()) AudienceActivity::class.java else WanPlayerActivity::class.java
+                        val intent = Intent(this@AudienceListActivity, target).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        if (whep.isNullOrBlank()) intent.putExtra(AudienceActivity.EXTRA_URL, playUrl)
+                        else intent.putExtra(WanPlayerActivity.EXTRA_URL, whep)
+                        startActivity(intent)
+                    }
+                }.start()
             }
             val lp = LinearLayout.LayoutParams(-1, -2)
             lp.bottomMargin = 18
             layoutParams = lp
+        }
+    }
+
+    private fun fetchWhep(roomId: String, playUrl: String): String? {
+        val pageToken = Regex("token=([^&]+)").find(playUrl)?.groupValues?.get(1) ?: return null
+        val connection = URL("$apiBase/api/v1/rooms/$roomId/play-session").openConnection() as HttpURLConnection
+        try {
+            connection.requestMethod = "POST"
+            connection.connectTimeout = 5_000
+            connection.readTimeout = 5_000
+            connection.doOutput = true
+            connection.setRequestProperty("Content-Type", "application/json")
+            connection.setRequestProperty("X-Page-Token", pageToken)
+            connection.outputStream.use { it.write("{}".toByteArray()) }
+            if (connection.responseCode !in 200..299) return null
+            val text = connection.inputStream.bufferedReader().use { it.readText() }
+            return JSONObject(text).optJSONObject("protocols")?.optJSONObject("webrtc")?.optString("url")
+        } finally {
+            connection.disconnect()
         }
     }
 
