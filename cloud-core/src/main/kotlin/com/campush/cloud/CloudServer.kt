@@ -46,6 +46,7 @@ class CloudServer(
     private val tokens = Tokens(UUID.randomUUID().toString().replace("-", "").toByteArray())
     private val rooms = ConcurrentHashMap<String, Room>()
     private val accounts = AccountStore()
+    private val reports = java.util.concurrent.CopyOnWriteArrayList<Map<String, String>>()
     private val httpClient = HttpClient.newHttpClient()
     private val idempotency = ConcurrentHashMap<String, String>()
     private val playRates = ConcurrentHashMap<String, ArrayDeque<Long>>()
@@ -104,6 +105,12 @@ class CloudServer(
                 method == "GET" && path == "/api/v1/account/usage" -> accountUsage(ex)
                 method == "GET" && path == "/api/v1/account/byo" -> accountByo(ex)
                 (method == "PUT" || method == "POST") && path == "/api/v1/account/byo" -> updateByo(ex)
+                method == "GET" && path == "/api/v1/compliance/policy" -> compliancePolicy(ex)
+                method == "GET" && path == "/api/v1/compliance/reports" -> listReports(ex)
+                method == "POST" && Regex("^/api/v1/compliance/rooms/[^/]+/suspend$").matches(path) ->
+                    suspendRoom(ex, path.removePrefix("/api/v1/compliance/rooms/").removeSuffix("/suspend"))
+                method == "POST" && Regex("^/api/v1/rooms/[^/]+/report$").matches(path) ->
+                    reportRoom(ex, path.removePrefix("/api/v1/rooms/").removeSuffix("/report"))
                 method == "POST" && path == "/api/v1/rooms" -> createRoom(ex)
                 method == "GET" && Regex("^/api/v1/rooms/[^/]+$").matches(path) -> getRoom(ex, path.removePrefix("/api/v1/rooms/"))
                 method == "GET" && path.endsWith("/addresses") ->
@@ -150,6 +157,45 @@ class CloudServer(
         val id = accountId(ex) ?: return send(ex, 401, error(3001, "token_missing", "account bearer required"))
         val account = accounts.byId(id) ?: return send(ex, 404, error(2001, "not_found", "account not found"))
         send(ex, 200, accountJson(account, null))
+    }
+
+    private fun isAdmin(ex: HttpExchange): Boolean = bearer(ex) == config.adminToken
+
+    private fun compliancePolicy(ex: HttpExchange) {
+        send(ex, 200, """{"reportCategories":["abuse","illegal","privacy","other"],"retentionDays":30,"suspendEffect":"room_closed","mediaStatus":410}""")
+    }
+
+    private fun reportRoom(ex: HttpExchange, roomId: String) {
+        val room = rooms[roomId] ?: return send(ex, 404, error(2001, "not_found", "room not found"))
+        if (room.state == "closed" || room.state == "failed") return send(ex, 410, error(2002, "room_closed", "room closed"))
+        val body = ex.requestBody.bufferedReader().readText()
+        val reason = field(body, "reason")?.takeIf { it in setOf("abuse", "illegal", "privacy", "other") }
+            ?: return send(ex, 400, error(2007, "invalid_argument", "reason invalid"))
+        val report = mapOf(
+            "reportId" to "rep_" + UUID.randomUUID().toString().replace("-", "").take(12),
+            "roomId" to roomId,
+            "reason" to reason,
+            "reporter" to (field(body, "reporter") ?: "anonymous"),
+            "createdAt" to clock().toString(),
+            "status" to "open",
+        )
+        reports += report
+        send(ex, 202, """{"reportId":"${report["reportId"]}","status":"open"}""")
+    }
+
+    private fun listReports(ex: HttpExchange) {
+        if (!isAdmin(ex)) return send(ex, 401, error(3001, "token_missing", "admin token required"))
+        val json = reports.joinToString(",", "[", "]") { report ->
+            report.entries.joinToString(",", "{", "}") { (k, v) -> "\"$k\":\"$v\"" }
+        }
+        send(ex, 200, """{"reports":$json}""")
+    }
+
+    private fun suspendRoom(ex: HttpExchange, roomId: String) {
+        if (!isAdmin(ex)) return send(ex, 401, error(3001, "token_missing", "admin token required"))
+        val room = rooms[roomId] ?: return send(ex, 404, error(2001, "not_found", "room not found"))
+        room.state = "failed"
+        send(ex, 200, """{"roomId":"$roomId","state":"failed","mediaStatus":410}""")
     }
 
     private fun playHostFor(accountId: String): String =

@@ -101,6 +101,14 @@ GET  /api/v1/account/usage (Bearer) -> usedSeconds/monthlyMinutes/roomLimit
 - 支持账号 BYO host 覆盖；关闭房间 `410/2002`；
 - 真实多路媒体会话/每路独立失败隔离仍由接入网关/SRS 承担，本接口为控制面骨架。
 
+## 3.11 T3-S8 合规钩子首版
+
+- `GET /api/v1/compliance/policy`：举报分类、留存策略、封禁效果；
+- `POST /api/v1/rooms/{id}/report`：举报房间（abuse/illegal/privacy/other）；
+- `GET /api/v1/compliance/reports`：管理员查看（Bearer admin token）；
+- `POST /api/v1/compliance/rooms/{id}/suspend`：审核封禁，媒体统一 410；
+- 待补：审核回调/工单系统、举报限流、留存任务。
+
 ## 4. 首版账号 API（已落地）
 
 ```text

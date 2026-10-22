@@ -167,6 +167,24 @@ class CloudServerTest {
     }
 
     @Test
+    fun complianceReportAndSuspend() {
+        val (_, base) = start()
+        val created = post(base, "/api/v1/rooms", """{"accessScope":"wan"}""", mapOf("Authorization" to "Bearer acct_test"))
+        val roomId = Regex("\"roomId\":\"([^\"]+)\"").find(created.body())!!.groupValues[1]
+        val report = post(base, "/api/v1/rooms/$roomId/report", """{"reason":"abuse","reporter":"viewer1"}""")
+        assertEquals(202, report.statusCode())
+        val unauthorized = get(base, "/api/v1/compliance/reports")
+        assertEquals(401, unauthorized.statusCode())
+        val reports = get(base, "/api/v1/compliance/reports", mapOf("Authorization" to "Bearer admin_dev"))
+        assertEquals(200, reports.statusCode())
+        assertTrue(reports.body().contains(roomId))
+        val suspend = post(base, "/api/v1/compliance/rooms/$roomId/suspend", "{}", mapOf("Authorization" to "Bearer admin_dev"))
+        assertEquals(200, suspend.statusCode())
+        val play = post(base, "/api/v1/rooms/$roomId/play-session", "{}", mapOf("X-Page-Token" to "x"))
+        assertEquals(410, play.statusCode())
+    }
+
+    @Test
     fun roomExposesMultiIngestAddresses() {
         val (_, base) = start()
         val created = post(base, "/api/v1/rooms", """{"accessScope":"wan"}""", mapOf("Authorization" to "Bearer acct_test"))

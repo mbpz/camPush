@@ -16,6 +16,7 @@ data class CloudConfig(
     val turnUrls: List<String> = listOf("turn:127.0.0.1:3478?transport=udp"),
     val turnSecret: String = "dev-turn-secret",
     val accountToken: String = "acct_dev",
+    val adminToken: String = "admin_dev",
     val maxViewers: Int = 100,
     val maxRooms: Int = 20,
     val rtmpHost: String = "rtmp://127.0.0.1:1935",
