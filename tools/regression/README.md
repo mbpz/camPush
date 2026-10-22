@@ -6,6 +6,12 @@ tools/regression/run-android-smoke.sh
 ```
 覆盖：lan-core/cloud-core 单测、APK 构建、文档门禁、模拟器启动、主界面「开始推流」可见。
 
+## LAN 推流 E2E
+```bash
+python3 tools/regression/lan_e2e.py
+```
+覆盖：安装/授权、开始推流、读取 FLV（2MB）、停止推流；实测通过 `LAN E2E OK: start/FLV/stop`。
+
 ## 手工/环境矩阵
 
 | 场景 | 步骤 | 期望 |

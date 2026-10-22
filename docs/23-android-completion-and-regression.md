@@ -38,7 +38,7 @@
 |---|---|---|
 | 单元/契约 | lan-core、cloud-core、redactor、player selftest | Gradle、node selftest |
 | 构建 | debug/release APK、CI | GitHub Actions |
-| 模拟器回归 | 启动、LAN 推流、录制、WAN 创建/停止、观众端 | adb + uiautomator 脚本 |
+| 模拟器回归 | ✅ 启动；✅ LAN 推流/FLV/停止（`tools/regression/lan_e2e.py`）；录制/WAN/观众端待脚本化 | adb + uiautomator |
 | 媒体回归 | WHIP/WHEP 首帧、FLV/HLS、TURN relay、停止 410 | SRS/coturn 环境 |
 | 真机矩阵 | Android 8–15、前后摄、后台/锁屏、弱网 | 真机/云真机 |
 | 性能 | 首帧、fps、码率、CPU/温度、30min 稳定 | 指标看板/日志 |
