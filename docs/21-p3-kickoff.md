@@ -68,6 +68,13 @@ GET  /api/v1/account/usage (Bearer) -> usedSeconds/monthlyMinutes/roomLimit
 - 复用 `/api/v1/auth/*`、`/account`、`/account/plan`、`/account/usage`；
 - 支付链路未接（额度演示）；待补 T3-W2 购买/对账。
 
+## 3.6 T3-S3 BYO 服务端首版
+
+- `GET/PUT /api/v1/account/byo`：账号自定义 `whipHost/playHost/rtmpHost`；
+- 房间创建优先使用账号 BYO host（playUrl/whipUrl/rtmpUrl），否则回落托管配置；
+- 校验 http(s)/rtmp；`mode=managed|byo`；
+- 待补：T3-A4 App BYO 配置/连通性测试、回源校验、能力降级提示。
+
 ## 4. 首版账号 API（已落地）
 
 ```text

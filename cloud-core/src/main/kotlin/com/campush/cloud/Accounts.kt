@@ -15,6 +15,9 @@ internal class AccountStore {
         var plan: String = "free",
         val devices: MutableSet<String> = mutableSetOf(),
         var usedSeconds: Long = 0L,
+        var byoWhipHost: String = "",
+        var byoPlayHost: String = "",
+        var byoRtmpHost: String = "",
         val createdAt: Long = System.currentTimeMillis(),
     )
 
@@ -69,6 +72,14 @@ internal class AccountStore {
         "pro" -> 1_000
         "proplus" -> 5_000
         else -> 60
+    }
+
+    fun updateByo(accountId: String, whipHost: String, playHost: String, rtmpHost: String): Account? {
+        val account = byId[accountId] ?: return null
+        account.byoWhipHost = whipHost.trim().trimEnd('/')
+        account.byoPlayHost = playHost.trim().trimEnd('/')
+        account.byoRtmpHost = rtmpHost.trim().trimEnd('/')
+        return account
     }
 
     fun setPlan(accountId: String, plan: String): Account? {

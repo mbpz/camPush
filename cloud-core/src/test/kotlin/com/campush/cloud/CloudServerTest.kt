@@ -35,6 +35,14 @@ class CloudServerTest {
         return http.send(builder.build(), HttpResponse.BodyHandlers.ofString())
     }
 
+    private fun put(base: String, path: String, body: String, headers: Map<String, String> = emptyMap()): HttpResponse<String> {
+        val builder = HttpRequest.newBuilder(URI.create(base + path))
+            .header("Content-Type", "application/json")
+            .PUT(HttpRequest.BodyPublishers.ofString(body))
+        headers.forEach { (k, v) -> builder.header(k, v) }
+        return http.send(builder.build(), HttpResponse.BodyHandlers.ofString())
+    }
+
     private fun get(base: String, path: String, headers: Map<String, String> = emptyMap()): HttpResponse<String> {
         val builder = HttpRequest.newBuilder(URI.create(base + path)).GET()
         headers.forEach { (k, v) -> builder.header(k, v) }
@@ -156,6 +164,24 @@ class CloudServerTest {
         val second = post(base, "/api/v1/rooms", """{"accessScope":"wan"}""", mapOf("Authorization" to "Bearer $token"))
         assertEquals(429, second.statusCode())
         assertTrue(second.body().contains("2004"))
+    }
+
+    @Test
+    fun byoHostsOverrideRoomUrls() {
+        val (_, base) = start()
+        val reg = post(base, "/api/v1/auth/register", """{"email":"byo@example.com","password":"secret123"}""")
+        val token = Regex("\"token\":\"([^\"]+)\"").find(reg.body())!!.groupValues[1]
+        val auth = mapOf("Authorization" to "Bearer $token")
+        val bad = put(base, "/api/v1/account/byo", """{"whipHost":"ftp://bad","playHost":"http://p.example.com","rtmpHost":"rtmp://r.example.com/live"}""", auth)
+        assertEquals(400, bad.statusCode())
+        val ok = put(base, "/api/v1/account/byo", """{"whipHost":"http://w.example.com","playHost":"http://p.example.com","rtmpHost":"rtmp://r.example.com/live"}""", auth)
+        assertEquals(200, ok.statusCode())
+        assertTrue(ok.body().contains("\"mode\":\"byo\""))
+        val room = post(base, "/api/v1/rooms", """{"accessScope":"wan"}""", auth)
+        assertEquals(201, room.statusCode())
+        assertTrue(room.body().contains("http://p.example.com/s/"))
+        assertTrue(room.body().contains("http://w.example.com:1985/rtc/v1/whip/"))
+        assertTrue(room.body().contains("rtmp://r.example.com/live/live/"))
     }
 
     @Test

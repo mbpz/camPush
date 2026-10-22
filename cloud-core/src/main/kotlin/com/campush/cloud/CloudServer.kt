@@ -102,6 +102,8 @@ class CloudServer(
                 method == "GET" && path == "/api/v1/account" -> accountInfo(ex)
                 method == "POST" && path == "/api/v1/account/plan" -> updatePlan(ex)
                 method == "GET" && path == "/api/v1/account/usage" -> accountUsage(ex)
+                method == "GET" && path == "/api/v1/account/byo" -> accountByo(ex)
+                (method == "PUT" || method == "POST") && path == "/api/v1/account/byo" -> updateByo(ex)
                 method == "POST" && path == "/api/v1/rooms" -> createRoom(ex)
                 method == "GET" && Regex("^/api/v1/rooms/[^/]+$").matches(path) -> getRoom(ex, path.removePrefix("/api/v1/rooms/"))
                 method == "DELETE" && Regex("^/api/v1/rooms/[^/]+$").matches(path) -> deleteRoom(ex, path.removePrefix("/api/v1/rooms/"))
@@ -148,6 +150,38 @@ class CloudServer(
         send(ex, 200, accountJson(account, null))
     }
 
+    private fun playHostFor(accountId: String): String =
+        accounts.byId(accountId)?.byoPlayHost?.takeIf { it.isNotBlank() } ?: config.playHost
+
+    private fun accountByo(ex: HttpExchange) {
+        val id = accountId(ex) ?: return send(ex, 401, error(3001, "token_missing", "account bearer required"))
+        val account = accounts.byId(id) ?: return send(ex, 404, error(2001, "not_found", "account not found"))
+        send(ex, 200, byoJson(account))
+    }
+
+    private fun updateByo(ex: HttpExchange) {
+        val id = accountId(ex) ?: return send(ex, 401, error(3001, "token_missing", "account bearer required"))
+        val account = accounts.byId(id) ?: return send(ex, 404, error(2001, "not_found", "account not found"))
+        val body = ex.requestBody.bufferedReader().readText()
+        val whip = field(body, "whipHost") ?: account.byoWhipHost
+        val play = field(body, "playHost") ?: account.byoPlayHost
+        val rtmp = field(body, "rtmpHost") ?: account.byoRtmpHost
+        if (whip.isNotBlank() && !Regex("^https?://").containsMatchIn(whip)) {
+            return send(ex, 400, error(2007, "invalid_argument", "whipHost must be http(s)"))
+        }
+        if (play.isNotBlank() && !Regex("^https?://").containsMatchIn(play)) {
+            return send(ex, 400, error(2007, "invalid_argument", "playHost must be http(s)"))
+        }
+        if (rtmp.isNotBlank() && !rtmp.startsWith("rtmp://")) {
+            return send(ex, 400, error(2007, "invalid_argument", "rtmpHost must be rtmp://"))
+        }
+        accounts.updateByo(id, whip, play, rtmp)
+        send(ex, 200, byoJson(accounts.byId(id)!!))
+    }
+
+    private fun byoJson(account: AccountStore.Account): String =
+        """{"whipHost":"${account.byoWhipHost}","playHost":"${account.byoPlayHost}","rtmpHost":"${account.byoRtmpHost}","mode":"${if (account.byoWhipHost.isNotBlank() || account.byoPlayHost.isNotBlank() || account.byoRtmpHost.isNotBlank()) "byo" else "managed"}"}"""
+
     private fun updatePlan(ex: HttpExchange) {
         val id = accountId(ex) ?: return send(ex, 401, error(3001, "token_missing", "account bearer required"))
         val body = ex.requestBody.bufferedReader().readText()
@@ -181,7 +215,8 @@ class CloudServer(
             .filter { it.state != "closed" && it.state != "failed" }
             .sortedByDescending { it.createdAt }
             .map { room ->
-                """{"roomId":"${room.id}","state":"${room.state}","viewers":${room.viewers},"pinRequired":${room.pinRequired},"createdAt":${room.createdAt},"playUrl":"${config.playHost}/s/${room.id}?token=${room.pageToken}"}"""
+                val playHost = playHostFor(room.accountId)
+                """{"roomId":"${room.id}","state":"${room.state}","viewers":${room.viewers},"pinRequired":${room.pinRequired},"createdAt":${room.createdAt},"playUrl":"$playHost/s/${room.id}?token=${room.pageToken}"}"""
             }
         send(ex, 200, """{"rooms":[${publicRooms.joinToString(",")}]}""")
     }
@@ -396,9 +431,13 @@ class CloudServer(
     }
 
     private fun roomJson(room: Room): String {
+        val account = accounts.byId(room.accountId)
+        val whipHost = account?.byoWhipHost?.takeIf { it.isNotBlank() } ?: config.whipHost
+        val playHost = playHostFor(room.accountId)
+        val rtmpHost = account?.byoRtmpHost?.takeIf { it.isNotBlank() } ?: config.rtmpHost
         val turnUser = "${(clock() + 3600_000) / 1000}:${room.id}"
         val credential = Tokens.turnCredential(config.turnSecret, turnUser)
-        return """{"roomId":"${room.id}","state":"${room.state}","createdAt":"${Instant.ofEpochMilli(room.createdAt)}","expireAt":"${Instant.ofEpochMilli(room.expireAt)}","playUrl":"${config.playHost}/s/${room.id}?token=${room.pageToken}","ingest":{"protocol":"whip","whipUrl":"${config.whipHost}:${config.whipApiPort}/rtc/v1/whip/?app=live&stream=${room.id}","rtmpUrl":"rtmp://localhost:1935/live/${room.id}","srtUrl":"srt://localhost:10080?streamid=#!::r=${room.id}","token":"${room.ingestToken}"},"turn":{"urls":${config.turnUrls.joinToString(",", "[", "]") { "\"$it\"" }},"username":"$turnUser","credential":"$credential"},"limits":{"maxViewers":${config.maxViewers},"maxDurationSec":${config.maxDurationSec}}}"""
+        return """{"roomId":"${room.id}","state":"${room.state}","createdAt":"${Instant.ofEpochMilli(room.createdAt)}","expireAt":"${Instant.ofEpochMilli(room.expireAt)}","playUrl":"$playHost/s/${room.id}?token=${room.pageToken}","ingest":{"protocol":"whip","whipUrl":"$whipHost:${config.whipApiPort}/rtc/v1/whip/?app=live&stream=${room.id}","rtmpUrl":"$rtmpHost/live/${room.id}","srtUrl":"srt://localhost:10080?streamid=#!::r=${room.id}","token":"${room.ingestToken}"},"turn":{"urls":${config.turnUrls.joinToString(",", "[", "]") { "\"$it\"" }},"username":"$turnUser","credential":"$credential"},"limits":{"maxViewers":${config.maxViewers},"maxDurationSec":${config.maxDurationSec}}}"""
     }
 
     /**
