@@ -17,6 +17,7 @@ import com.campush.app.streaming.EnginePhase
 import com.campush.app.streaming.EngineSnapshot
 import com.campush.app.streaming.StreamStartOptions
 import com.campush.app.streaming.StreamingBridge
+import com.campush.app.network.AccountClient
 import com.campush.app.streaming.wan.WanRoomClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -28,6 +29,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * P1 UI 控制器实现：把 UI 操作映射到前台服务 + LAN 推流引擎，并汇总 StateFlow<P1UiState>。
@@ -50,6 +52,8 @@ class P1ControllerImpl(context: Context) : P1Controller {
     private val _state = MutableStateFlow(restoreState())
     override val previewJpeg = StreamingBridge.previewJpeg
     private val wanClient = WanRoomClient(appContext)
+    private val accountClient = AccountClient()
+    private var accountToken: String = prefs.getString(KEY_ACCOUNT_TOKEN, "") ?: ""
     private val _wanTest = MutableStateFlow(WanTestUi())
     override val wanTest: StateFlow<WanTestUi> = _wanTest.asStateFlow()
     override val state: StateFlow<P1UiState> = _state.asStateFlow()
@@ -62,6 +66,7 @@ class P1ControllerImpl(context: Context) : P1Controller {
         observeNetworkLabel()
         startLogServiceLoop()
         probeCameraCapabilities()
+        wanClient.setAccountToken(accountToken)
         scope.launch {
             wanClient.state.collect { st ->
                 _wanTest.value = WanTestUi(st.running, st.status, st.roomId, st.playUrl, st.error)
@@ -334,6 +339,59 @@ class P1ControllerImpl(context: Context) : P1Controller {
             )
         }
         prefs.edit().putString(KEY_CLOUD_API, normalized).apply()
+    }
+
+    override fun login(email: String, password: String, register: Boolean) {
+        if (_state.value.accountBusy) return
+        val api = _state.value.cloudApiHost.trim()
+        if (api.isEmpty()) {
+            _state.update { it.copy(warning = "请先填写 Cloud API 地址") }
+            return
+        }
+        _state.update { it.copy(accountBusy = true, error = null) }
+        scope.launch {
+            try {
+                val session = withContext(Dispatchers.IO) {
+                    accountClient.login(api, email.trim(), password, register)
+                }
+                accountToken = session.token
+                prefs.edit()
+                    .putString(KEY_ACCOUNT_TOKEN, session.token)
+                    .putString(KEY_ACCOUNT_EMAIL, session.email)
+                    .putString(KEY_ACCOUNT_PLAN, session.plan)
+                    .apply()
+                wanClient.setAccountToken(session.token)
+                _state.update {
+                    it.copy(
+                        accountBusy = false,
+                        accountLoggedIn = true,
+                        accountEmail = session.email,
+                        accountPlan = session.plan,
+                        warning = "账号已登录：${session.email}（${session.plan}）",
+                    )
+                }
+            } catch (t: Throwable) {
+                _state.update {
+                    it.copy(
+                        accountBusy = false,
+                        error = P1Error(3010, "账号登录失败", t.message ?: "请检查 Cloud API/邮箱/密码"),
+                    )
+                }
+            }
+        }
+    }
+
+    override fun logout() {
+        accountToken = ""
+        prefs.edit()
+            .remove(KEY_ACCOUNT_TOKEN)
+            .remove(KEY_ACCOUNT_EMAIL)
+            .remove(KEY_ACCOUNT_PLAN)
+            .apply()
+        wanClient.setAccountToken(null)
+        _state.update {
+            it.copy(accountLoggedIn = false, accountEmail = null, accountPlan = null, accountBusy = false)
+        }
     }
 
     override fun updateSettings(settings: StreamSettingsUi) {
@@ -620,6 +678,9 @@ class P1ControllerImpl(context: Context) : P1Controller {
             accessScope = AccessScopeUi.LAN,
             wanLocked = cloudApi.isBlank(),
             cloudApiHost = cloudApi,
+            accountEmail = prefs.getString(KEY_ACCOUNT_EMAIL, null),
+            accountPlan = prefs.getString(KEY_ACCOUNT_PLAN, null),
+            accountLoggedIn = accountToken.isNotBlank(),
             settings = settings,
             cameraFacing = facing,
             cameraMode = if (facing == CameraFacingUi.FRONT) CameraModeUi.SINGLE_FRONT
@@ -660,6 +721,9 @@ class P1ControllerImpl(context: Context) : P1Controller {
         const val KEY_ADAPTIVE_BITRATE = "settings_adaptive_bitrate"
         const val KEY_RTMP_URL = "settings_rtmp_url"
         const val KEY_CLOUD_API = "settings_cloud_api"
+        const val KEY_ACCOUNT_TOKEN = "account_token"
+        const val KEY_ACCOUNT_EMAIL = "account_email"
+        const val KEY_ACCOUNT_PLAN = "account_plan"
         const val KEY_FACING = "camera_facing"
         const val KEY_MUTED = "muted"
         const val KEY_PORT = "lan_port"

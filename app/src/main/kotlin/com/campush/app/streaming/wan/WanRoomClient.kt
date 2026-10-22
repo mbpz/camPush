@@ -21,8 +21,13 @@ import java.net.URL
  */
 class WanRoomClient(
     context: Context,
-    private val accountToken: String = "acct_dev",
+    accountToken: String = "acct_dev",
 ) {
+    private var accountToken: String = accountToken
+
+    fun setAccountToken(token: String?) {
+        accountToken = token?.takeIf { it.isNotBlank() } ?: "acct_dev"
+    }
     data class State(
         val running: Boolean = false,
         val status: String = "idle",

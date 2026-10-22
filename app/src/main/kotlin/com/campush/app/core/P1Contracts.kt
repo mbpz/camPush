@@ -43,6 +43,11 @@ data class P1UiState(
     val wanLocked: Boolean = true,
     /** P2 WAN Cloud API 地址（设置页配置，主界面 WAN 模式使用）。 */
     val cloudApiHost: String = "",
+    /** P3 账号会话（token 仅持久化，不在 UI 暴露）。 */
+    val accountEmail: String? = null,
+    val accountPlan: String? = null,
+    val accountLoggedIn: Boolean = false,
+    val accountBusy: Boolean = false,
     val streaming: Boolean = false,
     val starting: Boolean = false,
     val cameraFacing: CameraFacingUi = CameraFacingUi.BACK,
@@ -97,6 +102,8 @@ interface P1Controller {
     fun setMuted(muted: Boolean)
     fun selectAccessScope(scope: AccessScopeUi)
     fun setCloudApiHost(host: String)
+    fun login(email: String, password: String, register: Boolean)
+    fun logout()
     fun updateSettings(settings: StreamSettingsUi)
     fun setPin(required: Boolean, pin: String?)
     fun setPort(port: Int)
