@@ -159,6 +159,20 @@ class CloudServerTest {
     }
 
     @Test
+    fun audienceRoomListAndPage() {
+        val (_, base) = start()
+        val created = post(base, "/api/v1/rooms", """{"accessScope":"wan"}""", mapOf("Authorization" to "Bearer acct_test"))
+        val roomId = Regex("\"roomId\":\"([^\"]+)\"").find(created.body())!!.groupValues[1]
+        val list = get(base, "/api/v1/rooms")
+        assertEquals(200, list.statusCode())
+        assertTrue(list.body().contains(roomId))
+        assertTrue(list.body().contains("playUrl"))
+        val page = get(base, "/rooms")
+        assertEquals(200, page.statusCode())
+        assertTrue(page.body().contains("CamPush 观众端"))
+    }
+
+    @Test
     fun planUpgradeAndUsage() {
         val (_, base) = start()
         val reg = post(base, "/api/v1/auth/register", """{"email":"b@example.com","password":"secret123"}""")

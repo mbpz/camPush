@@ -19,7 +19,7 @@
 | 1 | T3-S1 | 账号注册/登录/设备绑定/账号 token/额度骨架 | ✅ 首版（cloud-core 15/15） |
 | 2 | T3-S2 | 套餐/额度/计费（free/pro/proplus、房间分钟数、2004） | ✅ 首版（cloud-core 16/16） |
 | 3 | T3-A3 | App 登录/注册/套餐展示；账号 token 用于 WAN 房间 | ⚠️ 部分（无购买跳转） |
-| 4 | T3-W1/T3-S5 | 观众端 Web + 房间列表/进入权限 API | 待做 |
+| 4 | T3-W1/T3-S5 | 观众端 Web + 房间列表/进入权限 API | ✅ 首版（公开列表/播放页复用） |
 | 5 | T3-S3/T3-A4 | BYO 自定义地址/连通性测试 | 待做 |
 | 6 | T3-A1/T3-A2 | 双路独立/高级合成（受 D-3 实验性约束） | 待做 |
 | 7 | T3-A5 | 日志导出与脱敏 | 待做 |
@@ -47,6 +47,12 @@ GET  /api/v1/account/usage (Bearer) -> usedSeconds/monthlyMinutes/roomLimit
 - 设置页「账号」：邮箱/密码、登录/注册、退出、套餐展示；
 - 账号 token 持久化；WAN 房间创建使用账号 token（free/pro 额度生效）；
 - 待补：购买跳转、套餐页 T3-W2、额度不足引导动画。
+
+## 3.3 T3-W1/T3-S5 观众端首版
+
+- `GET /api/v1/rooms`：公开房间列表（roomId/state/viewers/pinRequired/playUrl），过滤 closed/failed；
+- `GET /rooms`：观众端 Web 列表页，5s 轮询，点击进入复用 `/s/{room}` 播放页；
+- 待补：进入权限/观看限制、账号登录、列表分页/搜索、App 观众端 T3-A7。
 
 ## 4. 首版账号 API（已落地）
 

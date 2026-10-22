@@ -80,6 +80,8 @@ class CloudServer(
             val method = ex.requestMethod
             when {
                 method == "GET" && path == "/healthz" -> send(ex, 200, """{"ok":true}""")
+                method == "GET" && path == "/rooms" -> staticAsset(ex, "audience.html", "text/html; charset=utf-8")
+                method == "GET" && path == "/api/v1/rooms" -> listRooms(ex)
                 method == "OPTIONS" -> corsOptions(ex)
                 method == "GET" && path == "/assets/hls.min.js" -> staticAsset(ex, "hls.min.js", "application/javascript; charset=utf-8")
                 method == "GET" && path == "/assets/mpegts.min.js" -> staticAsset(ex, "mpegts.min.js", "application/javascript; charset=utf-8")
@@ -170,6 +172,17 @@ class CloudServer(
     private fun accountJson(account: AccountStore.Account, token: String?): String {
         val tokenPart = if (token == null) "" else ",\"token\":\"$token\""
         return """{"accountId":"${account.id}","email":"${account.email}","plan":"${account.plan}","devices":${account.devices.size},"roomLimit":${accounts.roomLimit(account.plan)},"usedSeconds":${account.usedSeconds},"monthlyMinutes":${accounts.monthlyMinutes(account.plan)}$tokenPart}"""
+    }
+
+    /** T3-S5：公开房间列表（观众端）。 */
+    private fun listRooms(ex: HttpExchange) {
+        val publicRooms = rooms.values
+            .filter { it.state != "closed" && it.state != "failed" }
+            .sortedByDescending { it.createdAt }
+            .map { room ->
+                """{"roomId":"${room.id}","state":"${room.state}","viewers":${room.viewers},"pinRequired":${room.pinRequired},"createdAt":${room.createdAt},"playUrl":"${config.playHost}/s/${room.id}?token=${room.pageToken}"}"""
+            }
+        send(ex, 200, """{"rooms":[${publicRooms.joinToString(",")}]}""")
     }
 
     private fun createRoom(ex: HttpExchange) {
